@@ -58,6 +58,12 @@ def test_ik_changes_only_scratch_state_and_bounds_targets(robot):
     for name in controller.names:
         assert abs(action[name] - before_ctrl[robot.model.actuator(name).id]) <= robot.dt + 1e-9
     assert abs(action["Lift"] - before_ctrl[robot.model.actuator("Lift").id]) <= 0.08 * robot.dt
+    prediction = controller.predict(controller.position(), check_path=False)
+    clearance, normal = controller.tower_clearance(prediction, 0)
+    assert np.isfinite(clearance)
+    assert np.linalg.norm(normal) == pytest.approx(1)
+    np.testing.assert_array_equal(robot.data.qpos, before_qpos)
+    np.testing.assert_array_equal(robot.data.ctrl, before_ctrl)
 
 
 @pytest.mark.mabel
@@ -66,7 +72,13 @@ def test_force_limit_stops_on_real_hand_contact(robot, tmp_path, product_name):
     script = StockingScript(
         robot,
         tmp_path,
-        ScriptConfig(max_force=0.5, grasp_force_target=0.25, push_force_target=0.25),
+        ScriptConfig(
+            max_force=0.5,
+            grasp_force_target=0.25,
+            push_force_target=0.25,
+            approach_force_target=0.25,
+            fixture_force_target=0.25,
+        ),
     )
     # Initial-condition fixture only: deliberately penetrate the hand to exercise
     # the force guard. No live rollout succeeds from this invalid arrangement.
@@ -78,6 +90,30 @@ def test_force_limit_stops_on_real_hand_contact(robot, tmp_path, product_name):
         robot.step(on_physics_step=script._sample)
     assert len(script.rows) > 0
     assert script.last_forces["hand" if product_name == "carton_0" else "other_product"] > 0.5
+
+
+@pytest.mark.mabel
+def test_force_guard_includes_non_grasp_links_on_active_carton(robot, tmp_path):
+    script = StockingScript(
+        robot,
+        tmp_path,
+        ScriptConfig(
+            max_force=0.5,
+            grasp_force_target=0.25,
+            push_force_target=0.25,
+            approach_force_target=0.25,
+            fixture_force_target=0.25,
+        ),
+    )
+    # Invalid initial-contact fixture only, never a successful manipulation.
+    adr = int(robot.model.joint("carton_0_joint").qposadr[0])
+    robot.data.qpos[adr : adr + 3] = robot.data.body("left_tower").xpos
+    mujoco.mj_forward(robot.model, robot.data)
+    with pytest.raises(InteractionFailure, match="contact force"):
+        robot.step(on_physics_step=script._sample)
+    force = script.last_forces
+    assert force["arm_product"] > 0.5
+    assert force["robot_product"] == pytest.approx(force["hand"] + force["arm_product"])
 
 
 @pytest.mark.mabel
