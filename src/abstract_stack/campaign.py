@@ -67,7 +67,7 @@ def run_campaign(
     episode_timeout=None,
     legacy_contact_control=False,
     guarded_approach=False,
-    fixture_avoidance=False,
+    fixture_avoidance=True,
 ):
     from abstract_stack.tuning import load_control_config
 
@@ -138,8 +138,7 @@ def run_campaign(
             command += ["--legacy-contact-control"]
         if guarded_approach:
             command += ["--guarded-approach"]
-        if fixture_avoidance:
-            command += ["--fixture-avoidance"]
+        command += ["--fixture-avoidance" if fixture_avoidance else "--no-fixture-avoidance"]
         command += ["--control-config", str(controls_path.resolve())]
         manifest["active_run"] = {"seed": seed, "directory": str(episode)}
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

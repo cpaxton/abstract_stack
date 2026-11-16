@@ -41,7 +41,7 @@ def _parser():
     batch.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
     batch.add_argument("--legacy-contact-control", action="store_true")
     batch.add_argument("--guarded-approach", action="store_true")
-    batch.add_argument("--fixture-avoidance", action="store_true")
+    batch.add_argument("--fixture-avoidance", action=argparse.BooleanOptionalAction, default=True)
     batch.add_argument(
         "--episode-timeout",
         type=float,
@@ -89,8 +89,9 @@ def _parser():
             )
             sub.add_argument(
                 "--fixture-avoidance",
-                action="store_true",
-                help="Experimental wrist-board clearance and fixture-force feedback",
+                action=argparse.BooleanOptionalAction,
+                default=True,
+                help="Wrist-board clearance/force feedback (--no-fixture-avoidance for ablations)",
             )
             selection.add_argument(
                 "--random-scene", action="store_true", help="Generate the scene from --seed"

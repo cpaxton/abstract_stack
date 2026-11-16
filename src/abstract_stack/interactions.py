@@ -58,7 +58,7 @@ class ScriptConfig:
     head_tracking: bool = True
     contact_aware: bool = True
     guarded_approach: bool = False
-    fixture_avoidance: bool = False
+    fixture_avoidance: bool = True
     approach_force_target: float = 15.0
     release_lateral_limit: float = 0.04
     contact_grasp_seconds: float = 8.0
