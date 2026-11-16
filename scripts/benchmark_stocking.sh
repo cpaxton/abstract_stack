@@ -19,6 +19,7 @@ run_campaign() {
   fi
 }
 run_campaign --seeds 0 1 2 3 4 5 6 7 8 9 --objects 2 --legacy-contact-control \
+  --no-thumb-preshape \
   --output-dir "$BENCH_ROOT/baseline"
 "$PYTHON" -m abstract_stack.cli tune --seeds 100 101 --objects 2 --rounds 1 \
   --output-dir "$BENCH_ROOT/search"

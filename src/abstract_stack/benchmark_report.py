@@ -109,7 +109,8 @@ def campaign_report(path):
         or (campaign.get("policy_source") or {}).get("revision"),
         "policy_source": campaign.get("policy_source"),
         "program_switches": {
-            k: campaign.get(k) for k in ("contact_aware", "guarded_approach", "fixture_avoidance")
+            k: campaign.get(k)
+            for k in ("contact_aware", "guarded_approach", "fixture_avoidance", "thumb_preshape")
         },
         "control_program": campaign.get("control_program"),
         "controllers": controllers,
