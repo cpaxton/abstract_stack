@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -22,7 +24,24 @@ def summarize_run(directory, returncode, *, video):
     process_failure = directory / "process_failure.json"
     if process_failure.exists():
         result["process_failure"] = json.loads(process_failure.read_text())
+    if returncode < 0:
+        try:
+            name = signal.Signals(-returncode).name
+        except ValueError:
+            name = str(-returncode)
+        result["process_failure"] = {
+            **result.get("process_failure", {}),
+            "kind": "native_signal",
+            "signal": name,
+            "returncode": returncode,
+        }
     if not summary_path.exists():
+        if "process_failure" not in result:
+            result["process_failure"] = {
+                "kind": "missing_terminal_summary",
+                "returncode": returncode,
+                "verification_status": "unknown",
+            }
         result["failure"] = "Process ended without a terminal summary; inspect run.log"
         return result
     try:
@@ -69,6 +88,7 @@ def run_campaign(
     guarded_approach=False,
     fixture_avoidance=True,
 ):
+    from abstract_stack.provenance import policy_provenance
     from abstract_stack.tuning import load_control_config
 
     controls = load_control_config(control_config)
@@ -89,6 +109,7 @@ def run_campaign(
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
     manifest = {
+        "policy_source": policy_provenance(),
         "format_version": 1,
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "seeds": list(seeds),
@@ -145,7 +166,11 @@ def run_campaign(
         with (episode / "run.log").open("w") as log:
             try:
                 process = subprocess.run(
-                    command, stdout=log, stderr=subprocess.STDOUT, timeout=episode_timeout
+                    command,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=episode_timeout,
+                    env=dict(os.environ, PYTHONFAULTHANDLER="1"),
                 )
                 returncode = process.returncode
             except subprocess.TimeoutExpired:
@@ -157,6 +182,10 @@ def run_campaign(
                 }
                 (episode / "process_failure.json").write_text(json.dumps(failure, indent=2) + "\n")
         result = summarize_run(episode, returncode, video=video)
+        if result.get("process_failure") and not (episode / "process_failure.json").exists():
+            (episode / "process_failure.json").write_text(
+                json.dumps(result["process_failure"], indent=2) + "\n"
+            )
         result["seed"] = seed
         manifest["runs"].append(result)
         print(json.dumps(result), flush=True)

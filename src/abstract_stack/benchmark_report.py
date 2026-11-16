@@ -58,13 +58,9 @@ def campaign_report(path):
                 "directory": run["directory"],
             }
         )
-        if run["artifacts_valid"]:
-            summary = json.loads((Path(run["directory"]) / "summary.json").read_text())
-            if summary["controller"] not in controllers:
-                controllers.append(summary["controller"])
-            bundle = json.loads(
-                (Path(run["directory"]) / "initial-scene/manifest.json").read_text()
-            )
+        bundle_path = Path(run["directory"]) / "initial-scene/manifest.json"
+        if bundle_path.exists():
+            bundle = json.loads(bundle_path.read_text())
             source = bundle.get("robot_source") or {}
             provenance = {
                 "robot": bundle["robot"],
@@ -83,6 +79,20 @@ def campaign_report(path):
             rows[-1]["initial_conditions_sha256"] = hashlib.sha256(
                 json.dumps(initial, sort_keys=True).encode()
             ).hexdigest()
+        rollout_start = Path(run["directory"]) / "rollout_start.npz"
+        if rollout_start.exists():
+            try:
+                with np.load(rollout_start) as state:
+                    if "state" in state and "state_spec" in state:
+                        payload = str(int(state["state_spec"])).encode() + b"\0"
+                        payload += state["state"].tobytes()
+                        rows[-1]["settled_state_sha256"] = hashlib.sha256(payload).hexdigest()
+            except (OSError, ValueError) as error:
+                rows[-1]["start_state_error"] = str(error)
+        if run["artifacts_valid"]:
+            summary = json.loads((Path(run["directory"]) / "summary.json").read_text())
+            if summary["controller"] not in controllers:
+                controllers.append(summary["controller"])
             with np.load(Path(run["directory"]) / "trace.npz") as trace:
                 samples = trace["samples"]
                 if len(samples) > 1:
@@ -95,6 +105,13 @@ def campaign_report(path):
     radius = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
     return {
         "campaign": str(path),
+        "policy_revision": campaign.get("policy_revision")
+        or (campaign.get("policy_source") or {}).get("revision"),
+        "policy_source": campaign.get("policy_source"),
+        "program_switches": {
+            k: campaign.get(k) for k in ("contact_aware", "guarded_approach", "fixture_avoidance")
+        },
+        "control_program": campaign.get("control_program"),
         "controllers": controllers,
         "provenance": provenance,
         "control_overrides": campaign.get("control_overrides", {}),
@@ -104,6 +121,7 @@ def campaign_report(path):
         "scheduled_objects": scheduled,
         "clean_successes": clean,
         "physical_successes": physical,
+        "unknown_scenes": sum(r["verification_status"] == "unknown" for r in rows) + n - len(rows),
         "no_knockover_scenes": no_knock,
         "success_rate": clean / n,
         "wilson_95_interval": [center - radius, center + radius],
@@ -140,10 +158,23 @@ def write_comparison(baseline, tuned, output, *, search=None):
         raise ValueError("Paired comparison requires the same ordered scene seeds")
     if before["scheduled_objects"] != after["scheduled_objects"]:
         raise ValueError("Paired comparison requires the same product count")
+    unverified_pairs = []
+    unverified_settled_pairs = []
     for b, a in zip(before["runs"], after["runs"], strict=True):
-        if b.get("initial_conditions_sha256") != a.get("initial_conditions_sha256"):
+        if not b.get("initial_conditions_sha256") or not a.get("initial_conditions_sha256"):
+            unverified_pairs.append(b["seed"])
+        elif b["initial_conditions_sha256"] != a["initial_conditions_sha256"]:
             raise ValueError(f"Seed {b['seed']} has different scene/model/initial conditions")
-    result = {"baseline": before, "tuned": after}
+        if not b.get("settled_state_sha256") or not a.get("settled_state_sha256"):
+            unverified_settled_pairs.append(b["seed"])
+        elif b["settled_state_sha256"] != a["settled_state_sha256"]:
+            raise ValueError(f"Seed {b['seed']} has different settled integration state")
+    result = {
+        "baseline": before,
+        "tuned": after,
+        "unverified_initial_condition_pairs": unverified_pairs,
+        "unverified_settled_state_pairs": unverified_settled_pairs,
+    }
     if search is not None:
         result["search"] = json.loads(Path(search).read_text())
         audit = Path(search).with_name("search-audit.json")
@@ -159,12 +190,13 @@ def write_comparison(baseline, tuned, output, *, search=None):
         f"{before['scheduled_objects'] // before['scheduled_scenes']} cartons per scene. "
         "No RL, live pose writes, attachments, external object forces or interventions.",
         "",
-        "| Metric | Baseline | Hill-climbed |",
+        "| Metric | Baseline | Selected controller |",
         "|---|---:|---:|",
     ]
     for label, key, denominator in [
         ("Complete scenes, all stages, no knock-overs", "clean_successes", "scheduled_scenes"),
         ("Geometric full-shelf success", "physical_successes", "scheduled_scenes"),
+        ("Unknown outcomes (no stage credit)", "unknown_scenes", "scheduled_scenes"),
         ("Observed runs without recorded tip/drop", "no_knockover_scenes", "scheduled_scenes"),
     ]:
         lines.append(
@@ -223,14 +255,21 @@ def write_comparison(baseline, tuned, output, *, search=None):
         f"`{json.dumps(after['control_overrides'], sort_keys=True)}`.",
         "",
         "The paired scene configurations, initial robot/object states, model revision "
-        "and MuJoCo version have matching SHA-256 fingerprints for every verified pair.",
-        "Seeds 0 and 1 were used in earlier development; this ten-scene suite is public "
-        "pilot validation, not a blind held-out test.",
+        "and MuJoCo version have matching SHA-256 fingerprints for "
+        f"{before['scheduled_scenes'] - len(unverified_pairs)} pairs; "
+        f"{len(unverified_pairs)} lack sufficient initial-state evidence.",
+        "Controller source revisions and effective mode switches are recorded in the JSON.",
         "",
         "This is a narrow, ten-scene simulation benchmark, not a generalization claim. "
         "The JSON companion retains failures, timings, force peaks and incident evidence.",
         "",
     ]
+    if any(r["seed"] in (0, 1) for r in before["runs"]):
+        lines += [
+            "Seeds 0 and 1 appeared in earlier development. This public suite "
+            "is regression validation, not a blind held-out test.",
+            "",
+        ]
     if "search" in result:
         study = result["search"]
         lines += [
