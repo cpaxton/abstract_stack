@@ -15,8 +15,8 @@ in draft until the task has measured end-to-end evidence.
 
 ![Measured forces and tracking error in the first physical trial](images/scripted_force_trace.png)
 
-The historical seed-0 baseline, before IK prefiltering, stopped after 15 simulated seconds with 17.4 cm of hand
-tracking error (3.5 cm limit). Measured peaks were 10.65 N for hand/box, 23.61 N
+The historical seed-0 baseline, before IK prefiltering, stopped after 15 simulated
+seconds with 17.4 cm of hand tracking error (3.5 cm limit). Measured peaks were 10.65 N for hand/box, 23.61 N
 for support/box and 23.27 N for arm/fixture contact; shelf-back contact was zero.
 No products completed the task. Its mixed position/orientation IK objective was
 also large; it was not a position error in metres. These historical numbers and
@@ -26,8 +26,8 @@ behavior.
 ![Final state of the failed physical approach](images/scripted_first_pass.png)
 
 With the prefilter, the seed-0 initial grasp search finds a best endpoint
-candidate within collision tolerance with a 4.0 cm positional miss and 18.3 degrees of orientation
-error, exceeding the 1.5 cm/12 degree limits. Accurate geometric solutions can
+candidate within collision tolerance with a 4.0 cm positional miss and 18.3 degrees
+of orientation error, exceeding the 1.5 cm/12 degree limits. Accurate geometric solutions can
 instead intersect the neighboring box with the wrist. The direct joint path
 also encounters the shelf side. The controller therefore stages less than
 10 cm along a checked prefix, predicts 28.5 cm remaining distance to the box,
@@ -102,8 +102,9 @@ The initial grasp endpoint is screened before approach. Every free-space move
 then checks the endpoint and a sampled joint-interpolation path for robot/world
 and self collisions with the planned finger posture. Wheel/floor contacts are
 expected; target-object/hand contact is allowed only for explicit manipulation
-phases. Penetrations exceeding 2 mm, or an existing penetration by more than
-1 mm, are rejected. These checks use scratch data and preserve live physics.
+phases. New penetrations exceeding 2 mm are rejected. Existing penetrations are
+rejected when they exceed 2 mm and deepen by more than 1 mm relative to the
+measured start. These checks use scratch data and preserve live physics.
 Accepted joint paths execute with a smooth quintic timing profile and native
 rate/actuator bounds. Online Cartesian IK also rejects excessive residuals
 before producing commands.
