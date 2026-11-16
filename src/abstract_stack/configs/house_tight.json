@@ -1,0 +1,13 @@
+{
+  "environment": "small_house",
+  "front_x": -2.52,
+  "center_y": -1.05,
+  "table_center_x": -1.96,
+  "table_center_y": -1.98,
+  "robot_xy": [-1.86, -0.95],
+  "robot_yaw": 0.0,
+  "width": 0.62,
+  "product_count": 18,
+  "initially_stocked": 12,
+  "target_gap": 0.012
+}

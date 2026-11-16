@@ -1,0 +1,19 @@
+{
+  "width": 0.90,
+  "depth": 0.36,
+  "front_x": -0.62,
+  "center_y": 0.0,
+  "levels": [0.65, 0.98, 1.31],
+  "board_thickness": 0.02,
+  "top_clearance": 0.33,
+  "table_top": 0.70,
+  "table_size": [0.60, 0.50],
+  "table_center_x": -0.30,
+  "table_center_y": null,
+  "product_count": 6,
+  "initially_stocked": 0,
+  "target_gap": 0.045,
+  "spawn_jitter": 0.008,
+  "robot_xy": [0.0, 0.0],
+  "robot_yaw": 0.0
+}

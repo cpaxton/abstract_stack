@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abstract-stack"
+version = "0.1.0"
+description = "Contact-rich bimanual shelf stocking in simulation"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+authors = [{ name = "Chris Paxton" }]
+dependencies = [
+    "mujoco>=3.4,<4",
+    "numpy>=1.24,<2",
+    "pillow>=10",
+    "emet[sim] @ git+https://github.com/cpaxton/home_robot_v3.git@main",
+]
+
+[project.scripts]
+abstract-stack = "abstract_stack.cli:main"
+
+[project.urls]
+Repository = "https://github.com/cpaxton/abstract_stack"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["mabel: requires the downloaded MABEL model"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["abstract_stack*"]
+
+[tool.setuptools.package-data]
+abstract_stack = ["configs/*.json"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

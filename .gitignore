@@ -1,0 +1,26 @@
+# Python environments and build output
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Local tools and configuration
+.ruff_cache/
+.pytest_cache/
+.env
+.env.*
+!.env.example
+.DS_Store
+.agents/
+.codex/
+.aws/
+
+# Generated demonstrations, recordings, and evaluation output
+data/
+recordings/
+outputs/
+checkpoints/
+wandb/
+third_party/
