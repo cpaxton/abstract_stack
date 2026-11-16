@@ -1,0 +1,37 @@
+\section{Problem Definition}
+An instance specifies shelf geometry, product dimensions and masses, supply
+poses, target assignments, robot initialization, friction, and time limits.
+The state contains robot position and velocity $(q,\dot q)$, product transforms
+and velocities, contact information, and controller history. Initial experiments
+use privileged simulator state. Perception uncertainty is a separate future
+condition, not an implicit capability of this setup.
+
+At control tick $t$, the policy supplies bounded native actuator references
+$u_t$; physics advances at 2\,ms substeps with a nominal 20\,ms control period.
+Products and the floating robot remain dynamic. Manipulation cannot modify
+live poses, disable contacts, create hidden grasp attachments, or apply external
+object forces. Reset fixtures and scratch-data predictions are separately
+identified and excluded from physical success claims.
+
+Let $S_i(x_t)$ mean that product $i$ lies inside its assigned shelf region,
+is upright, has board contact, and has sufficiently small velocity. The current
+environment requires these conditions continuously for a configured dwell time
+$d$:
+\begin{equation}
+ G_{\rm shelf}(t) = \bigwedge_{i=1}^{N}
+ \left[\forall\tau\in[t-d,t],\ S_i(x_\tau)\right].
+\end{equation}
+Stocking status is reversible: disturbing an earlier placement invalidates its
+dwell. The default dwell is 0.5\,s. Assignment tolerances and complete geometry
+checks are configuration-dependent and must accompany results.
+
+The interaction protocol adds gates beyond the environment's geometric success:
+verified opposing grasp contacts, actual lift without table support, stable
+release, and sustained hand/product plus product/back contact for the final push.
+Environment success alone does not establish these protocol events. Unassisted
+success also requires zero logged operator interventions.
+
+Recovery is a within-episode return from a specified failure to a valid task
+state. We will record failure type, onset, attempts, recovery duration, and
+whether recovery preserves earlier placements. Merely retrying, resetting, or
+moving closer to a target does not constitute successful recovery.

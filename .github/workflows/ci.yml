@@ -28,7 +28,7 @@ jobs:
       - name: Pre-commit checks
         run: uv run --no-sync pre-commit run --all-files --hook-stage pre-commit
       - name: Install software rendering libraries
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1-mesa-dri ffmpeg
       - name: Fetch the pinned MABEL model
         run: uv run --no-sync abstract-stack fetch-mabel
       - name: Physics tests with the real robot

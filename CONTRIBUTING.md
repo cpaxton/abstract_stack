@@ -71,3 +71,11 @@ out of commits. Do not merge until reviewed.
 
 Potential Emet fixes belong in `home_robot_issues.md` first. Upstream drafts must
 use upstream-only reproductions without naming this repository or task.
+
+## Paper changes
+
+Build with `./paper/build.sh` and check final references and layout. Keep verified
+literature findings, observed diagnostics and proposed methods/experiments
+explicitly separate. Cite primary sources and pin reviewed versions. Do not
+commit generated TeX/PDF files or expose private test seeds in the draft. The
+paper toolchain is optional and independent of the simulator installation.

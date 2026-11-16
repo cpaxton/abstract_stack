@@ -6,13 +6,15 @@ wrong.
 
 **Status:** initial MuJoCo shelf environment with the full upstream MABEL model,
 seeded resets, contact-based stocking checks, a native viewer, and an Emet ZMQ
-adapter. VR control, demonstration recording/replay, autonomous stocking,
-recovery policies, and mjlab training remain future work.
+adapter. A world-state solver completes initial seeded carton scenes and records
+dual-view MP4s. VR control, demonstration replay, generalized recovery and mjlab
+training remain future work.
 
 The [first physical stocking script](docs/scripted_interactions.md) attempts
-box pickup and push-to-contact with per-step force traces. It currently stops
-after IK prefiltering and bounded staging when the grasp pose is unacceptable;
-end-to-end manipulation is not yet demonstrated. The prefilter tries bounded
+box pickup and push-to-contact with per-step force traces. Development trials
+have completed two-carton shelves with verified pickup, lift, back contact,
+release and final stability. These are development cases, not a held-out success
+rate. The prefilter tries bounded
 orientation alternatives, checks sampled joint paths, and records predicted
 position/orientation errors separately from physical execution error.
 
@@ -30,6 +32,27 @@ abstract-stack sim --scene house
 
 Development rules and hook/CI setup are in [CONTRIBUTING.md](CONTRIBUTING.md)
 and [AGENTS.md](AGENTS.md).
+
+The [research draft and Agentic GenTAMP review](paper/README.md) describe the
+task, controller interface and planned experiments. Build with `./paper/build.sh`.
+For the current physical solver attempt, run:
+
+```bash
+./scripts/solve_shelf.sh --render --output-dir outputs/adaptive-shelf
+```
+
+For [seeded random scenes and synchronized third-/first-person MP4s](docs/stocking_solver.md):
+
+```bash
+./scripts/solve_shelf.sh --random-scene --objects 2 --seed 0 --video \
+  --output-dir outputs/stocking-seed1
+```
+
+The [MABEL tracking controller](docs/mabel_controller.md) supplies bounded
+bimanual joint/lift references with robot-gravity feedforward and measured wrist
+damping. The solver tries alternative object/grasp candidates and verifies
+physical stages. Bimanual task coordination, broader generalization and MABEL RL
+control remain unverified.
 
 ## Initial scope
 
@@ -181,7 +204,8 @@ publication to 15 Hz; Emet's `EMET_ZMQ_STATE_HZ`, `EMET_ZMQ_FULL_HZ`, and
 ticks in `sim`. The generic Emet navigation path drives the base pose/velocity;
 it is not MABEL's physical swerve controller. The local environment's named
 wheel channels are available for physical drive experiments. Use explicit hand
-joint targets for grasps; a grasp controller and VR retargeting are future work.
+joint targets through this generic adapter; the local stocking solver supplies
+its own grasp feedback. VR retargeting remains future work.
 Emet simulation helpers that set poses or attach/detach objects are recorded as
 interventions so assisted runs cannot count as unassisted success.
 

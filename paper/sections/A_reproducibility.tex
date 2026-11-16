@@ -1,0 +1,18 @@
+\section{Reproducibility and Claim Boundaries}
+Record scene configuration and seed, actual dependency/model revisions,
+actuator/transmission settings, controller parameters, software and hardware
+versions, timestep, observation period, and the policy/weight hash. Preserve
+initial integration state, action references, applied actuator targets,
+physics-step measurements, event/rejection records, and terminal outcomes.
+Full recordings remain under ignored output directories; commit only small
+summaries needed to reproduce a stated claim.
+
+Source modules live under \path{src/abstract_stack/}.
+Environment stepping is in \path{env.py}; prediction is in \path{ik.py}.
+The tracker is in \path{mabel_controller.py}.
+The physical solver is in \path{interactions.py}.
+Detailed commands and limitations are in the scripted interaction and MABEL
+controller runbooks.
+The literature review pins its external source version and separates the
+authors' findings from our proposed use. A compiled paper is a research artifact,
+not an indication that planned experiments have been completed.

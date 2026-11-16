@@ -67,6 +67,25 @@ def test_hovering_near_target_does_not_count_as_stocked(env):
     assert env.info()["stocked_count"] == 0
 
 
+def test_continuous_success_monitor_keeps_physics_and_timeout_active():
+    env = ShelfStockingEnv(
+        ShelfConfig(product_count=1, terminate_on_success=False, time_limit=1.0), robot=False
+    )
+    try:
+        move_product(env, env.products[0], env.products[0].target)
+        for _ in range(40):
+            _, _, terminated, truncated, info = env.step()
+        assert info["success"] and not terminated and not truncated
+        for _ in range(12):
+            _, _, terminated, truncated, info = env.step()
+            if truncated:
+                break
+        assert truncated and not terminated
+        assert info["time_limit_reached"]
+    finally:
+        env.close()
+
+
 def test_tipped_product_is_not_success(env):
     product = env.products[0]
     for p in env.products:

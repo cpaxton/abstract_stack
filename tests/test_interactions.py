@@ -17,6 +17,7 @@ from abstract_stack.interactions import (
     StockingScript,
     contact_forces,
 )
+from abstract_stack.random_scenes import random_shelf_config
 
 
 def test_contact_forces_measure_weight_and_physics_observer_cadence():
@@ -60,23 +61,28 @@ def test_ik_changes_only_scratch_state_and_bounds_targets(robot):
 
 
 @pytest.mark.mabel
-def test_force_limit_stops_on_real_hand_contact(robot, tmp_path):
-    script = StockingScript(robot, tmp_path, ScriptConfig(max_force=0.5))
+@pytest.mark.parametrize("product_name", ["carton_0", "carton_1"])
+def test_force_limit_stops_on_real_hand_contact(robot, tmp_path, product_name):
+    script = StockingScript(
+        robot,
+        tmp_path,
+        ScriptConfig(max_force=0.5, grasp_force_target=0.25, push_force_target=0.25),
+    )
     # Initial-condition fixture only: deliberately penetrate the hand to exercise
     # the force guard. No live rollout succeeds from this invalid arrangement.
-    joint = robot.model.joint("carton_0_joint")
+    joint = robot.model.joint(f"{product_name}_joint")
     qadr = int(joint.qposadr[0])
     robot.data.qpos[qadr : qadr + 3] = robot.data.body("left_palm").xpos
     mujoco.mj_forward(robot.model, robot.data)
     with pytest.raises(InteractionFailure, match="contact force"):
         robot.step(on_physics_step=script._sample)
     assert len(script.rows) > 0
-    assert script.rows[-1][7] > 0.5
+    assert script.last_forces["hand" if product_name == "carton_0" else "other_product"] > 0.5
 
 
 @pytest.mark.mabel
 def test_script_writes_honest_physics_evidence(robot, tmp_path):
-    script = StockingScript(robot, tmp_path)
+    script = StockingScript(robot, tmp_path, ScriptConfig(adaptive_grasps=False))
     result = script.run()
     saved = json.loads((tmp_path / "summary.json").read_text())
     assert saved["physical_success"] == result["physical_success"]
@@ -142,6 +148,9 @@ def test_prediction_matches_forward_kinematics_without_changing_live_state(robot
 @pytest.mark.mabel
 def test_orientation_candidates_can_resolve_a_rejected_fixed_pose(robot):
     controller = CartesianHand(robot, ScriptConfig())
+    # Explicit restricted-lift planning fixture. Full native lift travel can
+    # make both rotations reachable, so it would not exercise this fallback.
+    controller.ik.lower[-1], controller.ik.upper[-1] = 0.18, 0.55
     point, rotation = controller.ik.forward(controller.ik.measured_q())
     preferred = dict(controller.ik.orientations(rotation, 40))["axis1:40deg"]
     fixed = controller.ik.predict(
@@ -195,8 +204,67 @@ def test_collision_rejection_and_bounded_staging(robot):
 
 
 @pytest.mark.mabel
+def test_random_two_carton_scene_completes_all_physical_gates(tmp_path):
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(random_shelf_config(0, product_count=2), seed=0)
+    try:
+        result = StockingScript(env, tmp_path).run()
+        assert result["physical_success"], result["failure"]
+        assert set(result["completed_products"]) == {p.name for p in env.products}
+        assert result["metrics"]["stocked_count"] == 2
+        assert not result["metrics"]["tipped"]
+        assert not result["metrics"]["dropped"]
+        assert result["metrics"]["intervention_count"] == 0
+        for product in env.products:
+            events = [e for e in result["events"] if e["product"] == product.name]
+            assert any(e.get("verified_lift") for e in events)
+            assert any(e.get("verified_release") for e in events)
+            pushes = [e for e in events if e.get("back_contact_verified")]
+            assert pushes and pushes[0]["ik_prediction"]["sampled_path_model"] == "cartesian"
+            assert pushes[0]["feedback_checks"] > 0
+        assert np.all(env.data.qfrc_applied == 0)
+        assert np.all(env.data.xfrc_applied == 0)
+    finally:
+        env.close()
+
+
+@pytest.mark.mabel
+def test_adaptive_solver_verifies_a_physical_lift(robot, tmp_path):
+    result = StockingScript(robot, tmp_path).run()
+    lifts = [e for e in result["events"] if e.get("verified_lift")]
+    assert lifts
+    assert lifts[0]["object_rise_m"] > 0.045
+    assert lifts[0]["measured_table_normal_N"] < 0.15
+    assert lifts[0]["measured_hand_normal_N"] > 0.2
+    carries = [e for e in result["events"] if e["phase"] in ("lift", "transfer", "place")]
+    assert all(e["ik_prediction"]["carried_object_swept_volume"] for e in carries)
+    if not result["physical_success"]:
+        assert result["failure"]
+    assert robot.info()["intervention_count"] == 0
+
+
+@pytest.mark.mabel
+def test_grasp_selection_changes_object_instead_of_repeating_bad_pose(robot, tmp_path):
+    script = StockingScript(robot, tmp_path)
+    before = robot.data.qpos.copy()
+    target, prediction = script._select_grasp(list(robot.products))
+    assert script.product.name == "carton_1"
+    assert prediction.feasible
+    assert prediction.position_error_m < 0.015
+    box = robot.data.body("carton_1").xpos
+    np.testing.assert_allclose(target[:2], box[:2])
+    assert 0 <= target[2] - box[2] <= robot.products[1].half_size[2]
+    np.testing.assert_array_equal(robot.data.qpos, before)
+
+
+@pytest.mark.mabel
 def test_hold_mode_rejects_before_commanding_motion(robot, tmp_path):
-    script = StockingScript(robot, tmp_path, ScriptConfig(best_effort_staging=False))
+    script = StockingScript(
+        robot, tmp_path, ScriptConfig(best_effort_staging=False, adaptive_grasps=False)
+    )
     result = script.run()
     assert not result["physical_success"]
     assert result["events"][-1]["decision"] == "hold_for_replan"
