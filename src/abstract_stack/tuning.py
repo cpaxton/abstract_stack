@@ -16,6 +16,14 @@ CONTROL_BOUNDS = {
     "payload_orientation_speed": (0.10, 0.60),
     "insertion_vertical_speed": (0.003, 0.02),
     "release_seconds": (2.0, 6.0),
+    "approach_force_target": (5.0, 20.0),
+    "contact_grasp_seconds": (4.0, 10.0),
+    "contact_descent_speed": (0.005, 0.02),
+    "fixture_force_target": (1.0, 8.0),
+    "fixture_unload_speed": (0.005, 0.03),
+    "fixture_unload_distance": (0.005, 0.025),
+    "fixture_clearance": (0.002, 0.012),
+    "release_lateral_limit": (0.01, 0.06),
 }
 
 
