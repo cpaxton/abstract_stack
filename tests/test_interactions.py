@@ -218,6 +218,12 @@ def test_random_two_carton_scene_completes_all_physical_gates(tmp_path):
         assert not result["metrics"]["tipped"]
         assert not result["metrics"]["dropped"]
         assert result["metrics"]["intervention_count"] == 0
+        assert result["stage_evaluation"]["no_knockovers"]
+        assert all(
+            p[k]
+            for p in result["stage_evaluation"]["products"].values()
+            for k in ("pick", "place", "final_position", "retreat")
+        )
         for product in env.products:
             events = [e for e in result["events"] if e["product"] == product.name]
             assert any(e.get("verified_lift") for e in events)

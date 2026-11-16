@@ -18,6 +18,12 @@ rate. The prefilter tries bounded
 orientation alternatives, checks sampled joint paths, and records predicted
 position/orientation errors separately from physical execution error.
 
+The [ten-scene scripting report](docs/reports/stocking_ten_scenes.md) breaks down
+pick, placement, final positioning and retreat without knocking objects over.
+Run `./scripts/benchmark_stocking.sh` for the baseline, bounded compliant-control
+hill-climb on separate development seeds, paired validation and report generation.
+Task acceptance and force abort limits stay fixed during the search.
+
 See [Shelf scene setup](docs/scene_setup.md) for dimensions, editable scene
 configurations, MABEL import, scene exports, and validation. Upstream concerns
 are tracked locally in [home_robot_issues.md](home_robot_issues.md).

@@ -23,6 +23,12 @@
 - Record the scene configuration, seed, model revision, controller settings and
   simulation timing with interaction artifacts. Keep full recordings in ignored
   `outputs/`; commit only small, reproducible documentation previews.
+- Evaluate scripted changes on fixed scene suites. Report all scheduled objects
+  for pick, shelf support, final positioning and retreat; retain unreached stages
+  and process failures. Monitor every product at each physics step so a transient
+  knock-over cannot disappear from the report when an object settles upright.
+  Tune compliance on separate development seeds with bounded compute. Never tune
+  success tolerances, force abort limits or collision acceptance to improve scores.
 - Run pre-commit, relevant physics tests, and package checks before opening a PR.
   Do not skip hooks or weaken success criteria to make a demo pass. Report skips
   and failures accurately. Mark a PR draft when required acceptance remains open.

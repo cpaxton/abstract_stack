@@ -91,6 +91,49 @@ determine what actually happens. Sampled checks are not continuous guarantees.
 
 ## Evidence and limits
 
+The scripted benchmark and compliant-control search run without RL:
+
+```bash
+./scripts/benchmark_stocking.sh outputs/my-benchmark
+# Individual stages, with failed scenes retained (batch exits 2 for task failures):
+abstract-stack batch --seeds 0 1 2 3 4 5 6 7 8 9 --objects 2 \
+  --output-dir outputs/baseline
+abstract-stack tune --seeds 100 101 --objects 2 --rounds 1 \
+  --output-dir outputs/search
+abstract-stack batch --seeds 0 1 2 3 4 5 6 7 8 9 --objects 2 \
+  --control-config outputs/search/best-controls.json --output-dir outputs/tuned
+.venv/bin/python scripts/report_stocking.py --baseline outputs/baseline/campaign.json \
+  --tuned outputs/tuned/campaign.json --search outputs/search/search.json --output outputs/report
+```
+
+The coordinate search evaluates the default controller plus six sequential
+neighbours: squeeze target, push-force target and payload-orientation speed,
+each multiplied by 0.75 or 1.25 from the current incumbent. It accepts a candidate
+lexicographically by clean complete scenes, fewer unknown/knock-over scenes,
+successful stages, lower summed
+per-scene peak normal force, then lower total simulated time. It retains every
+candidate's configuration, outcomes and acceptance decision. Search bounds never
+change task tolerances, IK/collision acceptance, release guards, contact dwell
+or the 25 N abort threshold. Use `--control-config` with a JSON object to replay
+the selected compliance settings; unsupported keys are rejected. The selected
+settings are explicit overrides and do not silently replace defaults.
+
+`stage_evaluation` in each terminal summary records pick, measured shelf support,
+back-contact plus final positioning after release, and completed retreat. An
+observer checks all cartons every 2 ms, beginning after scene settling. A tip
+beyond 45 degrees or drop below 0.25 m remains an incident even after recovery.
+Retreat evidence includes every product's pre/post pose, maximum displacement,
+and whether the current and previously placed products satisfy the unchanged
+stable-placement dwell. Stage gates record progress when achieved; later
+disturbance can still fail complete-scene success. All 20 scheduled cartons stay
+in stage denominators, including those unreached after another carton fails.
+
+Physics-only episodes default to a 180-second wall budget, and video episodes
+to 900 seconds (`batch --episode-timeout` overrides it). A killed/timed-out
+process without a terminal summary stays **unknown**, earns no successful
+stages, and retains its log and `process_failure.json`. `physics-progress.json`
+records the latest begun phase; progress alone cannot establish task success.
+
 Selected development cases completed both cartons on seeds 0 and 1. The recorded
 seed-0 two-carton episode completed in 87.36 simulated seconds with zero
 interventions; both camera streams contain 874 frames at 10 fps, including the

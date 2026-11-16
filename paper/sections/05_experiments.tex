@@ -1,5 +1,46 @@
-\section{Planned Experiments}
-\textbf{This section is a protocol proposal; these studies have not been run.}
+\section{Scripted Pilot and Planned Experiments}
+\subsection{Observed ten-scene scripted pilot}
+A public local benchmark uses ten seeded scenes with two rigid cartons each,
+one shelf, a stationary MABEL base command and left-arm manipulation in native
+MuJoCo physics. The policy reads world state and uses no learned controller or
+language model. Two seeds had appeared in earlier development; this is a pilot
+validation suite, not a blind held-out generalization experiment.
+
+The default script completed all four measured stages in six of ten scenes
+(95\% Wilson interval 31.3--83.2\%). Verified pick and shelf support each passed
+for 16 of 20 scheduled cartons; final positioning and completed retreat each
+passed for 14 of 20. Unreached cartons remain in every denominator. Two scenes
+aborted at the unchanged 25\,N hand-contact limit during approach; one rejected
+the second carton's opening/retreat path before actuation; one aborted during
+the supported push at the same force limit. Earlier successful stage gates do
+not imply that a product remains stably placed at the end of a failed scene.
+
+A read-only observer samples every product at each 2\,ms physics step after
+initial scene settling. It retains any tip beyond 45 degrees or drop below
+0.25\,m even if the product subsequently recovers. No such incidents occurred
+in these ten baseline episodes. Retreat additionally requires the current and
+previously placed cartons to satisfy the unchanged placement stability dwell.
+This monitoring measures a specific simulated tip/drop definition, rather than
+certifying collision-free manipulation or universal recovery.
+
+A bounded coordinate hill-climb evaluated seven controller configurations on
+two separate development seeds: the default, and 0.75/1.25 multipliers for the
+squeeze target, push-force target and payload-orientation speed. Selection
+prioritized complete scenes, safety/evidence, successful stages and lower
+peak contact force before completion time. All six neighbours were rejected:
+four lost a complete development scene, and two preserved success but were
+slower without a lower peak. The default therefore remains selected; this
+search did not establish an improved controller. A tightened scoring audit
+that penalizes unknown outcomes and knock-overs left every decision unchanged.
+
+An initial unbounded development probe on a third seed exceeded five minutes
+of computation without a terminal summary and was stopped, retaining an
+unknown outcome. The bounded search used the two disclosed development seeds;
+this exclusion limits its coverage. Subsequent physics campaigns impose a
+180\,s wall budget per episode and retain unknown results in the denominator.
+
+\subsection{Proposed broader experiments}
+\textbf{The following comparisons and larger studies have not been run.}
 First replicate the initial physical grasp, lift, contact push and release across
 new development instances. Then increase object count and reduce insertion clearance;
 introduce prefilled shelves, deliberate jams and tipped products; finally test

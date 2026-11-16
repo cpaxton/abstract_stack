@@ -1,0 +1,1887 @@
+{
+  "baseline": {
+    "campaign": "outputs/ten-scene-baseline/campaign.json",
+    "controllers": [
+      {
+        "approach_seconds": 2.0,
+        "descend_seconds": 8.0,
+        "pregrasp_height": 0.35,
+        "close_seconds": 1.5,
+        "lift_height": 0.07,
+        "grip": 0.8,
+        "max_force": 25.0,
+        "max_joint_speed": 1.0,
+        "tracking_tolerance": 0.035,
+        "push_speed": 0.025,
+        "push_distance": 0.16,
+        "contact_threshold": 0.4,
+        "contact_dwell": 0.12,
+        "ik_position_tolerance": 0.015,
+        "ik_orientation_tolerance_deg": 12.0,
+        "ik_orientation_span_deg": 40.0,
+        "staging_distance_limit": 0.1,
+        "best_effort_staging": true,
+        "max_motion_seconds": 12.0,
+        "gravity_compensation": true,
+        "adaptive_grasps": true,
+        "grasp_force_target": 6.0,
+        "push_force_target": 2.0,
+        "grip_force_gain": 0.04,
+        "grip_max_rate": 0.25,
+        "carry_clearance": 0.1,
+        "release_forward": 0.12,
+        "release_up": 0.025,
+        "release_seconds": 3.0,
+        "release_drag_tolerance": 0.025,
+        "payload_orientation_speed": 0.3,
+        "payload_upright_degrees": 5.0,
+        "push_timeout_seconds": 12.0,
+        "insertion_clearance": 0.025,
+        "insertion_vertical_speed": 0.01,
+        "head_tracking": true
+      }
+    ],
+    "provenance": {
+      "robot": "mabel",
+      "model_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+      "versions": {
+        "mujoco": "3.17.0",
+        "abstract-stack": "0.1.0",
+        "emet": "0.3.3",
+        "numpy": "1.26.4"
+      },
+      "physics_timestep": 0.002,
+      "frame_skip": 10
+    },
+    "control_overrides": {},
+    "episode_wall_timeout_seconds": null,
+    "scheduled_scenes": 10,
+    "completed_scenes": 10,
+    "scheduled_objects": 20,
+    "clean_successes": 6,
+    "physical_successes": 6,
+    "no_knockover_scenes": 10,
+    "success_rate": 0.6,
+    "wilson_95_interval": [
+      0.3126695474501864,
+      0.8318224187964902
+    ],
+    "stages": {
+      "pick": 16,
+      "place": 16,
+      "final_position": 14,
+      "retreat": 14
+    },
+    "runs": [
+      {
+        "seed": 0,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 87.3599999999778,
+        "peak_forces_N": {
+          "hand": 13.627425674950294,
+          "support": 3.4805594002111295,
+          "back": 5.411971327998434,
+          "arm_fixture": 6.0608720259778455,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-baseline/seed-0",
+        "scene_config": {
+          "width": 0.5606635775767179,
+          "depth": 0.20912755577277722,
+          "front_x": -0.5568672976079974,
+          "levels": [
+            0.8013696168732146
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8013696168732146,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3395637500853458,
+          "table_center_y": -0.4712985515242446,
+          "center_y": -0.190277018784956,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.051317071082430644,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.06815829371011096,
+            0.04724584114361717,
+            0.2322644421684565
+          ]
+        },
+        "initial_conditions_sha256": "9dd36125059256b862c9b2d8054b01b8d2d10159ff42c17758daac70da065795",
+        "hand_normal_impulse_Ns": 233.78015976695312,
+        "elapsed_wall_seconds": 41.85432361997664
+      },
+      {
+        "seed": 1,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 86.91999999997883,
+        "peak_forces_N": {
+          "hand": 14.017464835240158,
+          "support": 13.632519808901868,
+          "back": 5.077982611355293,
+          "arm_fixture": 1.6392291569654116,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-baseline/seed-1",
+        "scene_config": {
+          "width": 0.5827702593820442,
+          "depth": 0.20423326448972576,
+          "front_x": -0.5618816854798951,
+          "levels": [
+            0.8001182162470026
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8001182162470026,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3395040631232694,
+          "table_center_y": -0.4894488177351386,
+          "center_y": -0.19062226342663652,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.05007026217349613,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.07360370957060748,
+            0.0478649576763178,
+            0.2471783911541959
+          ]
+        },
+        "initial_conditions_sha256": "7a1726a596a83344951cb1a71d7c8f15b93e896ed954fedb328c1671c57cab7a",
+        "hand_normal_impulse_Ns": 233.58637242826214,
+        "elapsed_wall_seconds": 40.89453995297663
+      },
+      {
+        "seed": 2,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 88.15999999997594,
+        "peak_forces_N": {
+          "hand": 23.78421582131342,
+          "support": 28.21150367956045,
+          "back": 4.662320644114947,
+          "arm_fixture": 1.6744404228312668,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-baseline/seed-2",
+        "scene_config": {
+          "width": 0.5187901073366603,
+          "depth": 0.20728560526811796,
+          "front_x": -0.5589989947403434,
+          "levels": [
+            0.7976161213424932
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.7976161213424932,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3422503063209396,
+          "table_center_y": -0.4768513397024881,
+          "center_y": -0.16639380840222345,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.04624531325560856,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.06838792914731298,
+            0.05188535444356568,
+            0.23347065507416156
+          ]
+        },
+        "initial_conditions_sha256": "c7c17d701605861d634aad676cdb6f7fe7ac099410e3bb3c9bde0280608c0851",
+        "hand_normal_impulse_Ns": 239.39596031359608,
+        "elapsed_wall_seconds": 42.208787410054356
+      },
+      {
+        "seed": 3,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 88.01999999997626,
+        "peak_forces_N": {
+          "hand": 22.67926487227477,
+          "support": 27.028037115156742,
+          "back": 4.740195128814038,
+          "arm_fixture": 0.0,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-baseline/seed-3",
+        "scene_config": {
+          "width": 0.5479051298140833,
+          "depth": 0.20433126940236473,
+          "front_x": -0.564058713577596,
+          "levels": [
+            0.7958564916714362
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.7958564916714362,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.33765422848590787,
+          "table_center_y": -0.4877265596015719,
+          "center_y": -0.1736177612546144,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.042824563809913244,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0678944840527688,
+            0.05180764679123838,
+            0.2413145925770299
+          ]
+        },
+        "initial_conditions_sha256": "17a78a578e90d674474914b6f4dcb1328551e7b65881d2ec8d81edfa95bc7007",
+        "hand_normal_impulse_Ns": 239.7759435815988,
+        "elapsed_wall_seconds": 40.74255382688716
+      },
+      {
+        "seed": 4,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 0,
+          "place": 0,
+          "final_position": 0,
+          "retreat": 0
+        },
+        "incidents": [],
+        "sim_seconds": 16.94200000000149,
+        "peak_forces_N": {
+          "hand": 25.15094783106025,
+          "support": 29.022602717664384,
+          "back": 0.0,
+          "arm_fixture": 6.255571876047331,
+          "other_product": 0.0
+        },
+        "failure": "approach: contact force exceeded 25.0 N",
+        "directory": "outputs/ten-scene-baseline/seed-4",
+        "scene_config": {
+          "width": 0.5801901206985807,
+          "depth": 0.20376486584377274,
+          "front_x": -0.5589264416800497,
+          "levels": [
+            0.8044305610557237
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8044305610557237,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.33628364725812343,
+          "table_center_y": -0.47912117198473003,
+          "center_y": -0.1905519898725062,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.05304430159431977,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.07009062042251489,
+            0.05285746223424622,
+            0.23329337638232964
+          ]
+        },
+        "initial_conditions_sha256": "00f12ef96c2f71447f3ac8cab638adb4da04c4c7ddce37c200662f5200731dbf",
+        "hand_normal_impulse_Ns": 4.858869830605871,
+        "elapsed_wall_seconds": 6.761761104920879
+      },
+      {
+        "seed": 5,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 87.33999999997785,
+        "peak_forces_N": {
+          "hand": 20.077065614989024,
+          "support": 26.27653196556856,
+          "back": 4.938318790429938,
+          "arm_fixture": 2.686452066835929,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-baseline/seed-5",
+        "scene_config": {
+          "width": 0.5408473205419999,
+          "depth": 0.20383368880785518,
+          "front_x": -0.5644606929761834,
+          "levels": [
+            0.8030500292374538
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8030500292374538,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3445124228927283,
+          "table_center_y": -0.47001647769869853,
+          "center_y": -0.17573345623760347,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.04804738223175976,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.07246352631789195,
+            0.05009195336625285,
+            0.23657282208141028
+          ]
+        },
+        "initial_conditions_sha256": "33f806af4307577f590a2de36f89e7fe5b49521fb8a9fcce728726220546f1c9",
+        "hand_normal_impulse_Ns": 236.64398776390883,
+        "elapsed_wall_seconds": 40.25695981900208
+      },
+      {
+        "seed": 6,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 1,
+          "retreat": 1
+        },
+        "incidents": [],
+        "sim_seconds": 79.25999999999668,
+        "peak_forces_N": {
+          "hand": 11.470431682509545,
+          "support": 14.390458159482442,
+          "back": 4.986685176560887,
+          "arm_fixture": 3.790149578651011,
+          "other_product": 0.9133517956085563
+        },
+        "failure": "release: opening/retreat path rejected before actuation",
+        "directory": "outputs/ten-scene-baseline/seed-6",
+        "scene_config": {
+          "width": 0.5674323930504493,
+          "depth": 0.20632756272607147,
+          "front_x": -0.5551255500981354,
+          "levels": [
+            0.8003816435147195
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8003816435147195,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3382008233883598,
+          "table_center_y": -0.4875405525022562,
+          "center_y": -0.17671236958904893,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.03603458463967551,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0687461669585067,
+            0.04921440343877227,
+            0.23799194824940612
+          ]
+        },
+        "initial_conditions_sha256": "02ede9612932b27c72e21e2162c5ff4853349c885fe697d99a484db3eb3d9e3b",
+        "hand_normal_impulse_Ns": 230.79261897964093,
+        "elapsed_wall_seconds": 38.47198406304233
+      },
+      {
+        "seed": 7,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 0,
+          "place": 0,
+          "final_position": 0,
+          "retreat": 0
+        },
+        "incidents": [],
+        "sim_seconds": 16.90200000000151,
+        "peak_forces_N": {
+          "hand": 25.255866760378854,
+          "support": 28.96352370590747,
+          "back": 0.0,
+          "arm_fixture": 0.0,
+          "other_product": 0.0
+        },
+        "failure": "approach: contact force exceeded 25.0 N",
+        "directory": "outputs/ten-scene-baseline/seed-7",
+        "scene_config": {
+          "width": 0.5005265304565575,
+          "depth": 0.20873553445396262,
+          "front_x": -0.5619983371508878,
+          "levels": [
+            0.8012509546660467
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8012509546660467,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3370293057124796,
+          "table_center_y": -0.48064130094312557,
+          "center_y": -0.15469475298626328,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.041060648536386274,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0731777104077566,
+            0.05165411414147116,
+            0.2356033150398495
+          ]
+        },
+        "initial_conditions_sha256": "bdfc5d27e1b4fd46dd1cde4bcf3e7e0b4a4cb8518ef00f12fff4162efd4851cb",
+        "hand_normal_impulse_Ns": 4.57037208670409,
+        "elapsed_wall_seconds": 6.436206349171698
+      },
+      {
+        "seed": 8,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 1,
+          "retreat": 1
+        },
+        "incidents": [],
+        "sim_seconds": 82.70199999998866,
+        "peak_forces_N": {
+          "hand": 16.207348342458122,
+          "support": 21.52415564639073,
+          "back": 4.373119885895439,
+          "arm_fixture": 26.277166453223643,
+          "other_product": 0.0
+        },
+        "failure": "push: contact force exceeded 25.0 N",
+        "directory": "outputs/ten-scene-baseline/seed-8",
+        "scene_config": {
+          "width": 0.5437881873122798,
+          "depth": 0.20391084806539195,
+          "front_x": -0.5563010348830378,
+          "levels": [
+            0.7982697227660557
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.7982697227660557,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3439304640352722,
+          "table_center_y": -0.48042069091674566,
+          "center_y": -0.17675118868511733,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.03982704290169365,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0738982147467034,
+            0.0489122650309131,
+            0.24461678297312045
+          ]
+        },
+        "initial_conditions_sha256": "8922900739010233d9a75f5bbd8219645b23310fcd00629cadb5a89bd7394bbd",
+        "hand_normal_impulse_Ns": 258.4587843105413,
+        "elapsed_wall_seconds": 40.16202380415052
+      },
+      {
+        "seed": 9,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 89.17999999997356,
+        "peak_forces_N": {
+          "hand": 18.209568289452633,
+          "support": 24.02398338394704,
+          "back": 4.606848496990531,
+          "arm_fixture": 4.011919426998046,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-baseline/seed-9",
+        "scene_config": {
+          "width": 0.5860393649182885,
+          "depth": 0.20915380120490507,
+          "front_x": -0.5578392537039644,
+          "levels": [
+            0.8037024920397009
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8037024920397009,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.344734122655324,
+          "table_center_y": -0.4812550399974098,
+          "center_y": -0.20171659851174206,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.04469888653954576,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.06829453767270044,
+            0.05061888890030937,
+            0.24444054532672285
+          ]
+        },
+        "initial_conditions_sha256": "1fc76877d868c20aa4359286bf7c209367613f3fed001aee6bb05b9918a94f6c",
+        "hand_normal_impulse_Ns": 237.31772514681225,
+        "elapsed_wall_seconds": 42.56348449620418
+      }
+    ],
+    "definitions": {
+      "pick": "Verified physical lift, hand contact and table unloading",
+      "place": "Measured shelf support before the supported slide",
+      "final_position": "Back-contact/upright dwell, then unloaded release satisfying unchanged task geometry/velocity/support conditions",
+      "retreat": "Release and clear completed; current and previously placed cartons stable for task dwell, no product tipped/dropped during retreat",
+      "clean_success": "Process exited normally, complete task, all four stages, no product tipped >45 degrees or dropped below 0.25m at any monitored physics step",
+      "unreached": "Counted as zero in the scheduled-object denominator; not silently omitted"
+    },
+    "mean_success_sim_seconds": 87.82999999997672,
+    "maximum_hand_normal_N": 25.255866760378854,
+    "entered_stage_counts": {
+      "pick": 18,
+      "place": 16,
+      "final_position": 16,
+      "retreat": 15
+    }
+  },
+  "tuned": {
+    "campaign": "outputs/ten-scene-tuned/campaign.json",
+    "controllers": [
+      {
+        "approach_seconds": 2.0,
+        "descend_seconds": 8.0,
+        "pregrasp_height": 0.35,
+        "close_seconds": 1.5,
+        "lift_height": 0.07,
+        "grip": 0.8,
+        "max_force": 25.0,
+        "max_joint_speed": 1.0,
+        "tracking_tolerance": 0.035,
+        "push_speed": 0.025,
+        "push_distance": 0.16,
+        "contact_threshold": 0.4,
+        "contact_dwell": 0.12,
+        "ik_position_tolerance": 0.015,
+        "ik_orientation_tolerance_deg": 12.0,
+        "ik_orientation_span_deg": 40.0,
+        "staging_distance_limit": 0.1,
+        "best_effort_staging": true,
+        "max_motion_seconds": 12.0,
+        "gravity_compensation": true,
+        "adaptive_grasps": true,
+        "grasp_force_target": 6.0,
+        "push_force_target": 2.0,
+        "grip_force_gain": 0.04,
+        "grip_max_rate": 0.25,
+        "carry_clearance": 0.1,
+        "release_forward": 0.12,
+        "release_up": 0.025,
+        "release_seconds": 3.0,
+        "release_drag_tolerance": 0.025,
+        "payload_orientation_speed": 0.3,
+        "payload_upright_degrees": 5.0,
+        "push_timeout_seconds": 12.0,
+        "insertion_clearance": 0.025,
+        "insertion_vertical_speed": 0.01,
+        "head_tracking": true
+      }
+    ],
+    "provenance": {
+      "robot": "mabel",
+      "model_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+      "versions": {
+        "mujoco": "3.17.0",
+        "abstract-stack": "0.1.0",
+        "emet": "0.3.3",
+        "numpy": "1.26.4"
+      },
+      "physics_timestep": 0.002,
+      "frame_skip": 10
+    },
+    "control_overrides": {},
+    "episode_wall_timeout_seconds": 180,
+    "scheduled_scenes": 10,
+    "completed_scenes": 10,
+    "scheduled_objects": 20,
+    "clean_successes": 6,
+    "physical_successes": 6,
+    "no_knockover_scenes": 10,
+    "success_rate": 0.6,
+    "wilson_95_interval": [
+      0.3126695474501864,
+      0.8318224187964902
+    ],
+    "stages": {
+      "pick": 16,
+      "place": 16,
+      "final_position": 14,
+      "retreat": 14
+    },
+    "runs": [
+      {
+        "seed": 0,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 87.3599999999778,
+        "peak_forces_N": {
+          "hand": 13.627425674950294,
+          "support": 3.4805594002111295,
+          "back": 5.411971327998434,
+          "arm_fixture": 6.0608720259778455,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-tuned/group-a/seed-0",
+        "scene_config": {
+          "width": 0.5606635775767179,
+          "depth": 0.20912755577277722,
+          "front_x": -0.5568672976079974,
+          "levels": [
+            0.8013696168732146
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8013696168732146,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3395637500853458,
+          "table_center_y": -0.4712985515242446,
+          "center_y": -0.190277018784956,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.051317071082430644,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.06815829371011096,
+            0.04724584114361717,
+            0.2322644421684565
+          ]
+        },
+        "initial_conditions_sha256": "9dd36125059256b862c9b2d8054b01b8d2d10159ff42c17758daac70da065795",
+        "hand_normal_impulse_Ns": 233.78015976695312,
+        "elapsed_wall_seconds": 42.02089759102091
+      },
+      {
+        "seed": 1,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 86.91999999997883,
+        "peak_forces_N": {
+          "hand": 14.017464835240158,
+          "support": 13.632519808901868,
+          "back": 5.077982611355293,
+          "arm_fixture": 1.6392291569654116,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-tuned/group-a/seed-1",
+        "scene_config": {
+          "width": 0.5827702593820442,
+          "depth": 0.20423326448972576,
+          "front_x": -0.5618816854798951,
+          "levels": [
+            0.8001182162470026
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8001182162470026,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3395040631232694,
+          "table_center_y": -0.4894488177351386,
+          "center_y": -0.19062226342663652,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.05007026217349613,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.07360370957060748,
+            0.0478649576763178,
+            0.2471783911541959
+          ]
+        },
+        "initial_conditions_sha256": "7a1726a596a83344951cb1a71d7c8f15b93e896ed954fedb328c1671c57cab7a",
+        "hand_normal_impulse_Ns": 233.58637242826214,
+        "elapsed_wall_seconds": 40.49572460213676
+      },
+      {
+        "seed": 2,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 88.15999999997594,
+        "peak_forces_N": {
+          "hand": 23.78421582131342,
+          "support": 28.21150367956045,
+          "back": 4.662320644114947,
+          "arm_fixture": 1.6744404228312668,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-tuned/group-a/seed-2",
+        "scene_config": {
+          "width": 0.5187901073366603,
+          "depth": 0.20728560526811796,
+          "front_x": -0.5589989947403434,
+          "levels": [
+            0.7976161213424932
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.7976161213424932,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3422503063209396,
+          "table_center_y": -0.4768513397024881,
+          "center_y": -0.16639380840222345,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.04624531325560856,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.06838792914731298,
+            0.05188535444356568,
+            0.23347065507416156
+          ]
+        },
+        "initial_conditions_sha256": "c7c17d701605861d634aad676cdb6f7fe7ac099410e3bb3c9bde0280608c0851",
+        "hand_normal_impulse_Ns": 239.39596031359608,
+        "elapsed_wall_seconds": 42.81212395592593
+      },
+      {
+        "seed": 3,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 88.01999999997626,
+        "peak_forces_N": {
+          "hand": 22.67926487227477,
+          "support": 27.028037115156742,
+          "back": 4.740195128814038,
+          "arm_fixture": 0.0,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-tuned/group-a/seed-3",
+        "scene_config": {
+          "width": 0.5479051298140833,
+          "depth": 0.20433126940236473,
+          "front_x": -0.564058713577596,
+          "levels": [
+            0.7958564916714362
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.7958564916714362,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.33765422848590787,
+          "table_center_y": -0.4877265596015719,
+          "center_y": -0.1736177612546144,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.042824563809913244,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0678944840527688,
+            0.05180764679123838,
+            0.2413145925770299
+          ]
+        },
+        "initial_conditions_sha256": "17a78a578e90d674474914b6f4dcb1328551e7b65881d2ec8d81edfa95bc7007",
+        "hand_normal_impulse_Ns": 239.7759435815988,
+        "elapsed_wall_seconds": 41.05237570498139
+      },
+      {
+        "seed": 4,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 0,
+          "place": 0,
+          "final_position": 0,
+          "retreat": 0
+        },
+        "incidents": [],
+        "sim_seconds": 16.94200000000149,
+        "peak_forces_N": {
+          "hand": 25.15094783106025,
+          "support": 29.022602717664384,
+          "back": 0.0,
+          "arm_fixture": 6.255571876047331,
+          "other_product": 0.0
+        },
+        "failure": "approach: contact force exceeded 25.0 N",
+        "directory": "outputs/ten-scene-tuned/group-a/seed-4",
+        "scene_config": {
+          "width": 0.5801901206985807,
+          "depth": 0.20376486584377274,
+          "front_x": -0.5589264416800497,
+          "levels": [
+            0.8044305610557237
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8044305610557237,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.33628364725812343,
+          "table_center_y": -0.47912117198473003,
+          "center_y": -0.1905519898725062,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.05304430159431977,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.07009062042251489,
+            0.05285746223424622,
+            0.23329337638232964
+          ]
+        },
+        "initial_conditions_sha256": "00f12ef96c2f71447f3ac8cab638adb4da04c4c7ddce37c200662f5200731dbf",
+        "hand_normal_impulse_Ns": 4.858869830605871,
+        "elapsed_wall_seconds": 7.024182716151699
+      },
+      {
+        "seed": 5,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 87.33999999997785,
+        "peak_forces_N": {
+          "hand": 20.077065614989024,
+          "support": 26.27653196556856,
+          "back": 4.938318790429938,
+          "arm_fixture": 2.686452066835929,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-tuned/group-b/seed-5",
+        "scene_config": {
+          "width": 0.5408473205419999,
+          "depth": 0.20383368880785518,
+          "front_x": -0.5644606929761834,
+          "levels": [
+            0.8030500292374538
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8030500292374538,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3445124228927283,
+          "table_center_y": -0.47001647769869853,
+          "center_y": -0.17573345623760347,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.04804738223175976,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.07246352631789195,
+            0.05009195336625285,
+            0.23657282208141028
+          ]
+        },
+        "initial_conditions_sha256": "33f806af4307577f590a2de36f89e7fe5b49521fb8a9fcce728726220546f1c9",
+        "hand_normal_impulse_Ns": 236.64398776390883,
+        "elapsed_wall_seconds": 40.003308488987386
+      },
+      {
+        "seed": 6,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 1,
+          "retreat": 1
+        },
+        "incidents": [],
+        "sim_seconds": 79.25999999999668,
+        "peak_forces_N": {
+          "hand": 11.470431682509545,
+          "support": 14.390458159482442,
+          "back": 4.986685176560887,
+          "arm_fixture": 3.790149578651011,
+          "other_product": 0.9133517956085563
+        },
+        "failure": "release: opening/retreat path rejected before actuation",
+        "directory": "outputs/ten-scene-tuned/group-b/seed-6",
+        "scene_config": {
+          "width": 0.5674323930504493,
+          "depth": 0.20632756272607147,
+          "front_x": -0.5551255500981354,
+          "levels": [
+            0.8003816435147195
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8003816435147195,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3382008233883598,
+          "table_center_y": -0.4875405525022562,
+          "center_y": -0.17671236958904893,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.03603458463967551,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0687461669585067,
+            0.04921440343877227,
+            0.23799194824940612
+          ]
+        },
+        "initial_conditions_sha256": "02ede9612932b27c72e21e2162c5ff4853349c885fe697d99a484db3eb3d9e3b",
+        "hand_normal_impulse_Ns": 230.79261897964093,
+        "elapsed_wall_seconds": 38.496297537814826
+      },
+      {
+        "seed": 7,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 0,
+          "place": 0,
+          "final_position": 0,
+          "retreat": 0
+        },
+        "incidents": [],
+        "sim_seconds": 16.90200000000151,
+        "peak_forces_N": {
+          "hand": 25.255866760378854,
+          "support": 28.96352370590747,
+          "back": 0.0,
+          "arm_fixture": 0.0,
+          "other_product": 0.0
+        },
+        "failure": "approach: contact force exceeded 25.0 N",
+        "directory": "outputs/ten-scene-tuned/group-b/seed-7",
+        "scene_config": {
+          "width": 0.5005265304565575,
+          "depth": 0.20873553445396262,
+          "front_x": -0.5619983371508878,
+          "levels": [
+            0.8012509546660467
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8012509546660467,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3370293057124796,
+          "table_center_y": -0.48064130094312557,
+          "center_y": -0.15469475298626328,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.041060648536386274,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0731777104077566,
+            0.05165411414147116,
+            0.2356033150398495
+          ]
+        },
+        "initial_conditions_sha256": "bdfc5d27e1b4fd46dd1cde4bcf3e7e0b4a4cb8518ef00f12fff4162efd4851cb",
+        "hand_normal_impulse_Ns": 4.57037208670409,
+        "elapsed_wall_seconds": 6.674866921035573
+      },
+      {
+        "seed": 8,
+        "returncode": 2,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": false,
+        "physical_success": false,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 1,
+          "retreat": 1
+        },
+        "incidents": [],
+        "sim_seconds": 82.70199999998866,
+        "peak_forces_N": {
+          "hand": 16.207348342458122,
+          "support": 21.52415564639073,
+          "back": 4.373119885895439,
+          "arm_fixture": 26.277166453223643,
+          "other_product": 0.0
+        },
+        "failure": "push: contact force exceeded 25.0 N",
+        "directory": "outputs/ten-scene-tuned/group-b/seed-8",
+        "scene_config": {
+          "width": 0.5437881873122798,
+          "depth": 0.20391084806539195,
+          "front_x": -0.5563010348830378,
+          "levels": [
+            0.7982697227660557
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.7982697227660557,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.3439304640352722,
+          "table_center_y": -0.48042069091674566,
+          "center_y": -0.17675118868511733,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.03982704290169365,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.0738982147467034,
+            0.0489122650309131,
+            0.24461678297312045
+          ]
+        },
+        "initial_conditions_sha256": "8922900739010233d9a75f5bbd8219645b23310fcd00629cadb5a89bd7394bbd",
+        "hand_normal_impulse_Ns": 258.4587843105413,
+        "elapsed_wall_seconds": 40.303453790955245
+      },
+      {
+        "seed": 9,
+        "returncode": 0,
+        "verification_status": "verified",
+        "process_failure": null,
+        "clean_success": true,
+        "physical_success": true,
+        "stages": {
+          "pick": 2,
+          "place": 2,
+          "final_position": 2,
+          "retreat": 2
+        },
+        "incidents": [],
+        "sim_seconds": 89.17999999997356,
+        "peak_forces_N": {
+          "hand": 18.209568289452633,
+          "support": 24.02398338394704,
+          "back": 4.606848496990531,
+          "arm_fixture": 4.011919426998046,
+          "other_product": 0.0
+        },
+        "failure": null,
+        "directory": "outputs/ten-scene-tuned/group-b/seed-9",
+        "scene_config": {
+          "width": 0.5860393649182885,
+          "depth": 0.20915380120490507,
+          "front_x": -0.5578392537039644,
+          "levels": [
+            0.8037024920397009
+          ],
+          "board_thickness": 0.02,
+          "table_top": 0.8037024920397009,
+          "top_clearance": 0.5,
+          "table_size": [
+            0.34,
+            0.4
+          ],
+          "table_center_x": -0.344734122655324,
+          "table_center_y": -0.4812550399974098,
+          "center_y": -0.20171659851174206,
+          "product_count": 2,
+          "initially_stocked": 0,
+          "target_gap": 0.04469888653954576,
+          "spawn_jitter": 0.002,
+          "robot_xy": [
+            0.0,
+            0.0
+          ],
+          "robot_yaw": 0.0,
+          "timestep": 0.002,
+          "frame_skip": 10,
+          "time_limit": 240.0,
+          "stable_seconds": 0.5,
+          "terminate_on_success": false,
+          "target_tolerance": 0.035,
+          "enable_sensors": false,
+          "environment": "studio",
+          "product_kind": "carton",
+          "target_back_gap": 0.003,
+          "carton_size": [
+            0.06829453767270044,
+            0.05061888890030937,
+            0.24444054532672285
+          ]
+        },
+        "initial_conditions_sha256": "1fc76877d868c20aa4359286bf7c209367613f3fed001aee6bb05b9918a94f6c",
+        "hand_normal_impulse_Ns": 237.31772514681225,
+        "elapsed_wall_seconds": 43.33878153283149
+      }
+    ],
+    "definitions": {
+      "pick": "Verified physical lift, hand contact and table unloading",
+      "place": "Measured shelf support before the supported slide",
+      "final_position": "Back-contact/upright dwell, then unloaded release satisfying unchanged task geometry/velocity/support conditions",
+      "retreat": "Release and clear completed; current and previously placed cartons stable for task dwell, no product tipped/dropped during retreat",
+      "clean_success": "Process exited normally, complete task, all four stages, no product tipped >45 degrees or dropped below 0.25m at any monitored physics step",
+      "unreached": "Counted as zero in the scheduled-object denominator; not silently omitted"
+    },
+    "mean_success_sim_seconds": 87.82999999997672,
+    "maximum_hand_normal_N": 25.255866760378854,
+    "entered_stage_counts": {
+      "pick": 18,
+      "place": 16,
+      "final_position": 16,
+      "retreat": 15
+    }
+  },
+  "search": {
+    "method": "coordinate hill climb",
+    "development_seeds": [
+      100,
+      101
+    ],
+    "objects": 2,
+    "trials": [
+      {
+        "trial": 0,
+        "round": 0,
+        "controls": {},
+        "score": [
+          2,
+          16,
+          -40.0795,
+          -176.62
+        ],
+        "accepted": true,
+        "campaign": "outputs/compliance-search-v2/trial-00/campaign.json"
+      },
+      {
+        "trial": 1,
+        "round": 0,
+        "controls": {
+          "grasp_force_target": 4.5
+        },
+        "score": [
+          2,
+          16,
+          -40.0795,
+          -189.28
+        ],
+        "accepted": false,
+        "campaign": "outputs/compliance-search-v2/trial-01/campaign.json"
+      },
+      {
+        "trial": 2,
+        "round": 0,
+        "controls": {
+          "grasp_force_target": 7.5
+        },
+        "score": [
+          1,
+          10,
+          -40.0795,
+          -127.44
+        ],
+        "accepted": false,
+        "campaign": "outputs/compliance-search-v2/trial-02/campaign.json"
+      },
+      {
+        "trial": 3,
+        "round": 0,
+        "controls": {
+          "push_force_target": 1.5
+        },
+        "score": [
+          1,
+          14,
+          -65.9488,
+          -170.962
+        ],
+        "accepted": false,
+        "campaign": "outputs/compliance-search-v2/trial-03/campaign.json"
+      },
+      {
+        "trial": 4,
+        "round": 0,
+        "controls": {
+          "push_force_target": 2.5
+        },
+        "score": [
+          2,
+          16,
+          -40.0795,
+          -178.88
+        ],
+        "accepted": false,
+        "campaign": "outputs/compliance-search-v2/trial-04/campaign.json"
+      },
+      {
+        "trial": 5,
+        "round": 0,
+        "controls": {
+          "payload_orientation_speed": 0.22499999999999998
+        },
+        "score": [
+          1,
+          10,
+          -41.423,
+          -128.102
+        ],
+        "accepted": false,
+        "campaign": "outputs/compliance-search-v2/trial-05/campaign.json"
+      },
+      {
+        "trial": 6,
+        "round": 0,
+        "controls": {
+          "payload_orientation_speed": 0.375
+        },
+        "score": [
+          1,
+          14,
+          -53.8749,
+          -171.662
+        ],
+        "accepted": false,
+        "campaign": "outputs/compliance-search-v2/trial-06/campaign.json"
+      }
+    ],
+    "acceptance_thresholds": "fixed",
+    "best_controls": {},
+    "best_score": [
+      2,
+      16,
+      -40.0795,
+      -176.62
+    ]
+  },
+  "search_audit": {
+    "score_version": 2,
+    "trials": [
+      {
+        "trial": 0,
+        "score": [
+          2,
+          0,
+          0,
+          16,
+          -40.0795,
+          -176.62
+        ],
+        "accepted": true,
+        "original_accepted": true
+      },
+      {
+        "trial": 1,
+        "score": [
+          2,
+          0,
+          0,
+          16,
+          -40.0795,
+          -189.28
+        ],
+        "accepted": false,
+        "original_accepted": false
+      },
+      {
+        "trial": 2,
+        "score": [
+          1,
+          0,
+          0,
+          10,
+          -40.0795,
+          -127.44
+        ],
+        "accepted": false,
+        "original_accepted": false
+      },
+      {
+        "trial": 3,
+        "score": [
+          1,
+          0,
+          0,
+          14,
+          -65.9488,
+          -170.962
+        ],
+        "accepted": false,
+        "original_accepted": false
+      },
+      {
+        "trial": 4,
+        "score": [
+          2,
+          0,
+          0,
+          16,
+          -40.0795,
+          -178.88
+        ],
+        "accepted": false,
+        "original_accepted": false
+      },
+      {
+        "trial": 5,
+        "score": [
+          1,
+          0,
+          0,
+          10,
+          -41.423,
+          -128.102
+        ],
+        "accepted": false,
+        "original_accepted": false
+      },
+      {
+        "trial": 6,
+        "score": [
+          1,
+          0,
+          0,
+          14,
+          -53.8749,
+          -171.662
+        ],
+        "accepted": false,
+        "original_accepted": false
+      }
+    ],
+    "best_controls": {},
+    "acceptance_decisions_unchanged": true,
+    "winner_unchanged": true
+  },
+  "development_compute_probe": {
+    "status": "aborted_unbounded_initial_experiment",
+    "reason": "Development seed 102 exceeded five minutes of CPU-bound IK without a terminal summary; two earlier completed runs retained. Restart uses development seeds 100 and 101 and 180-second episode limits. This is not a success or a physically verified failure.",
+    "completed_seeds": [
+      100,
+      101
+    ],
+    "unverified_seed": 102,
+    "excluded_from_parameter_search": true
+  },
+  "push_failure_replay": {
+    "maximum_replayed_product_pose_error": 0.0,
+    "fixture_contacts": [
+      {
+        "geoms": [
+          "shelf_board_0",
+          ""
+        ],
+        "bodies": [
+          "shelf",
+          "left_tower"
+        ],
+        "normal_N": 25.718307743406687
+      },
+      {
+        "geoms": [
+          "shelf_side_1",
+          ""
+        ],
+        "bodies": [
+          "shelf",
+          "right_thumb_ip"
+        ],
+        "normal_N": 0.5588587098169577
+      },
+      {
+        "geoms": [
+          "shelf_board_0",
+          "carton_1_geom"
+        ],
+        "bodies": [
+          "shelf",
+          "carton_1"
+        ],
+        "normal_N": 0.4414500011385237
+      },
+      {
+        "geoms": [
+          "shelf_board_0",
+          "carton_1_geom"
+        ],
+        "bodies": [
+          "shelf",
+          "carton_1"
+        ],
+        "normal_N": 0.4414500011385233
+      },
+      {
+        "geoms": [
+          "shelf_board_0",
+          "carton_1_geom"
+        ],
+        "bodies": [
+          "shelf",
+          "carton_1"
+        ],
+        "normal_N": 0.4414500011385241
+      },
+      {
+        "geoms": [
+          "shelf_board_0",
+          "carton_1_geom"
+        ],
+        "bodies": [
+          "shelf",
+          "carton_1"
+        ],
+        "normal_N": 0.4414500011385244
+      }
+    ]
+  }
+}

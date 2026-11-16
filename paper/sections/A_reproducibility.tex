@@ -11,6 +11,12 @@ Source modules live under \path{src/abstract_stack/}.
 Environment stepping is in \path{env.py}; prediction is in \path{ik.py}.
 The tracker is in \path{mabel_controller.py}.
 The physical solver is in \path{interactions.py}.
+The all-product observer is in \path{evaluation.py}; bounded compliance search
+and paired reporting are in \path{tuning.py} and \path{benchmark_report.py}.
+Run \path{scripts/benchmark_stocking.sh} for the public ten-scene baseline,
+separate development search and matched-scene validation. Full run evidence
+remains under \path{outputs/}; the compact report and evidence file contain the
+selected parameters, candidate outcomes and scene/model fingerprints.
 Detailed commands and limitations are in the scripted interaction and MABEL
 controller runbooks.
 The literature review pins its external source version and separates the
