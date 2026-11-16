@@ -117,6 +117,25 @@ def test_force_guard_includes_non_grasp_links_on_active_carton(robot, tmp_path):
 
 
 @pytest.mark.mabel
+@pytest.mark.parametrize("excursion", [[0.0302, 0, 0], [0, 0, 0.026]])
+def test_final_push_bound_is_checked_when_no_clearance_projection_is_needed(
+    robot, tmp_path, excursion
+):
+    script = StockingScript(robot, tmp_path, ScriptConfig(fixture_avoidance=True))
+    point = script.controller.position().copy()
+    script.controller.active_rotation = robot.data.xmat[script.controller.palm].reshape(3, 3).copy()
+    script.payload_rotation_goal = robot.data.body(script.product.name).xmat.reshape(3, 3).copy()
+    script.phase = "push"
+    script.events = [{"phase": "push", "push_origin_m": (point - np.array(excursion)).tolist()}]
+    qpos, ctrl, time = robot.data.qpos.copy(), robot.data.ctrl.copy(), float(robot.data.time)
+    with pytest.raises(InteractionFailure, match="final feedback target outside bounded motion"):
+        script._tick(point, 0.1)
+    np.testing.assert_array_equal(robot.data.qpos, qpos)
+    np.testing.assert_array_equal(robot.data.ctrl, ctrl)
+    assert robot.data.time == time
+
+
+@pytest.mark.mabel
 def test_script_writes_honest_physics_evidence(robot, tmp_path):
     script = StockingScript(robot, tmp_path, ScriptConfig(adaptive_grasps=False))
     result = script.run()
