@@ -61,6 +61,16 @@ and autonomy can drive the same environment.
 Use Python 3.10–3.12 (the installer defaults to 3.11), Git, and
 [uv](https://docs.astral.sh/uv/). From this checkout:
 
+On macOS, use the [native Mac simulator setup](docs/macos.md) to avoid Emet's
+Linux GPU dependencies and select the Mac renderer/viewer:
+
+```bash
+./scripts/install-macos.sh
+./scripts/run-macos.sh sim
+```
+
+For the full Emet stack on a compatible machine:
+
 ```bash
 ./install.sh
 source .venv/bin/activate

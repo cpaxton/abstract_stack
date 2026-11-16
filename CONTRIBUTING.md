@@ -11,6 +11,12 @@ uv run pre-commit install --install-hooks
 abstract-stack fetch-mabel
 ```
 
+For native macOS development, follow [the Mac simulator setup](docs/macos.md):
+`./scripts/install-macos.sh` installs the lightweight environment and hooks, and
+`./scripts/run-macos.sh sim` launches the native viewer. Use `uv run --no-sync`
+for the checks below so the full Emet stack is not synchronized. Run physics
+tests with `MUJOCO_GL=cgl ./scripts/test.sh`.
+
 Keep `GIT_LFS_SKIP_SMUDGE=1` set when updating Git dependencies; unavailable
 upstream documentation media must not prevent a simulation-only checkout.
 Never run `git reset --hard` or clean an existing upstream checkout to fix assets.
