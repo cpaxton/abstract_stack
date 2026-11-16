@@ -66,12 +66,16 @@ def run_campaign(
     control_config=None,
     episode_timeout=None,
     legacy_contact_control=False,
+    guarded_approach=False,
+    fixture_avoidance=False,
 ):
     from abstract_stack.tuning import load_control_config
 
     controls = load_control_config(control_config)
     if not isinstance(legacy_contact_control, bool):
         raise ValueError("legacy_contact_control must be boolean")
+    if not isinstance(guarded_approach, bool) or not isinstance(fixture_avoidance, bool):
+        raise ValueError("guarded_approach and fixture_avoidance must be boolean")
     if episode_timeout is None:
         episode_timeout = 900 if video else 180
     if not isinstance(episode_timeout, (float, int)) or not 0 < episode_timeout < float("inf"):
@@ -97,6 +101,8 @@ def run_campaign(
         "control_overrides": controls,
         "episode_wall_timeout_seconds": episode_timeout,
         "contact_aware": not legacy_contact_control,
+        "guarded_approach": guarded_approach,
+        "fixture_avoidance": fixture_avoidance,
     }
     # Preserve earlier campaigns and all their episode directories.
     index = 1
@@ -130,6 +136,10 @@ def run_campaign(
             command += ["--video", "--fps", str(fps)]
         if legacy_contact_control:
             command += ["--legacy-contact-control"]
+        if guarded_approach:
+            command += ["--guarded-approach"]
+        if fixture_avoidance:
+            command += ["--fixture-avoidance"]
         command += ["--control-config", str(controls_path.resolve())]
         manifest["active_run"] = {"seed": seed, "directory": str(episode)}
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

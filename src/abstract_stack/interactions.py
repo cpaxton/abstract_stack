@@ -57,6 +57,8 @@ class ScriptConfig:
     insertion_vertical_speed: float = 0.01
     head_tracking: bool = True
     contact_aware: bool = True
+    guarded_approach: bool = False
+    fixture_avoidance: bool = False
     approach_force_target: float = 15.0
     release_lateral_limit: float = 0.04
     contact_grasp_seconds: float = 8.0
@@ -73,6 +75,8 @@ class ScriptConfig:
         values.pop("adaptive_grasps")
         values.pop("head_tracking")
         values.pop("contact_aware")
+        values.pop("guarded_approach")
+        values.pop("fixture_avoidance")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
@@ -97,6 +101,10 @@ class ScriptConfig:
             raise ValueError("head_tracking must be true or false")
         if not isinstance(self.contact_aware, bool):
             raise ValueError("contact_aware must be true or false")
+        if not isinstance(self.guarded_approach, bool) or not isinstance(
+            self.fixture_avoidance, bool
+        ):
+            raise ValueError("guarded_approach and fixture_avoidance must be boolean")
         if self.ik_orientation_span_deg > 90 or self.ik_orientation_tolerance_deg > 45:
             raise ValueError("IK orientation relaxation/tolerance exceeds the grasp search bounds")
 
@@ -275,6 +283,27 @@ class CartesianHand:
                     norm = np.linalg.norm(direction)
                     direction = direction / norm if norm > 1e-6 else np.array([0.0, 0.0, 1.0])
         return best, direction
+
+    def check_hand_step(self, prediction, grip, allowed_object):
+        """Check three coupled arm/finger poses on scratch data, never live qpos."""
+        start = self.ik.measured_q()
+        reference = self.data.qpos.copy()
+        object_id = self.model.body(allowed_object).id
+        baseline = self.ik._contacts(start, reference, object_id)
+        for alpha in (0.0, 0.5, 1.0):
+            fingers = reference.copy()
+            for suffix in self.FLEXION:
+                name = f"Left {suffix}"
+                adr = int(self.model.joint(name).qposadr[0])
+                lo, hi = self.model.actuator(name).ctrlrange
+                goal = lo + grip * (hi - lo)
+                fingers[adr] = reference[adr] + alpha * (goal - reference[adr])
+            errors = self.ik.collision_errors(
+                start + alpha * (prediction.q - start), fingers, baseline, object_id
+            )
+            if errors:
+                return errors
+        return []
 
     def position(self):
         return self.data.xpos[self.palm] + self.data.xmat[self.palm].reshape(3, 3) @ self.OFFSET
@@ -612,7 +641,7 @@ class StockingScript:
                 grip=grip,
             )
             event = self.events[-1]
-            if self.config.contact_aware and prediction.feasible:
+            if self.config.contact_aware and self.config.fixture_avoidance and prediction.feasible:
                 clearance, normal = self.controller.tower_clearance(prediction, self.product.level)
                 event["minimum_predicted_tower_clearance_m"] = min(
                     event.get("minimum_predicted_tower_clearance_m", float("inf")), clearance
@@ -637,6 +666,12 @@ class StockingScript:
                         target, allowed_object=self.product.name, alternatives=False, grip=grip
                     )
                     event["clearance_corrections"] = event.get("clearance_corrections", 0) + 1
+            origin = np.array(event["push_origin_m"])
+            if (
+                not origin[0] - self.config.push_distance <= target[0] <= origin[0] + 0.03
+                or target[2] - origin[2] > self.config.fixture_unload_distance
+            ):
+                raise InteractionFailure("push: final feedback target outside bounded motion")
             event["feedback_checks"] = event.get("feedback_checks", 0) + 1
             if not prediction.feasible:
                 event["feedback_rejection"] = prediction.report()
@@ -757,6 +792,7 @@ class StockingScript:
             if (
                 name == "approach"
                 and self.config.contact_aware
+                and self.config.guarded_approach
                 and self.last_forces["robot_product"] >= self.config.approach_force_target
             ):
                 contact_stopped = True
@@ -911,6 +947,10 @@ class StockingScript:
                     raise InteractionFailure(
                         "close: contact-descent path rejected before actuation"
                     )
+                collisions = self.controller.check_hand_step(prediction, fraction, product.name)
+                if collisions:
+                    self.events[-1]["finger_sweep_rejection"] = collisions
+                    raise InteractionFailure("close: coupled hand step rejected before actuation")
                 self.controller.last_target = target.copy()
                 self._apply_tick(self.controller.joint_targets(prediction.q, fraction))
                 if (
@@ -1064,7 +1104,7 @@ class StockingScript:
                 )
                 * env.dt
             )
-            if config.contact_aware:
+            if config.contact_aware and config.fixture_avoidance:
                 normal = self.fixture_feedback.copy()
                 force = float(np.linalg.norm(normal))
                 threshold = config.fixture_force_target * (0.5 if self.fixture_unloading else 1)
