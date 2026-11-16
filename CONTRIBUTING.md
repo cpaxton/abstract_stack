@@ -62,6 +62,19 @@ uses the active checkout's environment without synchronizing it again.
 
 ## Pull requests
 
+For scripted stocking changes, run `./scripts/benchmark_stocking.sh` in a fresh
+output directory. It evaluates ten two-carton scenes, hill-climbs compliant
+control on separate development seeds, repeats the ten scenes, and writes a
+paired Markdown/JSON report. Preserve failed and unverified runs. Physical-only
+campaigns have a 180-second wall budget per episode; video campaigns default to
+900 seconds. Use `batch --episode-timeout` to declare a different budget.
+An unknown process outcome earns no successful stages. Report per-stage counts
+against all scheduled objects and complete-scene success separately. Continuous
+all-product tip/drop monitoring is required for a no-knock-over claim; final
+upright poses alone are insufficient. Keep task criteria and abort limits fixed
+while searching controller parameters, and disclose development seeds, search
+budget, rejected candidates and validation failures.
+
 Work on a feature branch. Describe the concrete behavior, reproduction command,
 tests actually run, and unresolved acceptance gates. Include a small rendered
 preview for scene changes and numeric/trace evidence for control changes. Use a

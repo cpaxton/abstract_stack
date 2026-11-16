@@ -437,8 +437,11 @@ class StockingScript:
             else None
         )
         self.recorder, self.gaze = None, None
+        self.observer = None
 
     def _sample(self, env):
+        if self.observer is not None:
+            self.observer.sample(self.phase, self.product.name)
         if self.rows and env.data.time <= self.rows[-1][0]:
             raise InteractionFailure("MuJoCo time did not advance; possible physics reset")
         forces = contact_forces(env, self.product.name, self.hand_bodies)
@@ -580,6 +583,9 @@ class StockingScript:
         self.phase = name
         self.events.append(
             {"phase": name, "product": self.product.name, "sim_time": float(self.env.data.time)}
+        )
+        (self.directory / "physics-progress.json").write_text(
+            json.dumps(self.events[-1], indent=2) + "\n"
         )
 
     def _move(self, name, target, grip=0.0, seconds=None, *, check_tracking=True, carrying=None):
@@ -884,9 +890,11 @@ class StockingScript:
         else:
             raise InteractionFailure("push: shelf-back contact was not established")
         self.supported_slide = False
+        self.observer.begin_retreat(self.product.name)
         self._release_grasp()
         self.payload_rotation_goal = None
         self._move("clear", self.controller.position() + [0.04, 0, 0.02])
+        self.observer.end_retreat(self.product.name)
 
     def _release_grasp(self):
         """Check opening fingers and retreat together, then execute via servos."""
@@ -955,6 +963,9 @@ class StockingScript:
             raise InteractionFailure("release: product is not upright")
         self.events[-1].update(
             verified_release=True,
+            placement_conditions=bool(
+                env._placement_conditions()[env.products.index(self.product)]
+            ),
             measured_shelf_normal_N=self.last_forces["shelf"],
             measured_hand_normal_N=self.last_forces["hand"],
         )
@@ -964,6 +975,9 @@ class StockingScript:
         from abstract_stack.bundle import build_scene_bundle
 
         build_scene_bundle(self.env, self.directory / "initial-scene")
+        from abstract_stack.evaluation import StageObserver
+
+        self.observer = StageObserver(self.env)
         # The bundle settles the world; initialize IK targets from that measured state.
         self.controller = CartesianHand(self.env, self.config)
         self.tracker = MabelController(
@@ -1025,6 +1039,7 @@ class StockingScript:
         finally:
             self.env.data.ctrl[:] = stationary_targets(self.env.model, self.env.data)
             result["events"] = self.events
+            result["stage_evaluation"] = self.observer.report(self.events)
             result["last_ik_residual"] = self.controller.last_ik_error
             result["tracking_controller"] = self.tracker.last_report
             result["tracking_config"] = asdict(self.tracker.config)

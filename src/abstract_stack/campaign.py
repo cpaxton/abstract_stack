@@ -19,6 +19,9 @@ def summarize_run(directory, returncode, *, video):
         "physical_success": None,
         "artifacts_valid": False,
     }
+    process_failure = directory / "process_failure.json"
+    if process_failure.exists():
+        result["process_failure"] = json.loads(process_failure.read_text())
     if not summary_path.exists():
         result["failure"] = "Process ended without a terminal summary; inspect run.log"
         return result
@@ -31,6 +34,8 @@ def summarize_run(directory, returncode, *, video):
             stocked_count=summary["metrics"]["stocked_count"],
             product_count=summary["metrics"]["product_count"],
             elapsed_sim_time=summary["metrics"]["elapsed_sim_time"],
+            stage_evaluation=summary.get("stage_evaluation"),
+            peak_forces_N=summary.get("peak_forces_N"),
         )
         result["artifacts_valid"] = all(
             (directory / name).exists() for name in ("trace.npz", "rollout_start.npz")
@@ -51,7 +56,16 @@ def summarize_run(directory, returncode, *, video):
     return result
 
 
-def run_campaign(directory, seeds, *, objects=2, video=False, fps=15):
+def run_campaign(
+    directory, seeds, *, objects=2, video=False, fps=15, control_config=None, episode_timeout=None
+):
+    from abstract_stack.tuning import load_control_config
+
+    controls = load_control_config(control_config)
+    if episode_timeout is None:
+        episode_timeout = 900 if video else 180
+    if not isinstance(episode_timeout, (float, int)) or not 0 < episode_timeout < float("inf"):
+        raise ValueError("episode_timeout must be finite and positive")
     if not seeds or len(set(seeds)) != len(seeds) or any(seed < 0 for seed in seeds):
         raise ValueError("campaign seeds must be distinct nonnegative integers")
     if not 1 <= objects <= 6:
@@ -70,6 +84,8 @@ def run_campaign(directory, seeds, *, objects=2, video=False, fps=15):
         "policy": "world_state_stocking",
         "execution": "serial isolated processes",
         "runs": [],
+        "control_overrides": controls,
+        "episode_wall_timeout_seconds": episode_timeout,
     }
     # Preserve earlier campaigns and all their episode directories.
     index = 1
@@ -77,6 +93,8 @@ def run_campaign(directory, seeds, *, objects=2, video=False, fps=15):
     while manifest_path.exists():
         manifest_path = root / f"campaign-{index}.json"
         index += 1
+    controls_path = manifest_path.with_suffix(".controls.json")
+    controls_path.write_text(json.dumps(controls, indent=2) + "\n")
     for seed in seeds:
         episode = root / f"seed-{seed}"
         attempt = 1
@@ -99,11 +117,24 @@ def run_campaign(directory, seeds, *, objects=2, video=False, fps=15):
         ]
         if video:
             command += ["--video", "--fps", str(fps)]
+        command += ["--control-config", str(controls_path.resolve())]
         manifest["active_run"] = {"seed": seed, "directory": str(episode)}
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
         with (episode / "run.log").open("w") as log:
-            process = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
-        result = summarize_run(episode, process.returncode, video=video)
+            try:
+                process = subprocess.run(
+                    command, stdout=log, stderr=subprocess.STDOUT, timeout=episode_timeout
+                )
+                returncode = process.returncode
+            except subprocess.TimeoutExpired:
+                returncode = 124
+                failure = {
+                    "kind": "wall_timeout",
+                    "wall_timeout_seconds": episode_timeout,
+                    "verification_status": "unknown",
+                }
+                (episode / "process_failure.json").write_text(json.dumps(failure, indent=2) + "\n")
+        result = summarize_run(episode, returncode, video=video)
         result["seed"] = seed
         manifest["runs"].append(result)
         print(json.dumps(result), flush=True)

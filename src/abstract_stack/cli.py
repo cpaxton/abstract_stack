@@ -38,7 +38,18 @@ def _parser():
     batch.add_argument("--objects", type=_positive_int, default=2)
     batch.add_argument("--video", action="store_true")
     batch.add_argument("--fps", type=_positive_int, default=15)
+    batch.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
+    batch.add_argument(
+        "--episode-timeout",
+        type=float,
+        help="Wall seconds per episode (default 180; 900 with video)",
+    )
     batch.add_argument("--output-dir", type=Path, default=Path("outputs/stocking-campaign"))
+    tune = commands.add_parser("tune", help="Hill-climb compliant control on development scenes")
+    tune.add_argument("--seeds", type=int, nargs="+", default=[100, 101])
+    tune.add_argument("--objects", type=_positive_int, default=2)
+    tune.add_argument("--rounds", type=_positive_int, default=1)
+    tune.add_argument("--output-dir", type=Path, default=Path("outputs/compliance-search"))
     for command in ("sim", "export", "inspect", "serve", "build-scene", "script", "solve"):
         sub = commands.add_parser(command)
         sub.add_argument("--mabel-root", type=Path, help="Existing open_mabel checkout")
@@ -62,6 +73,7 @@ def _parser():
             sub.add_argument("--output-dir", type=Path, default=Path("outputs/scene"))
             sub.add_argument("--render", action="store_true", help="Render scene preview images")
         if command in ("script", "solve"):
+            sub.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
             selection.add_argument(
                 "--random-scene", action="store_true", help="Generate the scene from --seed"
             )
@@ -190,12 +202,33 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.command == "solve":
         args.command = "script"
+    if args.command == "tune":
+        from abstract_stack.tuning import hill_climb
+
+        try:
+            print(
+                json.dumps(
+                    hill_climb(
+                        args.output_dir, args.seeds, rounds=args.rounds, objects=args.objects
+                    ),
+                    indent=2,
+                )
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(1, f"Hill-climb failed: {error}\n")
+        return
     if args.command == "batch":
         from abstract_stack.campaign import run_campaign
 
         try:
             report = run_campaign(
-                args.output_dir, args.seeds, objects=args.objects, video=args.video, fps=args.fps
+                args.output_dir,
+                args.seeds,
+                objects=args.objects,
+                video=args.video,
+                fps=args.fps,
+                control_config=args.control_config,
+                episode_timeout=args.episode_timeout,
             )
         except (OSError, ValueError) as error:
             parser.exit(1, f"Campaign failed: {error}\n")
@@ -270,6 +303,7 @@ def main(argv=None):
         try:
             if args.command == "script":
                 from abstract_stack.interactions import ScriptConfig, StockingScript
+                from abstract_stack.tuning import load_control_config
 
                 result = StockingScript(
                     env,
@@ -282,6 +316,7 @@ def main(argv=None):
                         gravity_compensation=not args.no_gravity_compensation,
                         adaptive_grasps=not args.fixed_grasps,
                         head_tracking=not args.no_head_tracking,
+                        **load_control_config(args.control_config),
                     ),
                     render=args.render,
                     video=args.video,
