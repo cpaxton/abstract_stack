@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 import mujoco
 import numpy as np
 
 from abstract_stack.control import stationary_targets
+from abstract_stack.ik import IKPrediction, PoseIK, rotation_error
 
 
 class InteractionFailure(RuntimeError):
@@ -31,13 +32,24 @@ class ScriptConfig:
     push_distance: float = 0.16
     contact_threshold: float = 0.4
     contact_dwell: float = 0.12
+    ik_position_tolerance: float = 0.015
+    ik_orientation_tolerance_deg: float = 12.0
+    ik_orientation_span_deg: float = 40.0
+    staging_distance_limit: float = 0.10
+    best_effort_staging: bool = True
+    max_motion_seconds: float = 12.0
 
     def __post_init__(self):
         values = asdict(self)
+        values.pop("best_effort_staging")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
             raise ValueError("grip must be <= 1 and max_force must exceed contact_threshold")
+        if not isinstance(self.best_effort_staging, bool):
+            raise ValueError("best_effort_staging must be true or false")
+        if self.ik_orientation_span_deg > 90 or self.ik_orientation_tolerance_deg > 45:
+            raise ValueError("IK orientation relaxation/tolerance exceeds the grasp search bounds")
 
 
 def _descendants(model, root_name):
@@ -129,7 +141,6 @@ class CartesianHand:
     def __init__(self, env, config: ScriptConfig):
         self.env, self.config = env, config
         self.model, self.data = env.model, env.data
-        self.scratch = mujoco.MjData(self.model)
         self.palm = self.model.body("left_palm").id
         self.names = [f"Left Arm {i}" for i in range(1, 8)] + ["Left Wrist"]
         self.qadr = np.array([self.model.joint(n).qposadr[0] for n in self.names])
@@ -154,63 +165,58 @@ class CartesianHand:
         self.home = np.r_[self.model.qpos0[self.qadr], 0.3175]
         self.last_target = self.position()
         self.last_ik_error = 0.0
-        self.jacp = np.zeros((3, self.model.nv))
-        self.jacr = np.zeros_like(self.jacp)
+        self.active_rotation = self.ROTATION.copy()
+        self.ik = PoseIK(
+            self.model, self.data, self.names, self.lower, self.upper, self.home, self.OFFSET
+        )
+        self.last_prediction = None
 
     def position(self):
         return self.data.xpos[self.palm] + self.data.xmat[self.palm].reshape(3, 3) @ self.OFFSET
 
     def targets(self, target, grip):
         target = np.asarray(target, dtype=float)
+        if target.shape != (3,) or not np.isfinite(target).all():
+            raise ValueError("Hand target must contain three finite coordinates")
         self.last_target = target.copy()
-        self.scratch.qpos[:] = self.data.qpos
-        self.scratch.qvel[:] = 0
-        q = self.command.copy()
-        best_error, best_q = float("inf"), q.copy()
-        # Retry from the model's home pose if a warm start becomes trapped at a
-        # joint limit. Both searches remain in scratch data; actuator rate limits
-        # still bound any change of IK branch in the physical simulation.
-        for iteration in range(100):
-            if iteration == 40:
-                if best_error < 0.005:
-                    break
-                q = np.clip(self.home, self.lower, self.upper)
-            self.scratch.qpos[self.qadr] = q[:-1]
-            for joint in self.lift_joints:
-                self.scratch.qpos[joint.qposadr[0]] = q[-1] / 2
-            mujoco.mj_kinematics(self.model, self.scratch)
-            mujoco.mj_comPos(self.model, self.scratch)
-            rotation = self.scratch.xmat[self.palm].reshape(3, 3)
-            point = self.scratch.xpos[self.palm] + rotation @ self.OFFSET
-            quat, angular_error = np.zeros(4), np.zeros(3)
-            mujoco.mju_mat2Quat(quat, (self.ROTATION @ rotation.T).ravel())
-            if quat[0] < 0:
-                quat *= -1
-            mujoco.mju_quat2Vel(angular_error, quat, 1)
-            error = np.r_[target - point, 0.15 * angular_error]
-            residual = float(np.linalg.norm(error))
-            if residual < best_error:
-                best_error, best_q = residual, q.copy()
-            if residual < 1e-4:
-                break
-            mujoco.mj_jac(self.model, self.scratch, self.jacp, self.jacr, point, self.palm)
-            lift_dofs = [j.dofadr[0] for j in self.lift_joints]
-            jacobian = np.column_stack(
-                (
-                    np.vstack((self.jacp[:, self.dofs], 0.15 * self.jacr[:, self.dofs])),
-                    np.r_[self.jacp[:, lift_dofs].mean(axis=1), np.zeros(3)],
-                )
+        q, point, rotation = self.ik.solve(
+            target, self.active_rotation, self.command, iterations=30
+        )
+        self.last_ik_error = float(
+            np.linalg.norm(
+                np.r_[target - point, 0.15 * rotation_error(rotation, self.active_rotation)]
             )
-            delta = jacobian.T @ np.linalg.solve(
-                jacobian @ jacobian.T + 1e-4 * np.eye(6),
-                error,
+        )
+        position_error = float(np.linalg.norm(target - point))
+        angle_error = float(np.linalg.norm(rotation_error(rotation, self.active_rotation)))
+        if position_error > self.config.ik_position_tolerance or angle_error > np.radians(
+            self.config.ik_orientation_tolerance_deg
+        ):
+            raise InteractionFailure(
+                f"Online IK rejected before actuation: predicted miss {position_error:.3f} m, "
+                f"orientation error {np.degrees(angle_error):.1f} deg"
             )
-            q = np.clip(q + np.clip(delta, -0.06, 0.06), self.lower, self.upper)
-        q = best_q
-        self.last_ik_error = best_error
+        return self.joint_targets(q, grip)
+
+    def joint_targets(self, q, grip):
+        q = np.asarray(q, dtype=float)
+        if q.shape != self.command.shape or not np.isfinite(q).all():
+            raise ValueError("Joint target must contain finite arm, wrist and lift coordinates")
+        if not np.isfinite(grip) or not 0 <= grip <= 1:
+            raise ValueError("Grip must be between zero and one")
         # Metres for Lift, radians for joints: use a lower physical lift rate.
         rates = np.r_[np.full(len(self.names), self.config.max_joint_speed), 0.08]
-        self.command += np.clip(q - self.command, -rates * self.env.dt, rates * self.env.dt)
+        bounded_q = np.clip(q, self.lower, self.upper)
+        self.command = np.clip(
+            self.command
+            + np.clip(
+                bounded_q - self.command,
+                -rates * self.env.dt,
+                rates * self.env.dt,
+            ),
+            self.lower,
+            self.upper,
+        )
         action = dict(zip(self.names, self.command[:-1].tolist(), strict=True))
         action["Lift"] = float(self.command[-1])
         for suffix in self.FLEXION:
@@ -218,6 +224,95 @@ class CartesianHand:
             lo, hi = self.model.actuator_ctrlrange[self.model.actuator(name).id]
             action[name] = float(lo + grip * (hi - lo))
         return action
+
+    def predict(self, target, *, allowed_object=None, alternatives=True, check_path=True, grip=0):
+        fingers = {}
+        if grip == 0:
+            for suffix in self.FLEXION:
+                name = f"Left {suffix}"
+                fingers[int(self.model.joint(name).qposadr[0])] = self.model.actuator_ctrlrange[
+                    self.model.actuator(name).id, 0
+                ]
+        prediction = self.ik.predict(
+            target,
+            self.ROTATION if alternatives else self.active_rotation,
+            self.command,
+            position_tolerance=self.config.ik_position_tolerance,
+            angle_tolerance_degrees=self.config.ik_orientation_tolerance_deg,
+            orientation_span_degrees=self.config.ik_orientation_span_deg,
+            max_joint_speed=self.config.max_joint_speed,
+            allowed_object=allowed_object,
+            check_path=check_path,
+            alternatives=alternatives,
+            finger_positions=fingers,
+        )
+        self.last_prediction = prediction
+        return prediction
+
+    def execution_diagnostics(self, prediction):
+        """Attribute FK displacement in a fixed order, without changing live state."""
+        measured = self.ik.measured_q()
+        at_base, _ = self.ik.forward(prediction.q)
+        arm_q = prediction.q.copy()
+        arm_q[:-1] = measured[:-1]
+        at_arm, _ = self.ik.forward(arm_q)
+        at_lift, _ = self.ik.forward(measured)
+        return {
+            "base_and_uncontrolled_xyz_m": (at_base - prediction.position).tolist(),
+            "arm_and_wrist_xyz_m": (at_arm - at_base).tolist(),
+            "lift_xyz_m": (at_lift - at_arm).tolist(),
+            "remaining_model_difference_xyz_m": (self.position() - at_lift).tolist(),
+            "joint_error_deg": dict(
+                zip(self.names, np.degrees(measured[:-1] - prediction.q[:-1]).tolist(), strict=True)
+            ),
+            "lift_error_m": float(measured[-1] - prediction.q[-1]),
+            "scope": "ordered FK decomposition, not an independent force-causality estimate",
+        }
+
+    def staging_pose(self, prediction: IKPrediction):
+        if (
+            not prediction.path_checked
+            or not prediction.safe
+            or prediction.preferred_orientation_error_rad
+            > np.radians(
+                self.config.ik_orientation_span_deg + self.config.ik_orientation_tolerance_deg
+            )
+        ):
+            return None
+        start = self.ik.measured_q()
+        point, _ = self.ik.forward(start, prediction.reference_qpos)
+        initial_error = float(np.linalg.norm(point - prediction.target))
+        best = None
+        for t in np.linspace(0, 1, 51)[1:]:
+            q = start + t * (prediction.q - start)
+            position, rotation = self.ik.forward(q, prediction.reference_qpos)
+            if np.linalg.norm(position - point) > self.config.staging_distance_limit:
+                break
+            error = float(np.linalg.norm(position - prediction.target))
+            if error < initial_error - 0.005 and (best is None or error < best.position_error_m):
+                rates = np.r_[np.full(len(self.names), self.config.max_joint_speed), 0.08]
+                best = replace(
+                    prediction,
+                    q=q.copy(),
+                    position=position,
+                    rotation=rotation,
+                    position_error_m=error,
+                    feasible=False,
+                    orientation_error_rad=float(
+                        np.linalg.norm(rotation_error(rotation, prediction.requested_rotation))
+                    ),
+                    preferred_orientation_error_rad=float(
+                        np.linalg.norm(rotation_error(rotation, self.ROTATION))
+                    ),
+                    candidate="staging:" + prediction.candidate,
+                    minimum_seconds=float(1.875 * np.max(np.abs(q - start) / rates)),
+                    active_limits=[],
+                )
+        if best is not None and self.ik.check_path(
+            best.q, best.reference_qpos, self.config.max_joint_speed
+        ):
+            return None
+        return best
 
 
 class StockingScript:
@@ -272,8 +367,11 @@ class StockingScript:
             raise InteractionFailure(f"{self.phase}: robot tilt limit exceeded")
 
     def _tick(self, target, grip):
+        return self._apply_tick(self.controller.targets(target, grip))
+
+    def _apply_tick(self, action):
         _, _, terminated, truncated, _ = self.env.step(
-            self.controller.targets(target, grip),
+            action,
             on_physics_step=self._sample,
         )
         if truncated:
@@ -289,23 +387,89 @@ class StockingScript:
 
     def _move(self, name, target, grip=0.0, seconds=None, *, check_tracking=True):
         self._stage(name)
-        start = self.controller.position().copy()
         target = np.asarray(target, dtype=float)
-        ticks = max(1, int(np.ceil((seconds or self.config.approach_seconds) / self.env.dt)))
+        allow_object = self.product.name if (grip > 0 or name in ("approach", "place")) else None
+        prediction = self.controller.predict(
+            target,
+            allowed_object=allow_object,
+            alternatives=name != "approach",
+            grip=grip,
+        )
+        event = self.events[-1]
+        event["ik_prediction"] = prediction.report()
+        staging = False
+        if not prediction.feasible:
+            event["decision"] = "hold_for_replan"
+            if self.config.best_effort_staging and grip == 0:
+                safe_prediction = self.controller.predict(target) if allow_object else prediction
+                candidate = self.controller.staging_pose(safe_prediction)
+                if candidate is not None:
+                    prediction, staging = candidate, True
+                    event["decision"] = "bounded_staging_then_replan"
+                    event["staging_prediction"] = prediction.report()
+            if not staging:
+                raise InteractionFailure(
+                    f"{name}: IK prefilter found no acceptable pose/path; "
+                    f"predicted miss {prediction.position_error_m:.3f} m; replan required"
+                )
+        else:
+            event["decision"] = "execute_accepted_pose"
+        self.controller.active_rotation = prediction.requested_rotation.copy()
+        self.controller.last_prediction = prediction
+        start = self.controller.ik.measured_q()
+        duration = max(seconds or self.config.approach_seconds, prediction.minimum_seconds * 1.05)
+        event["planned_duration_s"] = duration
+        if duration > self.config.max_motion_seconds:
+            event["decision"] = "hold_for_duration_replan"
+            raise InteractionFailure(
+                f"{name}: predicted rate-limited duration exceeds motion limit"
+            )
+        ticks = max(1, int(np.ceil(duration / self.env.dt)))
         for k in range(ticks):
             t = (k + 1) / ticks
             blend = 10 * t**3 - 15 * t**4 + 6 * t**5
-            if self._tick(start + blend * (target - start), grip):
+            action = self.controller.joint_targets(start + blend * (prediction.q - start), grip)
+            self.controller.last_target, _ = self.controller.ik.forward(
+                self.controller.command,
+                prediction.reference_qpos,
+            )
+            if self._apply_tick(action):
                 if name != "clear":
                     raise InteractionFailure(f"{name}: task ended before push/contact validation")
                 break
         error = float(np.linalg.norm(self.controller.position() - target))
-        self.events[-1].update(end_time=float(self.env.data.time), tracking_error=error)
+        event.update(
+            end_time=float(self.env.data.time),
+            tracking_error=error,
+            requested_position_error_m=error,
+            measured_position=self.controller.position().tolist(),
+            execution_diagnostics=self.controller.execution_diagnostics(prediction),
+            prediction_execution_gap_m=float(
+                np.linalg.norm(
+                    self.controller.position() - prediction.position,
+                )
+            ),
+            measured_orientation_error_deg=float(
+                np.degrees(
+                    np.linalg.norm(
+                        rotation_error(
+                            self.env.data.xmat[self.controller.palm].reshape(3, 3),
+                            prediction.requested_rotation,
+                        )
+                    )
+                )
+            ),
+        )
         if self.render:
             from PIL import Image
 
             Image.fromarray(self.env.render("overview")).save(
                 self.directory / f"{self.product.name}-{name}.png",
+            )
+        if staging:
+            raise InteractionFailure(
+                f"{name}: bounded staging complete; predicted remaining miss "
+                f"{prediction.position_error_m:.3f} m; replan required before grasping"
             )
         if check_tracking and not self.terminal and error > self.config.tracking_tolerance:
             raise InteractionFailure(f"{name}: measured tracking error {error:.3f} m")
@@ -313,9 +477,19 @@ class StockingScript:
     def _one_box(self):
         env, config, product = self.env, self.config, self.product
         box = env.data.body(product.name).xpos.copy()
+        self._stage("grasp_precheck")
+        grasp = self.controller.predict(box, allowed_object=product.name, check_path=False)
+        self.events[-1]["ik_prediction"] = grasp.report()
+        if not grasp.feasible:
+            self.events[-1]["decision"] = "reject_grasp_candidate"
+            self._move("grasp_staging", box)
+            raise InteractionFailure("Grasp candidate rejected; replan required")
+        self.events[-1]["decision"] = "accept_grasp_candidate"
+        grasp_rotation = grasp.requested_rotation.copy()
         self._move("retract", [-0.44, -0.20, 1.00])
         self._move("raise", [-0.44, -0.20, box[2] + config.pregrasp_height])
         self._move("pregrasp", box + [0, 0, config.pregrasp_height])
+        self.controller.active_rotation = grasp_rotation
         # The shared lift is capped at 8 cm/s; allow the full descent rather
         # than treating lag from a short pose command as a grasp failure.
         self._move("approach", box, seconds=config.descend_seconds)
@@ -405,6 +579,8 @@ class StockingScript:
             self.env.data.ctrl[:] = stationary_targets(self.env.model, self.env.data)
             result["events"] = self.events
             result["last_ik_residual"] = self.controller.last_ik_error
+            if self.controller.last_prediction is not None:
+                result["last_ik_prediction"] = self.controller.last_prediction.report()
             result["base_displacement_m"] = float(
                 np.linalg.norm(
                     self.env.data.body("mabel_chassis").xpos - self.base_start,

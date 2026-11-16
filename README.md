@@ -11,7 +11,10 @@ recovery policies, and mjlab training remain future work.
 
 The [first physical stocking script](docs/scripted_interactions.md) attempts
 box pickup and push-to-contact with per-step force traces. It currently stops
-at approach acceptance; end-to-end manipulation is not yet demonstrated.
+after IK prefiltering and bounded staging when the grasp pose is unacceptable;
+end-to-end manipulation is not yet demonstrated. The prefilter tries bounded
+orientation alternatives, checks sampled joint paths, and records predicted
+position/orientation errors separately from physical execution error.
 
 See [Shelf scene setup](docs/scene_setup.md) for dimensions, editable scene
 configurations, MABEL import, scene exports, and validation. Upstream concerns

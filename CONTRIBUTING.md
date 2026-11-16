@@ -50,6 +50,12 @@ uses the active checkout's environment without synchronizing it again.
 - For manipulation, measure palm/object tracking, hand contact forces, actual
   object lift, support/release, and final contact. A closing hand command is not
   a verified grasp. Log aborted phases and timeouts as failures.
+- Before commanding a waypoint, predict its position/orientation residuals and
+  check sampled paths against scene and robot geometry. Keep position error in
+  metres, orientation error in degrees, and physical execution error separate.
+  Report joint-limit and collision rejection reasons. Bounded alternative poses
+  and closest-pose staging must not silently relax grasp acceptance. Retain the
+  original target, remaining error and explicit replan/abort decision.
 - Seed resets; record actual dependency/model revisions. Save traces and summaries
   under `outputs/`, with commands that reproduce the result. Document failed or
   partial runs as carefully as successful ones.

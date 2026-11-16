@@ -11,6 +11,11 @@
 - Measure contact forces with MuJoCo, retain failure evidence, and distinguish
   commanded motion, measured tracking, grasp, lift, release, and contact success.
   Rendered previews and scripted waypoints do not prove manipulation success.
+- Prefilter IK before motion. Report position error in metres separately from
+  orientation error and measured execution error. Search bounded orientation
+  alternatives and check endpoint/path collisions. A closest candidate may be
+  used only for bounded staging followed by replanning; it cannot pass a grasp
+  gate. A failed local search does not prove global unreachability.
 - Record the scene configuration, seed, model revision, controller settings and
   simulation timing with interaction artifacts. Keep full recordings in ignored
   `outputs/`; commit only small, reproducible documentation previews.
