@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import mujoco
@@ -124,7 +124,12 @@ class ShelfStockingEnv:
             )
         return good
 
-    def step(self, action: Mapping[str, float] | np.ndarray | None = None) -> tuple:
+    def step(
+        self,
+        action: Mapping[str, float] | np.ndarray | None = None,
+        *,
+        on_physics_step: Callable[[ShelfStockingEnv], None] | None = None,
+    ) -> tuple:
         if self._done:
             raise RuntimeError("Episode is finished; call reset() before stepping again")
         if action is not None:
@@ -138,6 +143,8 @@ class ShelfStockingEnv:
                 raise FloatingPointError("MuJoCo produced a non-finite physics state")
             mujoco.mj_forward(self.model, self.data)
             self.update_task_state(self.config.timestep)
+            if on_physics_step is not None:
+                on_physics_step(self)
         terminated = bool(self.products) and bool(self._stocked.all())
         truncated = bool(self.data.time >= self.config.time_limit and not terminated)
         self._done = terminated or truncated

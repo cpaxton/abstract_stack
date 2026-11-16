@@ -9,7 +9,7 @@ from pathlib import Path
 
 from abstract_stack.scene import ShelfConfig, products_for
 
-SCENES = ("stocking", "empty", "tight", "house", "house_tight")
+SCENES = ("stocking", "empty", "tight", "house", "house_tight", "pick_place")
 
 
 def load_scene_config(path: str | Path | None = None, *, scene: str = "stocking") -> ShelfConfig:
@@ -26,7 +26,7 @@ def load_scene_config(path: str | Path | None = None, *, scene: str = "stocking"
     unknown = values.keys() - {field.name for field in fields(ShelfConfig)}
     if unknown:
         raise ValueError(f"Unknown scene configuration fields: {', '.join(sorted(unknown))}")
-    for key in ("levels", "table_size", "robot_xy"):
+    for key in ("levels", "table_size", "robot_xy", "carton_size"):
         if key in values:
             if not isinstance(values[key], list):
                 raise ValueError(f"{key} must be a JSON array")

@@ -1,0 +1,50 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  GIT_LFS_SKIP_SMUDGE: '1'
+  PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+  MUJOCO_GL: egl
+jobs:
+  simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+      - name: Install locked simulator and developer tools
+        run: |
+          uv sync --locked --only-group ci --no-install-project --python 3.11
+          uv pip install --no-deps -e .
+      - name: Pre-commit checks
+        run: uv run --no-sync pre-commit run --all-files --hook-stage pre-commit
+      - name: Install software rendering libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1-mesa-dri
+      - name: Fetch the pinned MABEL model
+        run: uv run --no-sync abstract-stack fetch-mabel
+      - name: Physics tests with the real robot
+        run: scripts/test.sh --junitxml=outputs/pytest.xml
+      - name: Render and export the house
+        run: |
+          uv run --no-sync abstract-stack build-scene --scene house --render --output-dir outputs/house
+      - name: Build distribution
+        run: uv build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: simulation-evidence
+          path: |
+            outputs/pytest.xml
+            outputs/house/manifest.json
+            outputs/house/*.png
+            dist/*
+          if-no-files-found: ignore

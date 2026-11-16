@@ -40,4 +40,8 @@ print(f"Abstract Stack {version('abstract-stack')} installed.")
 print(f"emet {version('emet')}; MuJoCo {mujoco.__version__}")
 PY
 
+if [[ -x "$PROJECT_ROOT/.venv/bin/pre-commit" ]]; then
+    "$PROJECT_ROOT/.venv/bin/pre-commit" install
+fi
+
 echo "Activate the environment: source \"$PROJECT_ROOT/.venv/bin/activate\""

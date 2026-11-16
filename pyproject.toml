@@ -23,10 +23,17 @@ abstract-stack = "abstract_stack.cli:main"
 Repository = "https://github.com/cpaxton/abstract_stack"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.8"]
+dev = ["pre-commit>=4,<5", "pytest>=8", "ruff==0.17.5"]
+ci = [
+    { include-group = "dev" },
+    "mujoco>=3.4,<4",
+    "numpy>=1.24,<2",
+    "pillow>=10",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--import-mode=importlib"
 markers = ["mabel: requires the downloaded MABEL model"]
 
 [tool.setuptools.packages.find]

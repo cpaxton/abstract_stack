@@ -40,6 +40,9 @@ class ShelfConfig:
     target_tolerance: float = 0.055
     enable_sensors: bool = False
     environment: str = "studio"
+    product_kind: str = "mixed"
+    target_back_gap: float | None = None
+    carton_size: tuple[float, float, float] = (0.09, 0.07, 0.17)
 
     def __post_init__(self) -> None:
         positive = (
@@ -105,6 +108,18 @@ class ShelfConfig:
             raise ValueError("spawn_jitter must be between 0 and 0.02 m")
         if self.environment not in ("studio", "small_house"):
             raise ValueError("environment must be 'studio' or 'small_house'")
+        if self.product_kind not in ("mixed", "carton"):
+            raise ValueError("product_kind must be 'mixed' or 'carton'")
+        if len(self.carton_size) != 3 or any(
+            not math.isfinite(v) or v <= 0 for v in self.carton_size
+        ):
+            raise ValueError("carton_size must contain three positive finite full dimensions")
+        if self.target_back_gap is not None and (
+            not math.isfinite(self.target_back_gap)
+            or self.target_back_gap < 0
+            or self.target_back_gap + self.carton_size[0] > self.depth
+        ):
+            raise ValueError("target_back_gap must leave room for a carton inside the shelf")
         if self.environment == "small_house":
             from abstract_stack.house import validate_house_placement
 
@@ -156,20 +171,34 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
     supply_count = count - config.initially_stocked
     columns = min(3, supply_count)
     rows = math.ceil(supply_count / columns) if columns else 0
+    max_x = max(config.carton_size[0], 0.068 if config.product_kind == "mixed" else 0)
+    max_y = max(config.carton_size[1], 0.068 if config.product_kind == "mixed" else 0)
+    stride_x = max(0.15, max_x + 2 * config.spawn_jitter + 0.02)
+    stride_y = max(0.14, max_y + 2 * config.spawn_jitter + 0.02)
     if supply_count and (
-        (columns - 1) * 0.15 + 0.09 + 2 * config.spawn_jitter > config.table_size[0]
-        or (rows - 1) * 0.14 + 0.07 + 2 * config.spawn_jitter > config.table_size[1]
+        (columns - 1) * stride_x + max_x + 2 * config.spawn_jitter > config.table_size[0]
+        or (rows - 1) * stride_y + max_y + 2 * config.spawn_jitter > config.table_size[1]
     ):
         raise ValueError(
             "Supply products do not fit on the table; enlarge table_size or prefill more items"
         )
     supply_index = 0
     for i in range(count):
-        bottle = i % 2 == 1
-        half_size = (0.034, 0.034, 0.11) if bottle else (0.045, 0.035, 0.085)
+        bottle = config.product_kind == "mixed" and i % 2 == 1
+        half_size = (0.034, 0.034, 0.11) if bottle else tuple(v / 2 for v in config.carton_size)
         level = i % len(config.levels)
+        upper_board = (
+            config.levels[level + 1]
+            if level + 1 < len(config.levels)
+            else config.levels[level] + config.top_clearance
+        )
+        if upper_board - config.levels[level] - config.board_thickness < 2 * half_size[2] + 0.005:
+            raise ValueError("Product height does not fit between shelf boards")
         row = list(range(level, count, len(config.levels)))
-        widths = [0.068 if j % 2 else 0.07 for j in row]
+        widths = [
+            0.068 if config.product_kind == "mixed" and j % 2 else config.carton_size[1]
+            for j in row
+        ]
         used_width = sum(widths) + config.target_gap * (len(row) - 1)
         if used_width > config.width - 0.02:
             raise ValueError("Products do not fit across the configured shelf")
@@ -182,7 +211,9 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
             + widths[slot] / 2
         )
         target = (
-            config.front_x - config.depth / 2,
+            config.front_x - config.depth / 2
+            if config.target_back_gap is None
+            else config.front_x - config.depth + half_size[0] + config.target_back_gap,
             target_y,
             config.levels[level] + half_size[2],
         )
@@ -190,14 +221,17 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
             spawn = (target[0], target[1], target[2] + 0.003)
         else:
             spawn = (
-                config.table_xy[0] + (supply_index % columns - (columns - 1) / 2) * 0.15,
-                config.table_xy[1] + (supply_index // columns - (rows - 1) / 2) * 0.14,
+                config.table_xy[0] + (supply_index % columns - (columns - 1) / 2) * stride_x,
+                config.table_xy[1] + (supply_index // columns - (rows - 1) / 2) * stride_y,
                 config.table_top + half_size[2] + 0.003,
             )
             supply_index += 1
         products.append(
             Product(
-                name=f"{'bottle' if bottle else 'carton'}_{i // 2}",
+                name=(
+                    f"{'bottle' if bottle else 'carton'}_"
+                    f"{i // 2 if config.product_kind == 'mixed' else i}"
+                ),
                 kind="bottle" if bottle else "carton",
                 half_size=half_size,
                 mass=0.25 if bottle else 0.18,
