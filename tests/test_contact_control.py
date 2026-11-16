@@ -53,10 +53,45 @@ def test_soft_contact_targets_cannot_exceed_hard_abort_limit():
         ScriptConfig(approach_force_target=26)
     with pytest.raises(ValueError, match="contact_aware"):
         ScriptConfig(contact_aware=1)
+    with pytest.raises(ValueError, match="thumb_preshape"):
+        ScriptConfig(thumb_preshape=1)
 
 
 @pytest.mark.mabel
-def test_coupled_closing_step_checks_future_fingers_without_live_state_changes():
+@pytest.mark.parametrize("thumb_preshape", [False, True])
+def test_thumb_posture_is_in_commands_and_empty_loaded_ik(tmp_path, monkeypatch, thumb_preshape):
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(load_scene_config(scene="pick_place"))
+    try:
+        hand = CartesianHand(env, ScriptConfig(thumb_preshape=thumb_preshape))
+        qpos, ctrl = env.data.qpos.copy(), env.data.ctrl.copy()
+        joint = int(env.model.joint("Left Thumb MCP").qposadr[0])
+        captured = []
+
+        def predict(*args, **kwargs):
+            captured.append(kwargs["finger_positions"])
+            return SimpleNamespace()
+
+        monkeypatch.setattr(hand.ik, "predict", predict)
+        for grip in (0, 0.4):
+            action = hand.joint_targets(hand.command.copy(), grip)
+            hand.predict(hand.position(), grip=grip, allowed_object="carton_0")
+            assert ("Left Thumb MCP" in action) is thumb_preshape
+            assert (joint in captured[-1]) is thumb_preshape
+            if thumb_preshape:
+                assert action["Left Thumb MCP"] == captured[-1][joint] == 0.4
+        np.testing.assert_array_equal(env.data.qpos, qpos)
+        np.testing.assert_array_equal(env.data.ctrl, ctrl)
+    finally:
+        env.close()
+
+
+@pytest.mark.mabel
+@pytest.mark.parametrize("thumb_preshape", [False, True])
+def test_coupled_closing_step_checks_future_fingers_without_live_state_changes(thumb_preshape):
     try:
         mabel_model_path()
     except FileNotFoundError:
@@ -66,16 +101,15 @@ def test_coupled_closing_step_checks_future_fingers_without_live_state_changes()
         replace(load_scene_config(scene="pick_place"), carton_size=(0.01, 0.01, 0.01))
     )
     try:
-        hand = CartesianHand(env, ScriptConfig())
+        hand = CartesianHand(env, ScriptConfig(thumb_preshape=thumb_preshape))
         q = hand.ik.measured_q()
         reference = env.data.qpos.copy()
         hand.ik.forward(q, reference)
         before = hand.ik.scratch.geom_xpos.copy()
         future = reference.copy()
-        for suffix in hand.FLEXION:
-            name = f"Left {suffix}"
-            lo, hi = env.model.actuator(name).ctrlrange
-            future[int(env.model.joint(name).qposadr[0])] = lo + 0.2 * (hi - lo)
+        for name, goal in hand.finger_targets(0.4).items():
+            adr = int(env.model.joint(name).qposadr[0])
+            future[adr] = reference[adr] + 0.5 * (goal - reference[adr])
         hand.ik.forward(q, future)
         geoms = [
             g
