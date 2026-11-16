@@ -18,7 +18,11 @@ rate. The prefilter tries bounded
 orientation alternatives, checks sampled joint paths, and records predicted
 position/orientation errors separately from physical execution error.
 
-The [ten-scene scripting report](docs/reports/stocking_ten_scenes.md) breaks down
+The [contact-control follow-up](docs/reports/contact_control_followup.md) reports
+8/10 completed public regression scenes and 7/10 fresh scenes, against matched
+legacy results of 6/10 and 4/10. It includes stage counts, rejected experiments,
+force evidence and the retained unknown native-crash outcome.
+The [historical ten-scene report](docs/reports/stocking_ten_scenes.md) breaks down
 pick, placement, final positioning and retreat without knocking objects over.
 Run `./scripts/benchmark_stocking.sh` for the baseline, bounded compliant-control
 hill-climb on separate development seeds, paired validation and report generation.

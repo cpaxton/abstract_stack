@@ -75,6 +75,20 @@ upright poses alone are insufficient. Keep task criteria and abort limits fixed
 while searching controller parameters, and disclose development seeds, search
 budget, rejected candidates and validation failures.
 
+The benchmark baseline uses `--legacy-contact-control`; the selected script
+enables checked alternate withdrawal paths and wrist/board clearance feedback.
+Use `--no-fixture-avoidance` to isolate the release-path change. The guarded
+approach prototype requires explicit `--guarded-approach` and is not promoted by
+a lift alone: verify carry retention and full-scene outcomes before changing its
+default. All variants share the combined robot–active-product force guard.
+Keep original unknown crash outcomes even if a later diagnostic retry succeeds.
+
+Bundles and campaigns record Python-source fingerprints and the source revision
+when available. For an archived checkout, record its commit explicitly alongside
+the campaign. Compare settled integration-state hashes as well as scene/model
+inputs before claiming a matched experiment. Historical reports must name their
+historical checkout; the current benchmark command follows current defaults.
+
 Work on a feature branch. Describe the concrete behavior, reproduction command,
 tests actually run, and unresolved acceptance gates. Include a small rendered
 preview for scene changes and numeric/trace evidence for control changes. Use a

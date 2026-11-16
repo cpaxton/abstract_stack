@@ -111,7 +111,12 @@ stopped at their guard; a future free evolution or recovery after abort was not
 measured. The final report and JSON establish the stage counts above, not dense full-
 shelf packing, whole-house navigation, bimanual operation or recovery performance.
 
-Reproduce with `./scripts/benchmark_stocking.sh outputs/new-benchmark`.
+This is the historical controller at commit
+`82c869d421549afada0d3121ef53c23a79ef46d6`. In a separate checkout of that
+revision, reproduce with `./scripts/benchmark_stocking.sh outputs/new-benchmark`.
+The current script has a different controller and stronger force coverage; see
+[the contact-control follow-up](contact_control_followup.md) for its matched
+baseline, source revisions and fresh-scene results.
 Full traces, initial MuJoCo integration states, applied controls and logs are in the
 referenced `outputs/` directories. The compact [JSON evidence](stocking_ten_scenes.json)
 contains all scene specifications, controller settings, hashes, force peaks/impulse,

@@ -11,6 +11,9 @@
 - Measure contact forces with MuJoCo, retain failure evidence, and distinguish
   commanded motion, measured tracking, grasp, lift, release, and contact success.
   Rendered previews and scripted waypoints do not prove manipulation success.
+- Include non-grasping arm links when guarding robot contact with the active
+  product. Apply final motion bounds after every feedback/projection correction.
+  Coupled hand plans must check the proposed finger posture as well as the arm.
 - Prefilter IK before motion. Report position error in metres separately from
   orientation error and measured execution error. Search bounded orientation
   alternatives and check endpoint/path collisions. A closest candidate may be
@@ -23,6 +26,9 @@
 - Record the scene configuration, seed, model revision, controller settings and
   simulation timing with interaction artifacts. Keep full recordings in ignored
   `outputs/`; commit only small, reproducible documentation previews.
+- Pin the controller source revision and effective mode flags for reported
+  experiments. Model/scene hashes alone do not identify a policy. Keep a fresh
+  frozen-policy suite separate from public regression cases and development probes.
 - Evaluate scripted changes on fixed scene suites. Report all scheduled objects
   for pick, shelf support, final positioning and retreat; retain unreached stages
   and process failures. Monitor every product at each physics step so a transient

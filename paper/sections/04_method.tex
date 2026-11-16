@@ -73,6 +73,16 @@ release follows a sampled opening/withdrawal path and final support checks.
 Cartesian insertion is checked using sequential IK along a Cartesian path,
 instead of assuming a straight joint segment has the same clearance.
 
+The follow-up program also searches bounded lateral withdrawal directions when
+the original coupled release path collides. Before insertion references are
+applied, signed distance on the native wrist-mount collision meshes requests a
+4\,mm board standoff; measured left-arm fixture normals provide bounded unloading
+feedback. Final motion limits are checked after all reference corrections.
+Both arms' non-grasping links contribute to the active-product force guard.
+The source revision, effective mode flags and actual integration-state hashes
+are recorded independently of scene/model identity. These are guarded finite
+sample checks rather than continuous collision or contact-load certificates.
+
 Seeded scene generation varies geometry and initial conditions within a local
 carton task family. Native robot-camera and third-person images are recorded
 at common simulation timestamps, with explicit final verdicts. Physical neck

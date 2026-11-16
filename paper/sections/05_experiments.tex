@@ -39,6 +39,34 @@ unknown outcome. The bounded search used the two disclosed development seeds;
 this exclusion limits its coverage. Subsequent physics campaigns impose a
 180\,s wall budget per episode and retain unknown results in the denominator.
 
+\subsection{Contact-control follow-up}
+A later scripted revision searches bounded coupled opening/withdrawal alternatives
+and uses native wrist-mount/board clearance with measured fixture-force unloading.
+It retains the original task criteria, native model and 25\,N abort threshold;
+both comparison programs now include non-grasping arm links in active-product
+force coverage. The selected program improves the public regression suite from
+6/10 to 8/10, retaining every baseline success. Pick and shelf-support gates remain
+16/20; final positioning and completed retreat improve from 14/20 to 16/20.
+Release search alone reaches 7/10. A guarded-approach prototype regressed to 4/10
+on this suite despite 8/10 development outcomes, and remains disabled by default.
+
+After freezing the selected policy at commit \texttt{c60d009}, a fresh paired
+ten-scene suite gives 7/10 verified complete scenes versus 4/10 for legacy, with
+14/20 versus 10/20 final-positioning and retreat gates. The baseline includes one
+SIGSEGV without a terminal summary, counted as unknown with no stage credit.
+A separate serial retry succeeded but does not replace that original outcome.
+Two other fresh scenes change from verified insertion-force aborts to success;
+the crash-to-success pair is not claimed as a known physical recovery.
+All twenty scene/model and settled integration-state pairs match, and no verified
+baseline success regresses. No tip/drop is observed in verified runs; an unknown
+or aborted prefix does not establish post-abort stability.
+
+These are small, same-family studies, not broad generalization evidence. The
+selected source, effective flags, full outcomes and limitations are retained in
+\path{docs/reports/contact_control_followup.json}. A dual-view recording of the
+repaired regression scene contains 928 frames per view at 10\,fps; its applied
+controls and final object poses match the headless rollout bitwise.
+
 \subsection{Proposed broader experiments}
 \textbf{The following comparisons and larger studies have not been run.}
 First replicate the initial physical grasp, lift, contact push and release across

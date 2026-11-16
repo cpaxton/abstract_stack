@@ -24,6 +24,9 @@ TeX or download container images. The PDF is generated locally as `main.pdf`.
   implementation priorities, with primary-source links.
 - [MABEL controller](../docs/mabel_controller.md): tracking API, diagnostics,
   limits, tests, and proposed RL integration contract.
+- [Contact-control report](../docs/reports/contact_control_followup.md): public
+  regression and fresh-scene measurements, policy revisions, stage counts,
+  rejected experiments, native-crash censoring and dual-view evidence.
 
 Keep observed diagnostics, literature claims and proposed experiments distinct.
 Every result needs a configuration, revision, seed suite and saved evidence.
