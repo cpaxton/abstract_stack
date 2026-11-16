@@ -33,11 +33,15 @@ successful diagnostic retries.
 
 ## Next task families
 
+See the [dense stocking guide](dense_stocking.md) for the implemented scene
+generator, insertion curriculum, commands and open acceptance gates.
 Dense stocking is a separate task: unused lateral width summed over the entire
 occupied shelf row is **10 mm or 5 mm**, including wall gaps. It needs explicit
 contact modes and insertion order; the spacious two-carton results above do not
 measure it. Deformable cardboard is a separate material-model investigation;
 rigid-box success does not validate carton crushing, folding or elastic recovery.
+The [cardboard investigation](cardboard_simulation.md) compares native material
+options and retains numerical failures from independent panel fixtures.
 
 Keep material fixtures, task geometry, control logic and evaluation separate.
 Store full experimental traces/videos under `outputs/`, record every scheduled

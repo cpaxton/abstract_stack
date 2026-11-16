@@ -18,6 +18,7 @@ class TrackingConfig:
     joint_offset_limit: float = 0.10
     lift_offset_limit: float = 0.01
     wrist_damping: float = 0.2
+    wrist_offset_limit: float | None = None
 
     def __post_init__(self):
         if not isinstance(self.gravity_compensation, bool):
@@ -32,6 +33,10 @@ class TrackingConfig:
                 raise ValueError("tracking limits must be finite and positive")
         if not np.isfinite(self.wrist_damping) or self.wrist_damping < 0:
             raise ValueError("wrist damping must be finite and nonnegative")
+        if self.wrist_offset_limit is not None and (
+            not np.isfinite(self.wrist_offset_limit) or self.wrist_offset_limit <= 0
+        ):
+            raise ValueError("wrist offset limit must be finite and positive")
 
 
 class MabelController:
@@ -77,6 +82,9 @@ class MabelController:
             np.full(len(self.ids) - 1, self.config.joint_offset_limit),
             self.config.lift_offset_limit,
         ]
+        if self.config.wrist_offset_limit is not None:
+            for name in ("Left Wrist", "Right Wrist"):
+                self.offset_limits[self.NAMES.index(name)] = self.config.wrist_offset_limit
         self.nominal = np.clip(data.ctrl[self.ids], self.lower, self.upper)
         self.applied = self.nominal.copy()
         self.scratch = mujoco.MjData(model)
@@ -103,10 +111,21 @@ class MabelController:
         ]
         return forces
 
-    def targets(self, requested, *, dt):
-        """Return native actuator targets; computation never steps or mutates live data."""
+    def targets(self, requested, *, dt, load_feedforward=None):
+        """Return native targets, optionally compensating named actuator loads.
+
+        Loads are actuator efforts (N or Nm in the native transmission), not
+        external forces. The caller supplies a measured/estimated, bounded load;
+        native effort, reference, offset and rate limits still apply. Computation
+        never steps or mutates live data.
+        """
         if not np.isfinite(dt) or dt <= 0:
             raise ValueError("controller dt must be finite and positive")
+        load = np.zeros(len(self.ids))
+        for name, effort in (load_feedforward or {}).items():
+            if name not in self.NAMES or not np.isfinite(effort):
+                raise ValueError("load feedforward requires finite named tracking-actuator efforts")
+            load[self.NAMES.index(name)] = effort
         desired = validate_targets(self.model, self.data.ctrl, requested)
         reference = desired[self.ids]
         if np.any(reference < self.lower) or np.any(reference > self.upper):
@@ -127,7 +146,7 @@ class MabelController:
         gravity = (
             self._gravity_forces() if self.config.gravity_compensation else np.zeros(len(self.ids))
         )
-        force = gravity.copy()
+        force = gravity + load
         # Canonical wrists have kp=1, kv=0; add bounded measured velocity
         # feedback through references without editing native actuator gains.
         for name in ("Left Wrist", "Right Wrist"):
@@ -159,6 +178,7 @@ class MabelController:
             ),
             "servo_target": dict(zip(self.NAMES, applied.tolist(), strict=True)),
             "gravity_force": dict(zip(self.NAMES, gravity.tolist(), strict=True)),
+            "load_force": dict(zip(self.NAMES, load.tolist(), strict=True)),
             "force_limited": force_limited,
             "feedforward_limited": [
                 n for i, n in enumerate(self.NAMES) if abs(raw_offset[i] - offset[i]) > 1e-9
@@ -171,6 +191,10 @@ class MabelController:
             "rate_limited": [
                 n for i, n in enumerate(self.NAMES) if abs(bounded[i] - applied[i]) > 1e-9
             ],
-            "scope": "robot gravity only; payload/contact forces are not compensated",
+            "scope": (
+                "robot gravity plus caller-supplied actuator load estimate"
+                if load_feedforward
+                else "robot gravity only; payload/contact forces are not compensated"
+            ),
         }
         return desired

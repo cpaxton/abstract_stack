@@ -72,11 +72,15 @@ def build_scene_bundle(env, directory: str | Path, *, render: bool = False) -> P
         _, _, terminated, truncated, _ = env.step()
         if terminated or truncated:
             break
+    if env.config.row_free_space is not None:
+        env.validate_robot_fixture_clearance()
     manifest["settled_metrics"] = env.info()
     if render:
         from PIL import Image
 
         cameras = ["overview", "shelf_front", "supply_overhead"]
+        if env.config.row_free_space is not None:
+            cameras.append("dense_front")
         if env.config.environment == "small_house":
             cameras.extend(["house_overhead", "kitchen", "living_room", "bedroom", "bathroom"])
         for camera in cameras:

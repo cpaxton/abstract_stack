@@ -31,6 +31,15 @@ def load_scene_config(path: str | Path | None = None, *, scene: str = "stocking"
             if not isinstance(values[key], list):
                 raise ValueError(f"{key} must be a JSON array")
             values[key] = tuple(values[key])
+    if "initial_joint_positions" in values:
+        try:
+            values["initial_joint_positions"] = tuple(
+                tuple(pair) for pair in values["initial_joint_positions"]
+            )
+        except TypeError as error:
+            raise ValueError(
+                "initial_joint_positions must be an array of name/value pairs"
+            ) from error
     try:
         config = ShelfConfig(**values)
         products_for(config)

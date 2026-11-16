@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from abstract_stack.evaluation import reported_manipulations
+
 # These ranges change compliance/feedback only. They never change the task,
 # IK acceptance, contact verification, displacement guards or force abort limit.
 CONTROL_BOUNDS = {
@@ -54,23 +56,10 @@ def score_campaign(campaign):
         valid = run["returncode"] in (0, 2) and run.get("artifacts_valid", False)
         unknown += int(not valid or not evaluation)
         knocked += int(bool(evaluation.get("incidents")))
-        clean += int(
-            valid
-            and run["physical_success"] is True
-            and evaluation.get("no_knockovers", False)
-            and len(evaluation.get("products", {})) == run.get("product_count")
-            and all(
-                p[k]
-                for p in evaluation.get("products", {}).values()
-                for k in ("pick", "place", "final_position", "retreat")
-            )
-        )
+        grade = reported_manipulations(run)
+        clean += int(valid and grade["clean_success"])
         if valid:
-            stages += sum(
-                bool(p[k])
-                for p in evaluation.get("products", {}).values()
-                for k in ("pick", "place", "final_position", "retreat")
-            )
+            stages += sum(grade["stages"].values())
             peak += max((run.get("peak_forces_N") or {}).values(), default=0)
         seconds += run.get("elapsed_sim_time", 240)
     return clean, -unknown, -knocked, stages, -round(peak, 4), -round(seconds, 4)

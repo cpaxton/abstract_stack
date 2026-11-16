@@ -62,6 +62,18 @@ uses the active checkout's environment without synchronizing it again.
 
 ## Pull requests
 
+Dense-row work follows the [dense stocking guide](docs/dense_stocking.md).
+Declare total whole-row free space and prefilled count before a campaign.
+Count each scheduled manipulation once; a prefilled carton earns no pick credit.
+Keep native contact guards and final overlap tolerances fixed. Sum contact
+normals per carton pair before applying force limits. Cardboard panel fixtures
+are separate numerical experiments, described in the
+[material investigation](docs/cardboard_simulation.md).
+
+During cleanup, keep failed raw runs and immutable historical reports. Put large
+recordings under ignored `outputs/`, link current guides from the experiment
+index, and keep task geometry, control, evaluation and material probes separate.
+
 For scripted stocking changes, run `./scripts/benchmark_stocking.sh` in a fresh
 output directory. It evaluates ten two-carton scenes, hill-climbs compliant
 control on separate development seeds, repeats the ten scenes, and writes a
@@ -74,6 +86,11 @@ all-product tip/drop monitoring is required for a no-knock-over claim; final
 upright poses alone are insufficient. Keep task criteria and abort limits fixed
 while searching controller parameters, and disclose development seeds, search
 budget, rejected candidates and validation failures.
+
+Freeze a source checkout before a validation campaign and compare the Python
+source fingerprints in every episode bundle. If child source fingerprints
+differ, preserve the outcomes and report the mismatch as development evidence;
+do not combine them into a frozen-policy success rate.
 
 The benchmark baseline uses `--legacy-contact-control`; the selected script
 enables checked alternate withdrawal paths and wrist/board clearance feedback.

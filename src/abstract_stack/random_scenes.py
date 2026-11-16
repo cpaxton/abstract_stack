@@ -56,7 +56,9 @@ def random_shelf_config(seed: int, *, product_count: int = 2):
 
 def scene_manifest(config, seed):
     return {
-        "scene_family": "random_carton_bench_v1",
+        "scene_family": "dense_carton_row_v1"
+        if config.row_free_space is not None
+        else "random_carton_bench_v1",
         "seed": seed,
         "config": asdict(config),
         "generation_scope": "geometry and initial poses; no solvability guarantee",

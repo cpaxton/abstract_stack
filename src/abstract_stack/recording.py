@@ -60,7 +60,17 @@ class HeadGaze:
 
 
 class DualVideoRecorder:
-    def __init__(self, env, directory, *, fps=15, width=640, height=480, first_person="zed_left"):
+    def __init__(
+        self,
+        env,
+        directory,
+        *,
+        fps=15,
+        width=640,
+        height=480,
+        first_person="zed_left",
+        third_person="stocking_third_person",
+    ):
         if not isinstance(fps, int) or not 1 <= fps <= 60:
             raise ValueError("video fps must be an integer between 1 and 60")
         if min(width, height) < 64 or width % 2 or height % 2:
@@ -71,11 +81,12 @@ class DualVideoRecorder:
         first_camera = env.model.camera(first_person).id
         if not env.robot or env.model.cam_bodyid[first_camera] == 0:
             raise ValueError("first-person recording requires a robot-mounted camera")
-        env.model.camera("stocking_third_person")
+        if env.model.cam_bodyid[env.model.camera(third_person).id] != 0:
+            raise ValueError("third-person recording requires a world-mounted camera")
         self.env, self.directory = env, Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.fps, self.width, self.height = fps, width, height
-        self.cameras = {"third_person": "stocking_third_person", "first_person": first_person}
+        self.cameras = {"third_person": third_person, "first_person": first_person}
         self.encoders, self.logs = {}, {}
         self.times = []
         self.next_time = float(env.data.time)
@@ -168,7 +179,8 @@ class DualVideoRecorder:
             pending.replace(self.directory / "video-progress.json")
 
     def finish(self, result):
-        verdict = "SUCCESS" if result["physical_success"] else "FAILED / PARTIAL"
+        task_success = result.get("task_success", result["physical_success"])
+        verdict = "SUCCESS" if task_success else "FAILED / PARTIAL"
         reason = result.get("failure") or "All physical gates passed"
         label = f"FINAL STATE (paused) | {verdict} | {reason}"
         try:
@@ -188,6 +200,7 @@ class DualVideoRecorder:
             "paused_end_frames": self.paused_end_frames,
             "encoded_frames": len(self.times) + self.paused_end_frames,
             "physical_success": result["physical_success"],
+            "task_success": task_success,
             "failure": result.get("failure"),
             "synchronization": "both views rendered from the same physics state at each timestamp",
             "first_person_scope": "native robot-mounted camera; neck motion uses actuators",
