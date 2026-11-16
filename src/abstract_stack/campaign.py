@@ -82,7 +82,7 @@ def summarize_run(directory, returncode, *, video):
                 and metadata.get("task_success", metadata["physical_success"])
                 == summary.get("task_success", summary["physical_success"])
             )
-    except (OSError, ValueError, KeyError) as error:
+    except (OSError, ValueError, KeyError, TypeError) as error:
         result["artifacts_valid"] = False
         result["artifact_error"] = str(error)
     return result

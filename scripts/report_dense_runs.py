@@ -14,15 +14,24 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def read_object(path):
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 def collect(directory):
     process = directory / "process_result.json"
     outcome = json.loads(process.read_text()) if process.exists() else {}
     run = summarize_run(directory, outcome.get("returncode"), video=False)
     valid = run["artifacts_valid"] and run["returncode"] in (0, 2)
     summary_path = directory / "summary.json"
-    summary = json.loads(summary_path.read_text()) if summary_path.exists() else {}
+    summary = read_object(summary_path)
     manifest_path = directory / "initial-scene/manifest.json"
-    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    manifest = read_object(manifest_path)
+    config = manifest.get("config") or {}
     grade = reported_manipulations(run)
     stages = grade["stages"] if valid else dict.fromkeys(grade["stages"], 0)
     return {
@@ -30,9 +39,15 @@ def collect(directory):
         "returncode": run["returncode"],
         "verified_terminal_outcome": valid,
         "clean_success": valid and grade["clean_success"],
-        "scheduled_manipulations": len(grade["names"]),
+        "scheduled_manipulations": (
+            len(grade["names"])
+            if "scheduled_pick_products" in run
+            else config.get("product_count", run.get("product_count", 0))
+            - config.get("initially_stocked", 0)
+        ),
         "stages": stages,
         "failure": run.get("failure"),
+        "artifact_error": run.get("artifact_error"),
         "sim_seconds": run.get("elapsed_sim_time"),
         "incidents": (run.get("stage_evaluation") or {}).get("incidents"),
         "config": manifest.get("config"),
