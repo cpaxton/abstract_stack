@@ -97,6 +97,13 @@ frames plus 10 final paused frames. They render the same native physics states;
 samples and actuator controls match the successful headless trial bit for bit.
 The preview alone is not a success test.
 
+Native process stability is also unresolved: a serial pre-push run segfaulted
+during the existing spacious two-carton regression, after a full 139-test pass.
+Its model/start state, unknown outcome and traceback excerpt are retained in
+`outputs/native-crashes/dense-prepush-abd1297/`. See local issue SIM-001 in
+[home_robot_issues.md](../home_robot_issues.md). A successful retry does not
+replace the failed process or explain its cause.
+
 Full traces, rejected plans, source fingerprints and failed outcomes stay in
 ignored `outputs/`. Saved-state continuation probes are development diagnostics
 and cannot replace fresh episodes in a success-rate denominator.
