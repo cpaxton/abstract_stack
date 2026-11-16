@@ -41,8 +41,8 @@ class ScriptConfig:
     max_motion_seconds: float = 12.0
     gravity_compensation: bool = True
     adaptive_grasps: bool = True
-    grasp_force_target: float = 6.0
-    push_force_target: float = 2.0
+    grasp_force_target: float = 4.5
+    push_force_target: float = 1.875
     grip_force_gain: float = 0.04
     grip_max_rate: float = 0.25
     carry_clearance: float = 0.10

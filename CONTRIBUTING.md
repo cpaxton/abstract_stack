@@ -77,6 +77,13 @@ budget, rejected candidates and validation failures.
 
 The benchmark baseline uses `--legacy-contact-control`; the selected script
 enables checked alternate withdrawal paths and wrist/board clearance feedback.
+The baseline also uses `--no-thumb-preshape`. The selected script opens the
+native left thumb MCP to 0.4 rad before descent and retains that reference
+through carry and withdrawal. `--no-thumb-preshape` isolates this change while
+keeping the contact controller enabled. Check the intended thumb posture in
+empty/loaded IK and coupled opening plans; validate carry, placement and retreat,
+not just initial lift. Ordinary joint-path IK samples the future finger posture;
+it does not certify the transient opening sweep or predict contact forces.
 Use `--no-fixture-avoidance` to isolate the release-path change. The guarded
 approach prototype requires explicit `--guarded-approach` and is not promoted by
 a lift alone: verify carry retention and full-scene outcomes before changing its

@@ -18,3 +18,23 @@ Regenerate from the local artifacts with:
 Each entry retains the seed, model/software versions, physical gates, measured
 outcome and artifact source. Unknown/crashed episodes remain unknown rather than
 being silently removed or treated as successful video generation.
+
+`thumb_approach_comparison.csv` contains measured first-approach/closure evidence
+for development scene 112, with and without the 0.4 rad thumb MCP preshape.
+Each 20 ms bin preserves the maximum combined arm/hand carton-normal force from
+its original 2 ms measurements. Position is the final sample in the bin. The
+neutral-thumb run aborts at the fixed 25 N limit; the preshaped run completes
+both cartons. The plot covers approach/closure only, not the complete episode.
+
+Regenerate from full native artifacts, or omit the two run arguments to plot
+the committed CSV alone:
+
+```bash
+.venv/bin/python scripts/plot_grasp_comparison.py \
+  --baseline outputs/thumb-ablation-dev-v1/seed-112 \
+  --selected outputs/thumb-preshape-dev-v1/seed-112
+```
+
+The compact multi-campaign report lives in
+`docs/reports/thumb_preshape_followup.json`; its accompanying Markdown includes
+commands, policy revisions, rejected probes and the complete search budget.

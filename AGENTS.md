@@ -20,6 +20,8 @@
   used only for bounded staging followed by replanning; it cannot pass a grasp
   gate. A failed local search does not prove global unreachability.
 - Keep nominal references separate from applied compensated servo targets.
+  Finger preshapes must appear in both native commands and predicted geometry;
+  evaluate the full pick/carry/place/retreat sequence before promoting one.
   Controller changes need native-physics tracking evidence and explicit limit
   diagnostics. Learned-controller integration must validate model, action and
   observation contracts; never reinterpret another robot's policy weights.

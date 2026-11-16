@@ -27,6 +27,11 @@ TeX or download container images. The PDF is generated locally as `main.pdf`.
 - [Contact-control report](../docs/reports/contact_control_followup.md): public
   regression and fresh-scene measurements, policy revisions, stage counts,
   rejected experiments, native-crash censoring and dual-view evidence.
+- [Thumb-preshape follow-up](../docs/reports/thumb_preshape_followup.md): native
+  thumb clearance, complete-task regression/fresh-scene evaluation and retained
+  compliant-control search results.
+- [Selected compliance study](../docs/reports/compliance_followup.md): selected
+  force targets, forty matched scene pairs and explicit ample-space boundaries.
 
 Keep observed diagnostics, literature claims and proposed experiments distinct.
 Every result needs a configuration, revision, seed suite and saved evidence.

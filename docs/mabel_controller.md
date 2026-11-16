@@ -79,7 +79,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q tests/test_mabel_
 The solver screens object/height/orientation candidates, currently preferring
 objects nearer the chassis. It attempts retract, raise, pregrasp, approach,
 contact-based closure, lift, transfer, supported push and release. It stops closure early
-when opposing hand contacts reach a 6 N balanced squeeze estimate; the 25 N
+when opposing hand contacts reach a 4.5 N balanced squeeze estimate; the 25 N
 physics-step abort remains active. Force-target closure is a heuristic and must
 still pass measured lift/retention checks. Failed stages exit 2 and keep evidence.
 Carry predictions check a rigidly transported product at sampled configurations,
@@ -90,7 +90,7 @@ net push force, and corrects product orientation/height from world state. It
 holds at upright back contact before a checked opening/withdrawal. These are heuristics,
 not a validated contact controller for every product and friction condition.
 During carry, bounded closure feedback (0.04 fraction/N/s, capped at 0.25
-fraction/s) maintains the 6 N target; the gain and rate are recorded in the
+fraction/s) maintains the 4.5 N target; the gain and rate are recorded in the
 script configuration. Placement and back-contact targets use measured rotated
 product extents. The IK lift interval now comes from native joint/tendon bounds,
 instead of the old narrower hand-written range; collisions and measured physical
