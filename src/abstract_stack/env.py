@@ -145,7 +145,9 @@ class ShelfStockingEnv:
             self.update_task_state(self.config.timestep)
             if on_physics_step is not None:
                 on_physics_step(self)
-        terminated = bool(self.products) and bool(self._stocked.all())
+        terminated = (
+            self.config.terminate_on_success and bool(self.products) and bool(self._stocked.all())
+        )
         truncated = bool(self.data.time >= self.config.time_limit and not terminated)
         self._done = terminated or truncated
         return (

@@ -1,0 +1,18 @@
+\section{Related Work and Working Hypothesis}
+\citet{merler2026coding} develop reusable programs through simulator interaction
+and evaluate frozen policies without test-time LLM calls. Their main setting
+withholds environment source; their Shelf case includes kinematic calibration.
+The repository distinguishes Dynamic3D Shelf from a preliminary kinematic Shelf
+environment~\citep{robocode2026}.
+
+Our hypothesis is that development-time experimentation can help discover
+placement orders, approach choices, and recovery rules for MABEL. We will first
+use source-visible model-based skills, including IK and gravity compensation.
+That access setting differs from the paper's main setting. Supplying engineered
+skills also changes what the coding agent must discover; experiments must expose
+this choice rather than attribute all improvements to program synthesis.
+
+The main novelty question remains open: does this combination improve complete
+shelf completion under tight geometry and physical failures, beyond a competent
+hand-written policy with the same controller? The proposed experiments address
+that question before any claim about generality or reduced engineering effort.

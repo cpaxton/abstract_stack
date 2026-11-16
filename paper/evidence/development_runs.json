@@ -1,0 +1,143 @@
+{
+  "scope": "Selected development artifacts, not held-out evaluation or full tuning history",
+  "runs": [
+    {
+      "run": "outputs/random-cartesian-two0",
+      "verification_status": "verified",
+      "physical_success": true,
+      "seed": 0,
+      "product_count": 2,
+      "robot_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+      "versions": {
+        "mujoco": "3.17.0",
+        "abstract-stack": "0.1.0",
+        "emet": "0.3.3",
+        "numpy": "1.26.4"
+      },
+      "failure": null,
+      "stocked_count": 2,
+      "elapsed_sim_time": 87.25999999997804,
+      "interventions": 0,
+      "peak_forces_N": {
+        "hand": 12.078810934102217,
+        "support": 3.6049312905529383,
+        "back": 5.2139278917180505,
+        "arm_fixture": 6.080271080717552
+      },
+      "physical_gates": {
+        "carton_0": {
+          "lift": true,
+          "back_contact": true,
+          "release": true
+        },
+        "carton_1": {
+          "lift": true,
+          "back_contact": true,
+          "release": true
+        }
+      }
+    },
+    {
+      "run": "outputs/random-cartesian-two1",
+      "verification_status": "verified",
+      "physical_success": true,
+      "seed": 1,
+      "product_count": 2,
+      "robot_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+      "versions": {
+        "mujoco": "3.17.0",
+        "abstract-stack": "0.1.0",
+        "emet": "0.3.3",
+        "numpy": "1.26.4"
+      },
+      "failure": null,
+      "stocked_count": 2,
+      "elapsed_sim_time": 87.0599999999785,
+      "interventions": 0,
+      "peak_forces_N": {
+        "hand": 13.343707544806154,
+        "support": 13.686234362841889,
+        "back": 4.985945681222508,
+        "arm_fixture": 1.6069518348050926
+      },
+      "physical_gates": {
+        "carton_0": {
+          "lift": true,
+          "back_contact": true,
+          "release": true
+        },
+        "carton_1": {
+          "lift": true,
+          "back_contact": true,
+          "release": true
+        }
+      }
+    },
+    {
+      "run": "outputs/random-two-seed0-video",
+      "verification_status": "verified",
+      "physical_success": true,
+      "seed": 0,
+      "product_count": 2,
+      "robot_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+      "versions": {
+        "mujoco": "3.17.0",
+        "abstract-stack": "0.1.0",
+        "emet": "0.3.3",
+        "numpy": "1.26.4"
+      },
+      "failure": null,
+      "stocked_count": 2,
+      "elapsed_sim_time": 87.3599999999778,
+      "interventions": 0,
+      "peak_forces_N": {
+        "hand": 13.627425674950294,
+        "support": 3.4805594002111295,
+        "back": 5.411971327998434,
+        "arm_fixture": 6.0608720259778455
+      },
+      "physical_gates": {
+        "carton_0": {
+          "lift": true,
+          "back_contact": true,
+          "release": true
+        },
+        "carton_1": {
+          "lift": true,
+          "back_contact": true,
+          "release": true
+        }
+      },
+      "video": {
+        "fps": 10,
+        "encoded_frames": 874,
+        "cameras": {
+          "third_person": "stocking_third_person",
+          "first_person": "zed_left"
+        }
+      }
+    },
+    {
+      "run": "outputs/random-success-seed1",
+      "verification_status": "unknown",
+      "physical_success": null,
+      "seed": 1,
+      "product_count": 1,
+      "robot_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+      "versions": {
+        "mujoco": "3.17.0",
+        "abstract-stack": "0.1.0",
+        "emet": "0.3.3",
+        "numpy": "1.26.4"
+      },
+      "artifact_error": "[Errno 2] No such file or directory: 'outputs/random-success-seed1/summary.json'",
+      "process_failure": {
+        "verification_status": "unverified",
+        "process_exit_code": 139,
+        "signal": "SIGSEGV",
+        "failure": "Native render process crashed; no verified terminal outcome or complete physics trace was saved. Partial clips are not success evidence.",
+        "retry_policy": "Record again with one rendering process at a time."
+      }
+    }
+  ]
+}

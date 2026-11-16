@@ -1,0 +1,51 @@
+\section{Planned Experiments}
+\textbf{This section is a protocol proposal; these studies have not been run.}
+First replicate the initial physical grasp, lift, contact push and release across
+new development instances. Then increase object count and reduce insertion clearance;
+introduce prefilled shelves, deliberate jams and tipped products; finally test
+both hands and the house layout. Navigation and manipulation results must be
+reported separately before claiming whole-house behavior.
+
+\paragraph{Comparisons.}
+Use the same measured-state interface, task success checks, physical model,
+and matched instance suites for: a hand-written task program; one-shot program
+generation; iterative program synthesis with simulator feedback; and, when
+available, an explicit TAMP baseline. Cross each supported task program with
+the conventional tracker and a compatible learned tracker. An unavailable
+baseline is marked not run, not assigned an artificial failure score.
+
+\paragraph{Ablations.}
+Measure gravity feedforward, wrist damping, orientation alternatives, collision
+prefiltering, object ordering, fallback selection, and contact feedback. Unsafe
+ablations still obey force/tilt aborts. Controller and planner changes should
+be isolated so an improved grasp controller is not misattributed to task planning.
+
+\paragraph{Development and evaluation.}
+Use separate development and validation instances, then freeze code, controller,
+model revision, prompts, dependencies, and policy weights before a private test
+suite. Propose five independent synthesis runs and 100 paired test episodes per
+condition once the physical baseline works. These counts are future targets.
+Predeclare budgets, including model usage, simulator transitions, development
+time and test-time compute. No paid synthesis or RL campaign is launched by
+creating this draft.
+
+Held-out seeds sampled from the same task distribution measure instance
+generalization. Separate stress suites change product counts, geometry,
+friction, mass, delay, or failure severity and measure distribution shift.
+Report them separately. Verify that test seeds and artifacts did not enter
+development; preserve failures and timeouts in every denominator.
+
+\paragraph{Metrics.}
+The primary outcome is complete-shelf unassisted success, with confidence
+intervals and paired comparisons on common instances. Also report partial
+completion, simulated completion time, decision compute, total wall time,
+interventions, recovery rate and duration, and the number of earlier placements
+disturbed. Separate model-synthesis cost, policy computation, and physics time.
+Report per-run variation, not only a best policy.
+
+Physical diagnostics include predicted pose residuals, measured Cartesian and
+joint tracking, applied target rates, force/impulse by contact category,
+base tilt and support, grasp retention, actual lift, and release stability.
+Peak force alone is insufficient for contact quality; impulse and sustained
+load should accompany it. Complete evaluation requires base-support monitoring
+and stronger carried-object collision guarantees than the current finite samples.

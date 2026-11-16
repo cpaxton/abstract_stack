@@ -1,0 +1,27 @@
+\documentclass[10pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,graphicx}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\newcommand{\draftstatus}{Research draft: proposed method; full-task experiments pending}
+
+\title{Abstract Stack: Continuous Shelf Stocking with Contact and Recovery}
+\author{Chris Paxton\\\small Working draft; collaborator list to be finalized}
+\date{\today}
+
+\begin{document}
+\maketitle
+\begin{center}\small\textbf{\draftstatus}\end{center}
+\input{sections/00_abstract}
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_problem}
+\input{sections/04_method}
+\input{sections/05_experiments}
+\input{sections/06_status}
+\input{sections/07_conclusion}
+\bibliographystyle{plainnat}
+\bibliography{references}
+\appendix
+\input{sections/A_reproducibility}
+\end{document}
