@@ -189,12 +189,25 @@ plan being present in code does not show a new instance succeeded in physics.
 The native hand has 17 joints; a single closure fraction is a starting grasp
 profile and will not reliably handle every box shape or pose.
 
+The selected posture additionally opens `Left Thumb MCP` to **0.4 rad**, within
+its native joint/actuator limits. A neutral thumb base can catch a carton's top
+edge during descent and overload the table-supported object before closure.
+The controller keeps this MCP reference during carry and withdrawal; the normal
+closure fraction still drives the other listed flexion joints. Future MCP
+geometry is included in empty/loaded IK, coupled hand checks and opening plans.
+Ordinary joint-path IK checks the future posture rather than the initial thumb
+opening sweep; sampled geometry is not a continuous collision or force proof.
+Use `--no-thumb-preshape` with `solve`, `script` or `batch` for an ablation.
+The flag is independent of `--legacy-contact-control`; disable both to reproduce
+the original combined baseline on the current checkout.
+
 ## Recorded evidence
 
 | Artifact | Contents |
 | --- | --- |
 | `initial-scene/scene.xml` and `manifest.json` | Seed, scene settings, object dimensions/poses, MuJoCo version, model source revision and initial controls. |
 | `rollout_start.npz` | Complete MuJoCo integration state after the initial settling interval, plus its state-spec enum. |
+| `rollout_terminal.npz` | Actual terminal integration state, saved before assigning stationary targets for shutdown. |
 | `trace.npz` | Samples and native actuator controls recorded at every 2 ms physics step. |
 | `summary.json` | Controller parameters, phase times, IK predictions/rejection reasons, predicted versus measured errors, failed condition, completed products, actual actuator lengths and peak forces. |
 | Phase PNGs and `final.png` | Optional visual context; these do not replace numeric acceptance. |

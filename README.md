@@ -18,10 +18,16 @@ rate. The prefilter tries bounded
 orientation alternatives, checks sampled joint paths, and records predicted
 position/orientation errors separately from physical execution error.
 
-The [contact-control follow-up](docs/reports/contact_control_followup.md) reports
-8/10 completed public regression scenes and 7/10 fresh scenes, against matched
-legacy results of 6/10 and 4/10. It includes stage counts, rejected experiments,
-force evidence and the retained unknown native-crash outcome.
+The [compliance follow-up](docs/reports/compliance_followup.md) completes
+**10/10 scenes in each of four two-carton suites**: all 80 cartons pass pick,
+placement, positioning and clean-retreat gates. Thumb preshaping clears an
+approach obstruction; lower grip/push targets improve insertion. Task criteria
+and the 25 N force limit remain fixed. These small stationary, left-arm pilots
+do not establish crowded-shelf, bimanual or jam-recovery performance.
+The [thumb-preshape report](docs/reports/thumb_preshape_followup.md) retains the
+intermediate controller's measurements and rejected development probes.
+The earlier [contact-control report](docs/reports/contact_control_followup.md)
+retains the 8/10 and 7/10 results, rejected experiments and unknown native crash.
 The [historical ten-scene report](docs/reports/stocking_ten_scenes.md) breaks down
 pick, placement, final positioning and retreat without knocking objects over.
 Run `./scripts/benchmark_stocking.sh` for the baseline, bounded compliant-control
@@ -42,6 +48,8 @@ abstract-stack sim --scene house
 
 Development rules and hook/CI setup are in [CONTRIBUTING.md](CONTRIBUTING.md)
 and [AGENTS.md](AGENTS.md).
+The [workflow and experiment index](docs/experiments.md) separates the supported
+controller, historical studies and upcoming dense/material tasks.
 
 The [research draft and Agentic GenTAMP review](paper/README.md) describe the
 task, controller interface and planned experiments. Build with `./paper/build.sh`.

@@ -24,7 +24,7 @@ def summarize_run(directory, returncode, *, video):
     process_failure = directory / "process_failure.json"
     if process_failure.exists():
         result["process_failure"] = json.loads(process_failure.read_text())
-    if returncode < 0:
+    if returncode is not None and returncode < 0:
         try:
             name = signal.Signals(-returncode).name
         except ValueError:
