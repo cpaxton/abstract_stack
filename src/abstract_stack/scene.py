@@ -24,8 +24,10 @@ class ShelfConfig:
     table_top: float = 0.70
     top_clearance: float = 0.33
     table_size: tuple[float, float] = (0.60, 0.50)
+    table_leg_inset: float = 0.04
     table_center_x: float = -0.30
     table_center_y: float | None = None
+    supply_center_y: float | None = None
     center_y: float = 0.0
     product_count: int = 6
     initially_stocked: int = 0
@@ -33,6 +35,7 @@ class ShelfConfig:
     spawn_jitter: float = 0.008
     robot_xy: tuple[float, float] = (0.0, 0.0)
     robot_yaw: float = 0.0
+    initial_joint_positions: tuple[tuple[str, float], ...] = ()
     timestep: float = 0.002
     frame_skip: int = 10
     time_limit: float = 120.0
@@ -44,6 +47,7 @@ class ShelfConfig:
     product_kind: str = "mixed"
     target_back_gap: float | None = None
     carton_size: tuple[float, float, float] = (0.09, 0.07, 0.17)
+    row_free_space: float | None = None
 
     def __post_init__(self) -> None:
         positive = (
@@ -75,17 +79,46 @@ class ShelfConfig:
             for a, b in zip(self.levels, self.levels[1:], strict=False)
         ):
             raise ValueError("Shelf levels must leave at least 0.24 m of clear space")
-        if self.width < 0.5 or self.depth < 0.2:
-            raise ValueError("Shelf must be at least 0.5 m wide and 0.2 m deep")
+        if self.row_free_space is not None and (
+            isinstance(self.row_free_space, bool)
+            or not math.isfinite(self.row_free_space)
+            or self.row_free_space <= 0
+            or len(self.levels) != 1
+            or self.product_kind != "carton"
+            or self.product_count < 2
+        ):
+            raise ValueError("Dense rows need positive total free space, one level and >=2 cartons")
+        minimum_width = 0.08 if self.row_free_space is not None else 0.5
+        if self.width < minimum_width or self.depth < 0.2:
+            raise ValueError(f"Shelf must be at least {minimum_width} m wide and 0.2 m deep")
         if len(self.table_size) != 2 or len(self.robot_xy) != 2:
             raise ValueError("table_size and robot_xy must each contain two numbers")
         if min(self.table_size) < 0.12:
             raise ValueError("Supply table dimensions must each be >= 0.12 m")
+        if not math.isfinite(self.table_leg_inset) or not (
+            0.02 <= self.table_leg_inset <= min(self.table_size) / 2 - 0.02 + 1e-12
+        ):
+            raise ValueError("table_leg_inset must leave distinct supported legs inside the table")
         coordinates = (*self.robot_xy, self.robot_yaw, self.center_y, self.table_center_x)
         if self.table_center_y is not None:
             coordinates += (self.table_center_y,)
+        if self.supply_center_y is not None:
+            coordinates += (self.supply_center_y,)
         if not all(math.isfinite(x) for x in coordinates):
             raise ValueError("Scene positions and angles must be finite")
+        try:
+            names = [name for name, value in self.initial_joint_positions]
+            valid_initial = all(
+                isinstance(name, str)
+                and name
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+                for name, value in self.initial_joint_positions
+            )
+        except (ValueError, TypeError):
+            valid_initial, names = False, []
+        if not valid_initial or len(names) != len(set(names)):
+            raise ValueError("Initial joint positions need unique names and finite scalar values")
         if self.top_clearance - self.board_thickness < 0.24 - 1e-9 or self.table_top < 0.10:
             raise ValueError(
                 "Top shelf needs >= 0.24 m clear space and table_top must be >= 0.10 m"
@@ -142,6 +175,11 @@ class ShelfConfig:
             )
         return self.table_center_x, y
 
+    @property
+    def supply_xy(self) -> tuple[float, float]:
+        x, y = self.table_xy
+        return x, y if self.supply_center_y is None else self.supply_center_y
+
 
 @dataclass(frozen=True)
 class Product:
@@ -181,6 +219,9 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
     if supply_count and (
         (columns - 1) * stride_x + max_x + 2 * config.spawn_jitter > config.table_size[0]
         or (rows - 1) * stride_y + max_y + 2 * config.spawn_jitter > config.table_size[1]
+        or abs(config.supply_xy[1] - config.table_xy[1])
+        + ((rows - 1) * stride_y + max_y + 2 * config.spawn_jitter) / 2
+        > config.table_size[1] / 2
     ):
         raise ValueError(
             "Supply products do not fit on the table; enlarge table_size or prefill more items"
@@ -202,16 +243,20 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
             0.068 if config.product_kind == "mixed" and j % 2 else config.carton_size[1]
             for j in row
         ]
-        used_width = sum(widths) + config.target_gap * (len(row) - 1)
-        if used_width > config.width - 0.02:
+        gap = config.target_gap
+        if config.row_free_space is not None:
+            if not math.isclose(config.width - sum(widths), config.row_free_space, abs_tol=1e-9):
+                raise ValueError("Shelf width minus all carton widths must equal row_free_space")
+            # N+1 gaps include both walls. This is a whole-row budget, not a
+            # per-product clearance and not a gap to add repeatedly.
+            gap = config.row_free_space / (len(row) + 1)
+        used_width = sum(widths) + gap * (len(row) - 1)
+        reserve = 0.02 if config.row_free_space is None else 0.0
+        if used_width > config.width - reserve:
             raise ValueError("Products do not fit across the configured shelf")
         slot = row.index(i)
         target_y = (
-            config.center_y
-            - used_width / 2
-            + sum(widths[:slot])
-            + config.target_gap * slot
-            + widths[slot] / 2
+            config.center_y - used_width / 2 + sum(widths[:slot]) + gap * slot + widths[slot] / 2
         )
         target = (
             config.front_x - config.depth / 2
@@ -224,8 +269,8 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
             spawn = (target[0], target[1], target[2] + 0.003)
         else:
             spawn = (
-                config.table_xy[0] + (supply_index % columns - (columns - 1) / 2) * stride_x,
-                config.table_xy[1] + (supply_index // columns - (rows - 1) / 2) * stride_y,
+                config.supply_xy[0] + (supply_index % columns - (columns - 1) / 2) * stride_x,
+                config.supply_xy[1] + (supply_index // columns - (rows - 1) / 2) * stride_y,
                 config.table_top + half_size[2] + 0.003,
             )
             supply_index += 1
@@ -419,8 +464,8 @@ def build_scene_xml(
         (table_half_x, table_half_y, 0.02),
         board,
     )
-    for dx in (-table_half_x + 0.04, table_half_x - 0.04):
-        for dy in (-table_half_y + 0.04, table_half_y - 0.04):
+    for dx in (-table_half_x + config.table_leg_inset, table_half_x - config.table_leg_inset):
+        for dy in (-table_half_y + config.table_leg_inset, table_half_y - config.table_leg_inset):
             _box(
                 table,
                 f"table_leg_{dx}_{dy}",
@@ -480,6 +525,21 @@ def build_scene_xml(
     _camera(
         world, "stocking_third_person", (1.25, config.center_y - 1.8, 1.7), (-0.30, -0.18, 0.82)
     )
+    if config.row_free_space is not None:
+        _camera(
+            world,
+            "dense_front",
+            (
+                config.front_x + 0.28,
+                config.center_y,
+                config.levels[0] + config.carton_size[2] * 0.65,
+            ),
+            (
+                config.front_x - config.depth + 0.04,
+                config.center_y,
+                config.levels[0] + config.carton_size[2] / 2,
+            ),
+        )
     # An oblique front view keeps the shelf visible around MABEL's torso.
     _camera(
         world, "shelf_front", (config.front_x + 1.35, config.center_y + 1.10, roof * 0.8), center

@@ -67,6 +67,64 @@ def test_ik_changes_only_scratch_state_and_bounds_targets(robot):
 
 
 @pytest.mark.mabel
+def test_supported_slide_and_posture_constraints_only_change_scratch_geometry(robot):
+    # Reset-only collision fixture: place the carton in the shelf's Y/Z lane.
+    adr = int(robot.model.joint("carton_0_joint").qposadr[0])
+    robot.data.qpos[adr + 1 : adr + 3] = robot.products[0].target[1:]
+    mujoco.mj_forward(robot.model, robot.data)
+    hand = CartesianHand(robot, ScriptConfig())
+    ik = hand.ik
+    qpos, ctrl = robot.data.qpos.copy(), robot.data.ctrl.copy()
+    limits = robot.model.jnt_range.copy()
+    point, rotation = ik.forward(ik.measured_q())
+    ik.constrain_posture("Left Wrist", 0.2)
+    q, _, _ = ik.solve(point, rotation, ik.measured_q())
+    assert q[ik.names.index("Left Wrist")] == 0.2
+    with pytest.raises(ValueError, match="native coordinate limits"):
+        ik.constrain_posture("Left Wrist", 2.0)
+    ik.predict(
+        point,
+        rotation,
+        q,
+        allowed_object="carton_0",
+        sliding=True,
+        alternatives=False,
+        check_path=False,
+    )
+    _, adr, position, start_x, gap, minimum_x = ik.slide
+    predicted_point, _ = ik.forward(q)
+    assert ik.scratch.qpos[adr] == pytest.approx(
+        position[0]
+        - min(max(0, start_x - predicted_point[0] - gap), max(0, position[0] - minimum_x))
+    )
+    np.testing.assert_array_equal(ik.scratch.qpos[adr + 1 : adr + 7], qpos[adr + 1 : adr + 7])
+    np.testing.assert_array_equal(robot.data.qpos, qpos)
+    np.testing.assert_array_equal(robot.data.ctrl, ctrl)
+    np.testing.assert_array_equal(robot.model.jnt_range, limits)
+    # Deliberately excessive advancement ONLY in the scratch fixture. The
+    # carton stops at the physical back face; a neighboring carton still blocks.
+    bid, adr, position, _, gap, minimum_x = ik.slide
+    ik.slide = (bid, adr, position, float(predicted_point[0] + gap + 1), gap, minimum_x)
+    ik.forward(q)
+    back = robot.model.geom("shelf_back").id
+    extent_x = (
+        np.abs(robot.data.body("carton_0").xmat.reshape(3, 3))
+        @ np.asarray(robot.products[0].half_size)
+    )[0]
+    expected_x = robot.data.geom_xpos[back, 0] + robot.model.geom_size[back, 0] + extent_x
+    assert ik.scratch.qpos[adr] == pytest.approx(expected_x)
+    reference = qpos.copy()
+    neighbor = int(robot.model.joint("carton_1_joint").qposadr[0])
+    reference[neighbor : neighbor + 3] = [expected_x, position[1], position[2]]
+    collisions = ik.collision_errors(q, reference, {}, bid)
+    assert any(set(e["geoms"]) == {"carton_0_geom", "carton_1_geom"} for e in collisions)
+    np.testing.assert_array_equal(robot.data.qpos, qpos)
+    np.testing.assert_array_equal(robot.data.ctrl, ctrl)
+    with pytest.raises(ValueError, match="different contact modes"):
+        ik.predict(point, rotation, q, allowed_object="carton_0", carrying=True, sliding=True)
+
+
+@pytest.mark.mabel
 @pytest.mark.parametrize("product_name", ["carton_0", "carton_1"])
 def test_force_limit_stops_on_real_hand_contact(robot, tmp_path, product_name):
     script = StockingScript(

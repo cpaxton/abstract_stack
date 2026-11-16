@@ -13,6 +13,8 @@ class StageObserver:
         self.completed = set()
         self.retreat = None
         self.retreat_results = {}
+        self.initial = self.snapshot()
+        self.maximum_displacements = {p.name: 0.0 for p in env.products}
 
     def snapshot(self):
         good = self.env._placement_conditions()
@@ -31,6 +33,10 @@ class StageObserver:
         env = self.env
         for p in env.products:
             body = env.data.body(p.name)
+            self.maximum_displacements[p.name] = max(
+                self.maximum_displacements[p.name],
+                float(np.linalg.norm(body.xpos - np.asarray(self.initial[p.name]["pose"][:3]))),
+            )
             conditions = {
                 "tipped": body.xmat.reshape(3, 3)[2, 2] < np.cos(np.radians(45)),
                 "dropped": body.xpos[2] < 0.25,
@@ -82,9 +88,10 @@ class StageObserver:
         products = {}
         for p in self.env.products:
             own = [e for e in events if e["product"] == p.name]
-            final = next((e for e in own if e.get("verified_release")), {})
+            final = next((e for e in reversed(own) if e.get("verified_release")), {})
             retreat = self.retreat_results.get(p.name, {})
             products[p.name] = {
+                "initially_stocked": p.initially_stocked,
                 "attempted": any(e["phase"] == "grasp_precheck" for e in own),
                 "pick": any(e.get("verified_lift", False) for e in own),
                 "place": any(e.get("verified_shelf_support", False) for e in own),
@@ -99,4 +106,55 @@ class StageObserver:
             "no_knockovers": not self.incidents,
             "unfinished_retreat": self.retreat,
             "final_state": self.snapshot(),
+            "initial_state": self.initial,
+            "maximum_displacement_from_start_m": self.maximum_displacements,
         }
+
+
+def manipulation_evaluation(result):
+    """Grade scheduled picks separately from explicit prefilled initial conditions."""
+    names = result["scheduled_pick_products"]
+    products = result["stage_evaluation"]["products"]
+    counts = {
+        stage: sum(bool(products[name][stage]) for name in names)
+        for stage in ("pick", "place", "final_position", "retreat")
+    }
+    return {
+        "scheduled_manipulations": len(names),
+        "scheduled_product_names": names,
+        "prefilled_product_names": result["initially_stocked_products"],
+        "stages": counts,
+        "clean_success": bool(names)
+        and result["physical_success"]
+        and result["stage_evaluation"]["no_knockovers"]
+        and all(count == len(names) for count in counts.values()),
+    }
+
+
+def reported_manipulations(run):
+    """Recompute stage credit, including historical summaries without pick lists.
+
+    Process/artifact validity remains the caller's responsibility. Never trust
+    a cached success flag instead of the individual manipulation evidence.
+    """
+    evaluation = run.get("stage_evaluation") or {}
+    products = evaluation.get("products", {})
+    names = run.get("scheduled_pick_products")
+    if names is None:
+        names = [name for name, p in products.items() if not p.get("initially_stocked", False)]
+    counts = {
+        stage: sum(bool(products.get(name, {}).get(stage)) for name in names)
+        for stage in ("pick", "place", "final_position", "retreat")
+    }
+    return {
+        "names": names,
+        "stages": counts,
+        "clean_success": bool(names)
+        and len(set(names)) == len(names)
+        and set(names).issubset(products)
+        and len(products) == run.get("product_count", len(products))
+        and run.get("physical_success") is True
+        and run.get("task_success", True) is True
+        and evaluation.get("no_knockovers") is True
+        and all(count == len(names) for count in counts.values()),
+    }

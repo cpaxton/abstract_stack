@@ -145,10 +145,13 @@ def contact_forces(
         "shelf": 0.0,
         "table": 0.0,
         "other_product": 0.0,
+        "thumb_normal": 0.0,
+        "nonthumb_normal": 0.0,
     }
     hand_contacts = set()
     normals = []
     normal_vector, hand_force, fixture_normal = np.zeros(3), np.zeros(3), np.zeros(3)
+    hand_moment, contact_position = np.zeros(3), np.zeros(3)
     for i, contact in enumerate(data.contact):
         if contact.efc_address < 0:
             continue
@@ -166,9 +169,16 @@ def contact_forces(
             other, other_geom = (b2, g2) if b1 == product else (b1, g1)
             if other in hand_bodies:
                 result["hand"] += normal
+                result[
+                    "thumb_normal" if "thumb" in model.body(other).name else "nonthumb_normal"
+                ] += normal
                 sign = -1 if b1 == product else 1
                 normal_vector += sign * normal * contact.frame[:3]
                 hand_force += sign * contact.frame.reshape(3, 3).T @ force[:3]
+                world_force = sign * contact.frame.reshape(3, 3).T @ force[:3]
+                hand_moment += np.cross(contact.pos - data.xpos[product], world_force)
+                hand_moment += sign * contact.frame.reshape(3, 3).T @ force[3:]
+                contact_position += normal * contact.pos
                 if normal > 0.05:
                     hand_contacts.add(other)
                     normals.append(contact.frame[:3].copy() * (1 if b1 == product else -1))
@@ -189,6 +199,11 @@ def contact_forces(
     result["hand_contact_bodies"] = len(hand_contacts)
     result["grip_normal"] = max(0.0, result["hand"] - float(np.linalg.norm(normal_vector)))
     result["push_force"] = max(0.0, -float(hand_force[0]))
+    result["hand_force_world_N"] = hand_force.tolist()
+    result["hand_moment_about_body_origin_Nm"] = hand_moment.tolist()
+    result["hand_contact_position_world_m"] = (
+        (contact_position / result["hand"]).tolist() if result["hand"] > 1e-9 else None
+    )
     result["fixture_normal_world_N"] = fixture_normal.tolist()
     result["opposing_contacts"] = any(
         np.dot(a, b) < -0.25 for i, a in enumerate(normals) for b in normals[i + 1 :]
@@ -288,7 +303,7 @@ class CartesianHand:
                     direction = direction / norm if norm > 1e-6 else np.array([0.0, 0.0, 1.0])
         return best, direction
 
-    def check_hand_step(self, prediction, grip, allowed_object):
+    def check_hand_step(self, prediction, grip, allowed_object, *, targets=None):
         """Check three coupled arm/finger poses on scratch data, never live qpos."""
         start = self.ik.measured_q()
         reference = self.data.qpos.copy()
@@ -296,7 +311,7 @@ class CartesianHand:
         baseline = self.ik._contacts(start, reference, object_id)
         for alpha in (0.0, 0.5, 1.0):
             fingers = reference.copy()
-            for name, goal in self.finger_targets(grip).items():
+            for name, goal in (self.finger_targets(grip) if targets is None else targets).items():
                 adr = int(self.model.joint(name).qposadr[0])
                 fingers[adr] = reference[adr] + alpha * (goal - reference[adr])
             errors = self.ik.collision_errors(
@@ -387,6 +402,7 @@ class CartesianHand:
         check_path=True,
         grip=0,
         carrying=None,
+        sliding=False,
         path_mode="joint",
     ):
         fingers = {}
@@ -410,6 +426,7 @@ class CartesianHand:
             alternatives=alternatives,
             finger_positions=fingers,
             carrying=grip > 0 if carrying is None else carrying,
+            sliding=sliding,
             path_mode=path_mode,
         )
         self.last_prediction = prediction
@@ -493,6 +510,14 @@ class CartesianHand:
 class StockingScript:
     """Stage machine; failure stops the run and retains its measured evidence."""
 
+    FRONT_SUPPORT = "shelf"
+    CONTACT_PROTOCOL = "grasped_supported_slide"
+    ALLOW_OFFSET_START = False
+
+    def episode_evidence(self):
+        """Read-only controller-specific diagnostics for the terminal artifact."""
+        return {}
+
     def __init__(
         self,
         env,
@@ -505,11 +530,14 @@ class StockingScript:
         video_width=640,
         video_height=480,
         first_person="zed_left",
+        third_person="stocking_third_person",
         force_profile=None,
     ):
         if not env.robot or not env.products or any(p.kind != "carton" for p in env.products):
             raise ValueError("The script requires MABEL and a carton-only scene (pick_place)")
-        if env.config.environment != "studio" or tuple(env.config.robot_xy) != (0.0, 0.0):
+        if env.config.environment != "studio" or (
+            not self.ALLOW_OFFSET_START and tuple(env.config.robot_xy) != (0.0, 0.0)
+        ):
             raise ValueError("This first script supports the stationary pick_place bench only")
         self.env, self.config = env, config or ScriptConfig()
         self.force_profile = force_profile
@@ -537,6 +565,7 @@ class StockingScript:
                 "width": video_width,
                 "height": video_height,
                 "first_person": first_person,
+                "third_person": third_person,
             }
             if video
             else None
@@ -703,6 +732,9 @@ class StockingScript:
             return self._apply_tick(self.controller.joint_targets(prediction.q, grip))
         return self._apply_tick(self.controller.targets(target, grip))
 
+    def _load_feedforward(self):
+        return None
+
     def _apply_tick(self, action):
         if self.gaze is not None:
             action = dict(action)
@@ -731,7 +763,7 @@ class StockingScript:
                 action[name] = float(lo + self.active_grip * (hi - lo))
         self.fixture_feedback = np.zeros(3)
         _, _, terminated, truncated, _ = self.env.step(
-            self.tracker.targets(action, dt=self.env.dt),
+            self.tracker.targets(action, dt=self.env.dt, load_feedforward=self._load_feedforward()),
             on_physics_step=self._sample,
         )
         if truncated:
@@ -748,7 +780,17 @@ class StockingScript:
             json.dumps(self.events[-1], indent=2) + "\n"
         )
 
-    def _move(self, name, target, grip=0.0, seconds=None, *, check_tracking=True, carrying=None):
+    def _move(
+        self,
+        name,
+        target,
+        grip=0.0,
+        seconds=None,
+        *,
+        check_tracking=True,
+        carrying=None,
+        orientation_alternatives=None,
+    ):
         self._stage(name)
         if grip > 0 and self.payload_rotation_goal is not None:
             # Align the actual load, rather than assuming a constant hand pose
@@ -765,7 +807,9 @@ class StockingScript:
         prediction = self.controller.predict(
             target,
             allowed_object=allow_object,
-            alternatives=name != "approach" and grip == 0,
+            alternatives=(name != "approach" and grip == 0)
+            if orientation_alternatives is None
+            else orientation_alternatives,
             grip=grip,
             carrying=carrying,
         )
@@ -892,6 +936,13 @@ class StockingScript:
         raise InteractionFailure("No acceptable grasp candidate found; no grasp motion commanded")
 
     def _one_box(self, selected=None):
+        grasp_grip = self._pick_and_place_front(selected)
+        self._push_grasped(grasp_grip)
+
+    def _front_center_x(self, extent):
+        return self.env.config.front_x - extent - 0.006
+
+    def _pick_and_place_front(self, selected=None):
         env, config, product = self.env, self.config, self.product
         box = env.data.body(product.name).xpos.copy()
         self.payload_rotation_goal = env.data.body(product.name).xmat.reshape(3, 3).copy()
@@ -1023,7 +1074,7 @@ class StockingScript:
         # Retain the measured relative grasp offset; never attach or move the object directly.
         offset = self.controller.position() - actual
         placement = np.array(product.target)
-        placement[0] = env.config.front_x - product.half_size[0] - 0.006
+        placement[0] = self._front_center_x(product.half_size[0])
         self._move(
             "carry_clear", self.controller.position() + [0, 0, config.carry_clearance], grasp_grip
         )
@@ -1040,11 +1091,11 @@ class StockingScript:
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.array(product.half_size)
         # Use the measured rotated box bounds and grasp offset; nominal carton
         # half-sizes can request penetration when the grasp has a small tilt.
-        placement[0] = env.config.front_x - extent[0] - 0.006
+        placement[0] = self._front_center_x(extent[0])
         placement[2] = env.config.levels[product.level] + extent[2] + 0.001
         offset = self.controller.position() - body.xpos
         self._move("place", placement + offset, grasp_grip)
-        if self.last_forces["shelf"] < 0.2:
+        if self.last_forces[self.FRONT_SUPPORT] < 0.2:
             body = env.data.body(product.name)
             extent = np.abs(body.xmat.reshape(3, 3)) @ np.array(product.half_size)
             gap = float(body.xpos[2] - extent[2] - env.config.levels[product.level])
@@ -1052,9 +1103,13 @@ class StockingScript:
                 raise InteractionFailure("place: shelf support outside bounded seating range")
             seat = self.controller.position() - [0, 0, max(0, gap) + 0.0005]
             self._move("seat", seat, grasp_grip)
-            if self.last_forces["shelf"] < 0.2:
-                raise InteractionFailure("place: no measured shelf support")
-        self.events[-1]["verified_shelf_support"] = True
+            if self.last_forces[self.FRONT_SUPPORT] < 0.2:
+                raise InteractionFailure(f"place: no measured {self.FRONT_SUPPORT} support")
+        self.events[-1][f"verified_{self.FRONT_SUPPORT}_support"] = True
+        return grasp_grip
+
+    def _push_grasped(self, grasp_grip):
+        env, config, product = self.env, self.config, self.product
         # Contact mode changes here: a shelf-supported load may slide within
         # the fingers. Monitor support/contact instead of enforcing a rigid
         # free-space grasp transform throughout the supported slide.
@@ -1175,16 +1230,17 @@ class StockingScript:
         self._move("clear", self.controller.position() + [0.04, 0, 0.02])
         self.observer.end_retreat(self.product.name)
 
-    def _release_grasp(self):
+    def _release_grasp(self, name="release", *, support="shelf"):
         """Check opening fingers and retreat together, then execute via servos."""
         env, config, controller = self.env, self.config, self.controller
-        self._stage("release")
+        self._stage(name)
         self.active_grip, self.carry_reference = None, None
         self.release_origin = env.data.body(self.product.name).xpos.copy()
         reference = env.data.qpos.copy()
         start = controller.position().copy()
         start_q = controller.ik.measured_q()
         controller.ik.carry = None
+        controller.ik.slide = None
         object_id = env.model.body(self.product.name).id
         baseline = controller.ik._contacts(start_q, reference, object_id)
         fingers = {}
@@ -1280,12 +1336,13 @@ class StockingScript:
             self._apply_tick(action)
         for _ in range(int(0.3 / env.dt)):
             self._tick(controller.position(), 0)
-        if self.last_forces["shelf"] < 0.2 or self.last_forces["hand"] > 0.2:
-            raise InteractionFailure("release: no measured shelf support")
+        if self.last_forces[support] < 0.2 or self.last_forces["hand"] > 0.2:
+            raise InteractionFailure(f"release: no measured {support} support")
         if env.data.body(self.product.name).xmat.reshape(3, 3)[2, 2] < np.cos(np.radians(15)):
             raise InteractionFailure("release: product is not upright")
         self.events[-1].update(
             verified_release=True,
+            support_surface=support,
             placement_conditions=bool(
                 env._placement_conditions()[env.products.index(self.product)]
             ),
@@ -1301,6 +1358,11 @@ class StockingScript:
         from abstract_stack.evaluation import StageObserver
 
         self.observer = StageObserver(self.env)
+        self.observer.completed.update(
+            p.name
+            for i, p in enumerate(self.env.products)
+            if p.initially_stocked and self.env._stocked[i]
+        )
         # The bundle settles the world; initialize IK targets from that measured state.
         self.controller = CartesianHand(self.env, self.config)
         self.tracker = MabelController(
@@ -1334,14 +1396,21 @@ class StockingScript:
             "physical_success": False,
             "failure": None,
             "completed_products": [],
+            "initially_stocked_products": [
+                p.name for p in self.env.products if p.initially_stocked
+            ],
+            "scheduled_pick_products": [
+                p.name for p in self.env.products if not p.initially_stocked
+            ],
             "controller": asdict(self.config),
             "force_profile": self.force_profile,
             "assistance": "none",
             "state_access": "privileged_mujoco_world_state",
             "policy_kind": "handwritten_feedback_program",
+            "contact_protocol": self.CONTACT_PROTOCOL,
         }
         try:
-            pending = list(self.env.products)
+            pending = [p for p in self.env.products if not p.initially_stocked]
             while pending:
                 selected = self._select_grasp(pending) if self.config.adaptive_grasps else None
                 if selected is None:
@@ -1450,6 +1519,15 @@ class StockingScript:
                 from PIL import Image
 
                 Image.fromarray(self.env.render()).save(self.directory / "final.png")
+            from abstract_stack.evaluation import manipulation_evaluation
+
+            result["manipulation_evaluation"] = manipulation_evaluation(result)
+            result["task_success"] = result["manipulation_evaluation"]["clean_success"]
+            result["controller_evidence"] = self.episode_evidence()
+            if not result["task_success"] and result["failure"] is None:
+                result["failure"] = (
+                    "Physical goal met but scheduled manipulation evidence incomplete"
+                )
             if self.recorder is not None:
                 try:
                     result["video"] = self.recorder.finish(result)
