@@ -23,6 +23,7 @@
         "retreat": 0
       },
       "failure": "finger_push: contact dwell timeout",
+      "artifact_error": null,
       "sim_seconds": 109.29999999992667,
       "incidents": [],
       "config": {
@@ -253,6 +254,7 @@
         "retreat": 0
       },
       "failure": "finger_push: contact dwell timeout",
+      "artifact_error": null,
       "sim_seconds": 109.29999999992667,
       "incidents": [],
       "config": {
@@ -483,6 +485,7 @@
         "retreat": 0
       },
       "failure": "finger_push: feedback path rejected before actuation",
+      "artifact_error": null,
       "sim_seconds": 73.8000000000094,
       "incidents": [],
       "config": {
@@ -713,6 +716,7 @@
         "retreat": 0
       },
       "failure": "finger_push: feedback path rejected before actuation",
+      "artifact_error": null,
       "sim_seconds": 73.8000000000094,
       "incidents": [],
       "config": {
@@ -943,6 +947,7 @@
         "retreat": 1
       },
       "failure": null,
+      "artifact_error": null,
       "sim_seconds": 77.36000000000111,
       "incidents": [],
       "config": {
@@ -1173,6 +1178,7 @@
         "retreat": 0
       },
       "failure": "Left Index MCP: -0.34907000000000005 is outside [-0.34907, 1.65806]",
+      "artifact_error": null,
       "sim_seconds": 50.86000000001619,
       "incidents": [],
       "config": {
@@ -1403,6 +1409,7 @@
         "retreat": 1
       },
       "failure": null,
+      "artifact_error": null,
       "sim_seconds": 77.36000000000111,
       "incidents": [],
       "config": {
@@ -1633,6 +1640,7 @@
         "retreat": 0
       },
       "failure": "finger_push: feedback path rejected before actuation",
+      "artifact_error": null,
       "sim_seconds": 72.3000000000129,
       "incidents": [],
       "config": {
@@ -1863,6 +1871,7 @@
         "retreat": 2
       },
       "failure": null,
+      "artifact_error": null,
       "sim_seconds": 152.96000000000225,
       "incidents": [],
       "config": {
@@ -2093,6 +2102,7 @@
         "retreat": 1
       },
       "failure": null,
+      "artifact_error": null,
       "sim_seconds": 77.36000000000111,
       "incidents": [],
       "config": {
@@ -2323,6 +2333,7 @@
         "retreat": 0
       },
       "failure": "align_shelf: IK prefilter found no acceptable pose/path; predicted miss 0.094 m; replan required",
+      "artifact_error": null,
       "sim_seconds": 31.69999999999331,
       "incidents": [],
       "config": {
@@ -2553,6 +2564,7 @@
         "retreat": 0
       },
       "failure": "transfer: IK prefilter found no acceptable pose/path; predicted miss 0.010 m; replan required",
+      "artifact_error": null,
       "sim_seconds": 38.980000000001674,
       "incidents": [],
       "config": {
@@ -2783,6 +2795,7 @@
         "retreat": 0
       },
       "failure": "pregrasp: contact force exceeded 25.0 N",
+      "artifact_error": null,
       "sim_seconds": 21.601999999998906,
       "incidents": [],
       "config": {
@@ -3013,6 +3026,7 @@
         "retreat": 0
       },
       "failure": "finger_push: contact dwell timeout",
+      "artifact_error": null,
       "sim_seconds": 105.13999999993636,
       "incidents": [],
       "config": {
