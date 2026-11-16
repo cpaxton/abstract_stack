@@ -51,6 +51,7 @@ physics settling check still work. Rendered builds default to EGL; an existing
 | `tight` | 0.62 m shelf; 18 products total, 12 already on the shelf and six on the table; 12 mm target gaps. | Inspect contact-rich insertion amongst existing products. |
 | `house` | Furnished small house, MABEL, starter shelf and six movable products. | House-scale scene and stocking setup. |
 | `house_tight` | Same house with 18 products and 12 prefilled shelf placements. | Tighter stocking inside the house. |
+| `pick_place` | Two tall narrow cartons on a small table beside MABEL and one shelf. | First-pass physical interaction tuning; see the [script status](scripted_interactions.md). |
 
 See [MABEL in a small house](house_scene.md) for its floor plan, room views,
 physical walls, and cutaway rendering.
@@ -126,10 +127,12 @@ work with `sim`, `inspect`, `export`, `serve`, and `build-scene`.
 | `spawn_jitter` | `0.008` | Maximum seeded supply-position jitter per horizontal axis. |
 | `robot_xy`, `robot_yaw` | `[0.0, 0.0]`, `0.0` | MABEL's initial base position and heading. |
 | `environment` | `"studio"` | Bare scene, or `"small_house"` to include the furnished house. |
+| `product_kind`, `carton_size` | `"mixed"`, `[0.09, 0.07, 0.17]` | Mixed bottles/cartons or `"carton"` only; carton full XYZ dimensions. |
+| `target_back_gap` | `null` | Gap from the box back face to the shelf back; null keeps centred targets. |
 
 Timing/evaluation fields are also accepted: `timestep`, `frame_skip`,
 `time_limit`, `stable_seconds`, `target_tolerance`, and `enable_sensors`.
-Supply products use up to three columns with 15 cm X and 14 cm Y spacing; enlarge
+Supply products use up to three columns with at least 15 cm X and 14 cm Y spacing; enlarge
 the table or prefill more objects if the remaining products do not fit. Clearance
 validation covers product sizing; visually check custom robot/table placements
 for reachability and collisions before collecting demonstrations.

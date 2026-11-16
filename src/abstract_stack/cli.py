@@ -25,15 +25,17 @@ def _parser():
     commands = parser.add_subparsers(dest="command", required=True)
     fetch = commands.add_parser("fetch-mabel", help="Download the pinned MABEL model and meshes")
     fetch.add_argument("--destination", type=Path)
-    for command in ("sim", "export", "inspect", "serve", "build-scene"):
+    for command in ("sim", "export", "inspect", "serve", "build-scene", "script"):
         sub = commands.add_parser(command)
         sub.add_argument("--mabel-root", type=Path, help="Existing open_mabel checkout")
         sub.add_argument("--seed", type=int, default=0)
         selection = sub.add_mutually_exclusive_group()
-        selection.add_argument("--scene", choices=SCENES, default="stocking")
+        selection.add_argument(
+            "--scene", choices=SCENES, default="pick_place" if command == "script" else "stocking"
+        )
         selection.add_argument("--config", type=Path, help="Custom JSON scene configuration")
         sub.add_argument("--fetch-mabel", action="store_true", help="Fetch MABEL if missing")
-        if command != "serve":
+        if command not in ("serve", "script"):
             sub.add_argument("--robot", choices=("mabel", "none"), default="mabel")
         sub.add_argument(
             "--enable-sensors", action="store_true", help="Enable onboard sensors/LiDAR"
@@ -43,6 +45,15 @@ def _parser():
         if command == "build-scene":
             sub.add_argument("--output-dir", type=Path, default=Path("outputs/scene"))
             sub.add_argument("--render", action="store_true", help="Render scene preview images")
+        if command == "script":
+            sub.add_argument("--output-dir", type=Path, default=Path("outputs/scripted-stocking"))
+            sub.add_argument("--render", action="store_true", help="Save phase previews")
+            sub.add_argument(
+                "--max-force", type=float, default=25.0, help="Contact abort limit in N"
+            )
+            sub.add_argument(
+                "--grip", type=float, default=0.8, help="Finger closure fraction (0, 1]"
+            )
         if command in ("sim", "serve"):
             sub.add_argument("--headless", action="store_true")
             sub.add_argument(
@@ -130,7 +141,7 @@ def main(argv=None):
         return
     # Choose the GL backend before importing MuJoCo. Physics-only headless runs
     # do not create a renderer or require a display server.
-    if getattr(args, "headless", False) or args.command == "build-scene":
+    if getattr(args, "headless", False) or args.command in ("build-scene", "script"):
         os.environ.setdefault("MUJOCO_GL", "egl")
     from abstract_stack.config import load_scene_config
     from abstract_stack.env import ShelfStockingEnv
@@ -153,7 +164,19 @@ def main(argv=None):
             seed=args.seed,
         )
         try:
-            if args.command == "build-scene":
+            if args.command == "script":
+                from abstract_stack.interactions import ScriptConfig, StockingScript
+
+                result = StockingScript(
+                    env,
+                    args.output_dir,
+                    ScriptConfig(max_force=args.max_force, grip=args.grip),
+                    render=args.render,
+                ).run()
+                print(json.dumps(result, indent=2))
+                if not result["physical_success"]:
+                    parser.exit(2, f"Interaction stopped: {result['failure']}\n")
+            elif args.command == "build-scene":
                 from abstract_stack.bundle import build_scene_bundle
 
                 print(build_scene_bundle(env, args.output_dir, render=args.render))

@@ -9,6 +9,10 @@ seeded resets, contact-based stocking checks, a native viewer, and an Emet ZMQ
 adapter. VR control, demonstration recording/replay, autonomous stocking,
 recovery policies, and mjlab training remain future work.
 
+The [first physical stocking script](docs/scripted_interactions.md) attempts
+box pickup and push-to-contact with per-step force traces. It currently stops
+at approach acceptance; end-to-end manipulation is not yet demonstrated.
+
 See [Shelf scene setup](docs/scene_setup.md) for dimensions, editable scene
 configurations, MABEL import, scene exports, and validation. Upstream concerns
 are tracked locally in [home_robot_issues.md](home_robot_issues.md).
@@ -20,6 +24,9 @@ stocking objects, use the [small house scene](docs/house_scene.md):
 abstract-stack build-scene --scene house --fetch-mabel --render --output-dir outputs/house
 abstract-stack sim --scene house
 ```
+
+Development rules and hook/CI setup are in [CONTRIBUTING.md](CONTRIBUTING.md)
+and [AGENTS.md](AGENTS.md).
 
 ## Initial scope
 
