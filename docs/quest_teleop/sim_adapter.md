@@ -109,5 +109,35 @@ errors are reported per actuator with metres/radians/rad/s kept separate. Wheel
 commands of zero do not establish zero base displacement. The empty preset still
 contains the shelf/table and native contact geometry; it is not a certified
 unloaded fixture. No manipulation, loaded hold or stationary-body acceptance is
-inferred from the baseline. A clean-source measurement is recorded separately
-after the implementation commit.
+inferred from the baseline.
+
+## Clean-source measurement
+
+November 17, 2026, implementation commit
+`8a2d4ab4914fe785cfed97107f8dd161ed0f440f`, `dirty_sources:false`, MuJoCo 3.17.0.
+Actual upstream checkout: `d0181f04025c06e1790b7ab41fe44d602cc2ee5b`.
+Scene `empty`, seed 0, 0.002-second physics timestep, 10 substeps per control tick,
+67 position values / 66 velocities / 59 actuators. Native reset targets were held
+without compensation, with no geometry/contact/constraint modifications.
+
+| Measurement | Observed |
+| --- | --- |
+| Simulated duration / control samples | 2.00 seconds / 101 including reset |
+| Maximum absolute wheel-speed command | 0 rad/s |
+| Peak free-base displacement at control samples | 0.013978 m |
+| Peak free-base rotation at control samples | 0.058564 rad |
+| Peak measured lift tendon error | 0.003742 m |
+| Stereo pair capture times | 0.00 and 2.00 simulation seconds |
+| Native stereo baseline | 0.063 m at both captures |
+
+Full measurements and native trace remain under
+`outputs/quest-sim-clean-8a2d4ab/`; both initial/final eye previews were generated.
+The native head-camera preview was inspected. No acceptance thresholds were
+introduced or tuned. The observed displacement is retained as a limitation of
+the raw stationary-command policy.
+
+Validation: 38 targeted adapter/contract/simulator tests passed, with one optional
+Emet integration test skipped. Tests include real stereo rendering, native model
+preservation, deterministic seeded resets, command atomicity, detached snapshots,
+thread ownership and the measured-hold command-range counterexample. Repository
+hooks and wheel/source-distribution builds passed.
