@@ -106,3 +106,12 @@ in `outputs/pr-publication-squaring-v1/`. This occurred before execution of the
 new contact gate/search, but the Python frame does not identify a native cause.
 It is retained independently of earlier passing full suites and subsequent
 allocator diagnostics. The source commit remains in this branch's history.
+
+The subsequent full hook at `d886e1a` used `PYTHONMALLOC=debug` and also aborted
+with signal 6 during fresh model compilation, in a released-contact fixture.
+Its log and effective allocator/source flags remain in
+`outputs/pr-publication-squaring-v2-debug/`. Neither attempt produced terminal
+test XML or published this branch. No hook was bypassed and no physics or
+acceptance criterion was changed. The allocator diagnostic did not establish a
+workaround; the native cause remains unknown. Focused checks, package build and
+the completed development continuations do not replace these failed full checks.
