@@ -81,6 +81,9 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 
 ## 5. Acceptance and evidence
 
+- [ ] Close native process stability gate: primitive-only named-view accesses
+  reproduce an intermittent signal. Retained-view mitigation needs native replay
+  and full-suite validation; preserve all unknown outcomes.
 - [ ] Development curriculum: isolated side push; middle insertion plus side push;
   several consecutive stocks; then ten cartons with zero prefills.
 - [ ] Freeze source/config before ten-scene validation, separate from development.

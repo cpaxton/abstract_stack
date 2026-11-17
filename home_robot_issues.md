@@ -102,3 +102,13 @@ project names, task descriptions, repository links, or private context.
   diagnostic with matching controller source returned an ordinary guarded
   failure. That does not replace either unknown outcome or identify a cause.
   No upstream issue or message was sent.
+- **Primitive-only reproduction:** a twenty-body model with named model/data
+  array reads, Python collection and no physics steps also segfaulted. In three
+  matched pairs, transient wrappers failed twice while retained model wrappers
+  completed all three. Independent GDB captures stop in `memmove` without an
+  identified corrupting operation. A local wrapper-retention mitigation is under
+  validation; this does not prove all earlier signals share its cause. The
+  standalone `scripts/diagnose_mujoco_views.py` has no robot/controller assets or
+  downstream imports. Keep fresh-process failures, return codes and logs. See
+  [the diagnostic report](docs/reports/native_view_crash_diagnostic.md). No
+  library-level fix is established and nothing was filed upstream.

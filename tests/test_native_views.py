@@ -1,0 +1,35 @@
+"""Wrapper lifetime retention must leave native model/state semantics intact."""
+
+import gc
+
+import mujoco
+import numpy as np
+
+from abstract_stack.native_views import retain_model_views
+
+
+def test_retained_views_survive_collection_and_preserve_raw_arrays():
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco><worldbody><body name="moving"><joint name="hinge"/>
+      <geom name="ball" size=".02" pos=".1 0 0"/>
+      </body></worldbody><actuator><position name="drive" joint="hinge" kp="4"/>
+      </actuator></mujoco>""")
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    before = {
+        key: getattr(model, key).copy()
+        for key in ("body_pos", "geom_size", "geom_contype", "actuator_gainprm", "jnt_range")
+    }
+    control, pose = data.ctrl.copy(), data.qpos.copy()
+    retained = retain_model_views(model)
+    for _ in range(10):
+        gc.collect()
+        assert retained["body"][1] is model.body("moving")
+        assert retained["joint"][0] is model.joint("hinge")
+        assert retained["geom"][0] is model.geom("ball")
+        assert retained["actuator"][0] is model.actuator("drive")
+        np.testing.assert_array_equal(data.body("moving").xpos, data.xpos[1])
+    for key, array in before.items():
+        np.testing.assert_array_equal(getattr(model, key), array)
+    np.testing.assert_array_equal(data.qpos, pose)
+    np.testing.assert_array_equal(data.ctrl, control)
