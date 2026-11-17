@@ -57,6 +57,32 @@ validation must be assessed separately; no passing retry replaces this failure.
 
 ## Standalone reproduction
 
+### Subsequent retained-model-and-data validation
+
+These are separate processes, not replacements for earlier failures. Frozen
+revision `498059a` retains both model and data wrappers.
+
+| Frozen source / attempt | Outcome |
+| --- | --- |
+| `498059a`, initial process | Interrupted; no terminal test result, unknown |
+| `498059a`, r2 | Checkout unavailable before tests; orchestration failure |
+| `498059a`, r3 | Exceeded declared 600 s wall budget; no completed suite |
+| `498059a`, r4 | 227 passed in 199.20 s; process exited normally |
+| `working-controller-v1` source snapshot | Native signal 11 after 135.23 s; no completed suite |
+| `split-insertion-v2` source snapshot | 250 passed in 205.03 s; process exited normally |
+
+The final printed test in the working snapshot was
+`test_adaptive_solver_verifies_a_physical_lift`. No terminal native traceback
+identifies the original corrupting operation, so that test label is not a causal
+diagnosis. Its exact source manifest is retained in
+`outputs/checkouts/working-controller-v1/snapshot_sources.json`; process results
+and logs sit beside the earlier crash artifacts. The r3 timeout also does not
+identify a native signal or a specific cause. The passing r4 suite establishes a
+pass for that revision and process only. Retaining both sets of wrappers is
+**not a sufficient fix**, and native process stability remains an open gate.
+The later 250-test pass has its own source manifest and process record; it
+neither replaces the signaled process nor identifies the native cause.
+
 The diagnostic script imports only MuJoCo, NumPy and the standard library. It
 contains no robot/task assets or downstream imports, so it can be copied into an
 independent environment for an upstream-only investigation. No issue has been

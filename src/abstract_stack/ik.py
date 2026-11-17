@@ -71,6 +71,7 @@ class IKPrediction:
     joint_path: np.ndarray | None = field(default=None, repr=False)
     bounded_feedback: dict | None = field(default=None, repr=False)
     initial_cartesian_transition: dict | None = field(default=None, repr=False)
+    reference_ranges: dict = field(default_factory=dict)
 
     @property
     def safe(self):
@@ -103,6 +104,7 @@ class IKPrediction:
             "selected_orientation": self.requested_rotation.tolist(),
             "active_limits": self.active_limits,
             "planning_posture_constraints": self.posture_constraints,
+            "planning_reference_ranges": self.reference_ranges,
             "collisions": self.collisions,
             "sampled_path_collisions": self.path_collisions,
             "sampled_path_model": self.path_mode,
@@ -155,6 +157,7 @@ class PoseIK:
         self.dofs = np.array([j.dofadr[0] for j in self.joints])
         self.lifts = [model.joint(n) for n in ("Lift Lower", "Lift Upper")]
         self.lower, self.upper, self.home = lower.copy(), upper.copy(), home.copy()
+        self.original_lower, self.original_upper = lower.copy(), upper.copy()
         self.offset = offset.copy()
         self.palm = model.body(palm).id
         self.robot = _descendants(model, model.body("mabel_chassis").id)
@@ -164,6 +167,33 @@ class PoseIK:
         self.carry = None
         self.slide = None
         self.posture_constraints = {}
+        self.reference_ranges = {}
+
+    def constrain_reference_range(self, name, lower, upper):
+        """Restrict nominal planning references; never change native model bounds."""
+        index = self.names.index(name)
+        if (
+            not np.isfinite([lower, upper]).all()
+            or not self.original_lower[index] <= lower < upper <= self.original_upper[index]
+            or (
+                index in self.posture_constraints
+                and not lower <= self.posture_constraints[index] <= upper
+            )
+        ):
+            raise ValueError("Reference range must contain its posture and fit original bounds")
+        self.lower[index], self.upper[index] = lower, upper
+        self.reference_ranges[index] = (float(lower), float(upper))
+
+    def reference_range_report(self):
+        return {
+            self.names[index]: {
+                "lower": limits[0],
+                "upper": limits[1],
+                "original_lower": float(self.original_lower[index]),
+                "original_upper": float(self.original_upper[index]),
+            }
+            for index, limits in self.reference_ranges.items()
+        }
 
     def constrain_posture(self, name, value):
         """Constrain a planning coordinate without editing native joint bounds."""
@@ -711,6 +741,7 @@ class PoseIK:
                     baseline_qpos=baseline_reference.copy(),
                     joint_path=retained_path,
                     initial_cartesian_transition=initial_transition,
+                    reference_ranges=self.reference_range_report(),
                 )
                 key = (position_error, angular_error)
                 if best_any is None or key < (

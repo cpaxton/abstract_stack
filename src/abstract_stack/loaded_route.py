@@ -9,6 +9,17 @@ import numpy as np
 from abstract_stack.interactions import CartesianHand
 
 
+def planning_hand(snapshot, controller, config):
+    """Clone nominal planning constraints without aliasing their live mapping."""
+    hand = CartesianHand(snapshot, config)
+    hand.command = controller.command.copy()
+    for index, (lower, upper) in controller.ik.reference_ranges.items():
+        hand.ik.constrain_reference_range(controller.ik.names[index], lower, upper)
+    for index, value in controller.ik.posture_constraints.items():
+        hand.ik.constrain_posture(controller.ik.names[index], value)
+    return hand
+
+
 def object_tool_goal(hand, product_name, object_goal, rotation_goal):
     body = hand.data.body(product_name)
     rotation = body.xmat.reshape(3, 3)
@@ -68,8 +79,73 @@ class LoadedRoute:
     object_rotations: tuple = ()
 
 
+def carried_product_clearance(hand, prediction, active, products, margin_m):
+    """Check the retained carried-box sweep against every other product in scratch."""
+    if not np.isfinite(margin_m) or not 0 < margin_m <= 0.03:
+        raise ValueError("Carried-product clearance must be positive and at most 30 mm")
+    if prediction.joint_path is None or prediction.carried_object != active.name:
+        raise ValueError("Product clearance requires a retained rigid-carry forecast")
+    model, ik = hand.model, hand.ik
+    active_geom = model.geom(f"{active.name}_geom").id
+    others = [(p.name, model.geom(f"{p.name}_geom").id) for p in products if p.name != active.name]
+    minimum, samples = margin_m, 0
+    for index, q in enumerate(prediction.joint_path):
+        ik.forward(q, prediction.reference_qpos)
+        mujoco.mj_fwdPosition(model, ik.scratch)
+        for name, geom in others:
+            distance = float(
+                mujoco.mj_geomDistance(model, ik.scratch, active_geom, geom, margin_m, None)
+            )
+            samples += 1
+            minimum = min(minimum, distance)
+            if distance < margin_m - 1e-9:
+                return dict(
+                    accepted=False,
+                    required_clearance_m=margin_m,
+                    minimum_sampled_distance_m=minimum,
+                    pair=[active.name, name],
+                    retained_waypoint=index,
+                    checked_pairs=samples,
+                )
+    return dict(
+        accepted=True,
+        required_clearance_m=margin_m,
+        minimum_sampled_distance_m=minimum,
+        checked_pairs=samples,
+        distance_reporting="capped at required clearance; sampled kinematic forecast",
+    )
+
+
+def _inventory_transit_height(hand, products, active, end_xy, margin_m, minimum_z):
+    """Clear products inside the measured XY transfer envelope before lateral motion."""
+    body = hand.data.body(active.name)
+    extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(active.half_size)
+    lower = np.minimum(body.xpos[:2], end_xy) - extent[:2] - margin_m
+    upper = np.maximum(body.xpos[:2], end_xy) + extent[:2] + margin_m
+    height = max(float(body.xpos[2]), minimum_z)
+    for other in products:
+        if other.name == active.name:
+            continue
+        neighbor = hand.data.body(other.name)
+        other_extent = np.abs(neighbor.xmat.reshape(3, 3)) @ np.asarray(other.half_size)
+        if np.all(neighbor.xpos[:2] + other_extent[:2] >= lower) and np.all(
+            neighbor.xpos[:2] - other_extent[:2] <= upper
+        ):
+            height = max(height, float(neighbor.xpos[2] + other_extent[2] + extent[2] + margin_m))
+    return height
+
+
 def plan_loaded_route(
-    env, controller, config, product, rotation_goal, *, grip, start_state=None, front_offset=None
+    env,
+    controller,
+    config,
+    product,
+    rotation_goal,
+    *,
+    grip,
+    start_state=None,
+    front_offset=None,
+    product_clearance_m=0.0,
 ):
     """Search a low front corridor; refine every stage from fresh measured state.
 
@@ -78,6 +154,8 @@ def plan_loaded_route(
     each segment again; returned poses are not cached execution certificates.
     """
     reports = []
+    if not np.isfinite(product_clearance_m) or not 0 <= product_clearance_m <= 0.03:
+        raise ValueError("Loaded route product margin must be between zero and 30 mm")
     front_offset = -config.front_staging_depth if front_offset is None else front_offset
     middle_offset = (
         (0.10 + front_offset) / 2 if front_offset >= 0 else -min(0.04, -front_offset * 0.6)
@@ -86,8 +164,7 @@ def plan_loaded_route(
         snapshot = env.clone_for_planning()
         if start_state is not None:
             mujoco.mj_copyData(snapshot.data, snapshot.model, start_state.data)
-        hand = CartesianHand(snapshot, config)
-        hand.command = controller.command.copy()
+        hand = planning_hand(snapshot, controller, config)
         z = env.config.levels[product.level] + product.half_size[2] + clearance
         goals = tuple(
             (env.config.front_x + offset, product.target[1], z)
@@ -97,6 +174,19 @@ def plan_loaded_route(
         c, s = np.cos(angle), np.sin(angle)
         transit_rotation = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]) @ rotation_goal
         rotations = (transit_rotation, transit_rotation, rotation_goal)
+        if product_clearance_m > 0:
+            end_xy = (env.config.front_x + front_offset, product.target[1])
+            transit_z = _inventory_transit_height(
+                hand, env.products, product, end_xy, product_clearance_m, z
+            )
+            current = hand.data.body(product.name).xpos.copy()
+            goals = (
+                (float(current[0]), float(current[1]), transit_z),
+                (env.config.front_x + 0.10, product.target[1], transit_z),
+                (*end_xy, transit_z),
+                (*end_xy, z),
+            )
+            rotations = (rotation_goal, transit_rotation, rotation_goal, rotation_goal)
         stages = []
         for goal, object_rotation in zip(goals, rotations, strict=True):
             target, rotation = object_tool_goal(hand, product.name, goal, object_rotation)
@@ -121,6 +211,13 @@ def plan_loaded_route(
                     "accepted": accepted,
                 }
             )
+            if accepted and product_clearance_m > 0:
+                clearance_check = carried_product_clearance(
+                    hand, prediction, product, env.products, product_clearance_m
+                )
+                stages[-1]["product_clearance_check"] = clearance_check
+                accepted = clearance_check["accepted"]
+                stages[-1]["accepted"] = accepted
             if not accepted:
                 break
             advance_forecast(hand, prediction)
@@ -129,6 +226,8 @@ def plan_loaded_route(
             "transit_object_yaw_degrees": yaw_degrees,
             "stages": stages,
             "accepted": len(stages) == len(goals) and all(s["accepted"] for s in stages),
+            "required_product_clearance_m": product_clearance_m,
+            "vertical_extraction_before_transit": product_clearance_m > 0,
         }
         reports.append(report)
         if report["accepted"]:
@@ -152,6 +251,7 @@ def admit_loaded_route(
     front_offset=None,
     allow_lower_clearance=False,
     home_displacement_xy=None,
+    product_clearance_m=0.0,
 ):
     """Necessary geometric forecast before pickup; no grasp/contact guarantee.
 
@@ -159,8 +259,7 @@ def admit_loaded_route(
     may close differently, so live execution still replans with its measured
     object/tool transform and retains all force/slip guards.
     """
-    hand = CartesianHand(env.clone_for_planning(), config)
-    hand.command = controller.command.copy()
+    hand = planning_hand(env.clone_for_planning(), controller, config)
     stages = []
     home_displacement = (
         np.zeros(2)
@@ -258,6 +357,7 @@ def admit_loaded_route(
         grip=0.4,
         start_state=hand.env,
         front_offset=front_offset,
+        product_clearance_m=product_clearance_m,
     )
     return {
         "accepted": route.accepted,

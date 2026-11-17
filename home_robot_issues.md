@@ -116,3 +116,11 @@ project names, task descriptions, repository links, or private context.
   suite at a data-array observer access. Preserve that failure separately. The
   next candidate retains data wrappers as well; this is still a local lifetime
   hypothesis and requires its own native validation.
+- **Combined-wrapper validation:** one frozen suite completed 227 tests, while
+  an earlier process exceeded its 600 s budget and a later frozen working-source
+  suite exited with native signal 11 after 135 s. Both model and data wrappers
+  were retained in these candidates. This mitigation is not sufficient; the
+  passing process does not replace the failed or unknown outcomes. The last
+  printed test label in the latter process does not identify the corrupting
+  operation. Exact source fingerprints and process logs remain local. Nothing
+  has been sent upstream.

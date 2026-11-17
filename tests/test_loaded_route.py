@@ -12,6 +12,41 @@ from abstract_stack.loaded_route import object_tool_goal
 from abstract_stack.scene import ShelfConfig
 
 
+@pytest.mark.mabel
+def test_loaded_forecast_retains_independent_live_posture_constraints(monkeypatch):
+    from abstract_stack.loaded_route import admit_loaded_route, planning_hand
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(ShelfConfig(product_count=1, center_y=-1.5, table_center_y=-1.6))
+    try:
+        live = CartesianHand(env, ScriptConfig())
+        live.ik.constrain_posture("Left Wrist", 0.2)
+        before = env.data.qpos.copy(), env.data.ctrl.copy()
+        clone = planning_hand(env.clone_for_planning(), live, live.config)
+        clone.ik.constrain_posture("Left Wrist", 0.4)
+        wrist = live.ik.names.index("Left Wrist")
+        assert live.ik.posture_constraints[wrist] == 0.2
+        captured = []
+
+        def reject(hand, *args, **kwargs):
+            captured.append(hand.ik.posture_constraints.copy())
+            return SimpleNamespace(
+                feasible=False, minimum_seconds=0, report=lambda: {"unit_fixture": True}
+            )
+
+        monkeypatch.setattr(CartesianHand, "predict", reject)
+        report = admit_loaded_route(env, live, live.config, env.products[0], np.zeros(3), None)
+        assert not report["accepted"]
+        assert captured == [{wrist: 0.2}]
+        np.testing.assert_array_equal(env.data.qpos, before[0])
+        np.testing.assert_array_equal(env.data.ctrl, before[1])
+    finally:
+        env.close()
+
+
 def test_tool_goal_composes_object_relative_offset_and_orientation():
     rotation = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
     position = np.array([1.0, 2.0, 3.0])
@@ -25,6 +60,81 @@ def test_tool_goal_composes_object_relative_offset_and_orientation():
     target, orientation = object_tool_goal(hand, "carton", np.zeros(3), np.eye(3))
     np.testing.assert_allclose(target, local_offset)
     np.testing.assert_allclose(orientation, np.eye(3))
+
+
+def test_transit_height_clears_inventory_in_the_xy_path_and_ignores_distant_products():
+    from abstract_stack.loaded_route import _inventory_transit_height
+
+    products = [
+        SimpleNamespace(name=name, half_size=(0.1, 0.1, 0.1))
+        for name in ("active", "obstacle", "distant")
+    ]
+    bodies = {
+        name: SimpleNamespace(xpos=np.array(position), xmat=np.eye(3).ravel())
+        for name, position in (
+            ("active", (0, 0, 1)),
+            ("obstacle", (0.5, 0.5, 1.3)),
+            ("distant", (10, 10, 10)),
+        )
+    }
+    hand = SimpleNamespace(data=SimpleNamespace(body=bodies.__getitem__))
+    height = _inventory_transit_height(hand, products, products[0], (1, 1), 0.02, 1.05)
+    assert height - products[0].half_size[2] >= 1.4 + 0.02 - 1e-12
+    assert height < 2
+
+
+@pytest.mark.mabel
+def test_carried_product_margin_checks_clear_space_and_keeps_live_world_unchanged():
+    import mujoco
+
+    from abstract_stack.loaded_route import carried_product_clearance
+    from abstract_stack.packing import dense_shelf_config
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0, product_count=3, initially_stocked=2))
+    try:
+        active, neighbor = env.products[-1], env.products[0]
+        adr = int(env.model.joint(f"{neighbor.name}_joint").qposadr[0])
+        # Explicit reset-only geometric fixture: no physical grasp/stock credit.
+        env.data.qpos[adr : adr + 3] = env.data.body(active.name).xpos + [
+            active.half_size[0] + neighbor.half_size[0] + 0.005,
+            0,
+            0,
+        ]
+        mujoco.mj_forward(env.model, env.data)
+        before = env.data.qpos.copy(), env.data.ctrl.copy()
+
+        def predict(world):
+            hand = CartesianHand(world, ScriptConfig())
+            hand.active_rotation = world.data.xmat[hand.palm].reshape(3, 3).copy()
+            result = hand.predict(
+                hand.position(),
+                alternatives=False,
+                carrying=True,
+                allowed_object=active.name,
+                path_mode="cartesian",
+            )
+            assert result.joint_path is not None
+            return hand, result
+
+        hand, prediction = predict(env)
+        report = carried_product_clearance(hand, prediction, active, env.products, 0.02)
+        assert not report["accepted"]
+        assert report["pair"] == [active.name, neighbor.name]
+        assert report["minimum_sampled_distance_m"] == pytest.approx(0.005, abs=1e-6)
+        clone = env.clone_for_planning()
+        clone.data.qpos[adr] += 0.05
+        mujoco.mj_forward(clone.model, clone.data)
+        hand, prediction = predict(clone)
+        report = carried_product_clearance(hand, prediction, active, env.products, 0.02)
+        assert report["accepted"]
+        np.testing.assert_array_equal(env.data.qpos, before[0])
+        np.testing.assert_array_equal(env.data.ctrl, before[1])
+    finally:
+        env.close()
 
 
 @pytest.mark.mabel

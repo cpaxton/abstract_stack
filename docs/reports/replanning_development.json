@@ -474,6 +474,139 @@
       "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
       "tip_drop_incidents": 0,
       "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v11/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v12",
+      "returncode": 2,
+      "verification_status": "verified_terminal_outcome",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "loaded_route_1: carried object slipped from measured grasp",
+      "sim_seconds": 32.51399999999377,
+      "wall_seconds": 27.87698238799976,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v12/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v13",
+      "returncode": 2,
+      "verification_status": "verified_terminal_outcome",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "payload_load: compensated arm/finger geometry rejected",
+      "sim_seconds": 29.83999999999434,
+      "wall_seconds": 24.47124247299962,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v13/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v14",
+      "returncode": 2,
+      "verification_status": "verified_terminal_outcome",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "pusher_plan: no acceptable posture/path in bounded search",
+      "sim_seconds": 85.79999999998144,
+      "wall_seconds": 88.26510664199941,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v14/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v15",
+      "returncode": 2,
+      "verification_status": "verified_terminal_outcome",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "pusher_plan: no acceptable posture/path in bounded search",
+      "sim_seconds": 95.21999999995948,
+      "wall_seconds": 98.9104850800004,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v15/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v16",
+      "returncode": 2,
+      "verification_status": "verified_terminal_outcome",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "pusher_plan: no acceptable posture/path in bounded search",
+      "sim_seconds": 127.53999999988416,
+      "wall_seconds": 119.45457312999952,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v16/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v17",
+      "returncode": 2,
+      "verification_status": "verified_terminal_outcome",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "finger_push: contact dwell timeout",
+      "sim_seconds": 145.87999999996845,
+      "wall_seconds": 150.47635168299985,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v18",
+      "returncode": 2,
+      "verification_status": "verified_terminal_outcome",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "clear: bounded staging complete; predicted remaining miss 0.007 m; replan required before grasping",
+      "sim_seconds": 87.47999999997752,
+      "wall_seconds": 86.10668532999989,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v18/source_snapshot"
     }
   ],
   "standard_regression": {

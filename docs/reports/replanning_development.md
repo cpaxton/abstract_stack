@@ -1,5 +1,9 @@
 # Initial receding-horizon development evidence
 
+Later carry/headroom and two-stage insertion probes are documented separately
+in [payload and insertion development](payload_insertion_development.md). The
+historical outcomes below retain their original controller scope.
+
 Ten cartons, zero prefills, seed 0, 10 mm total free row width. These are two
 development attempts, not a success-rate campaign. The source-visible controller
 uses privileged MuJoCo state. Native geometry, force guards and task criteria are

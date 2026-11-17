@@ -262,6 +262,8 @@ def bounded_contact_prediction(hand, proposal, target, dt, rates, *, config=None
     ik = hand.ik
     if proposal.baseline_qpos is None or not np.array_equal(proposal.baseline_qpos, hand.data.qpos):
         raise ValueError("Bounded contact prediction requires a fresh baseline")
+    if proposal.reference_ranges != ik.reference_range_report():
+        raise ValueError("Bounded contact prediction has stale reference-range constraints")
     for context, expected in (
         (ik.carry, proposal.carried_object),
         (ik.slide, proposal.sliding_object),
