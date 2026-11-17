@@ -82,7 +82,16 @@ launcher help, platform/setup errors, interpreter selection, argument forwarding
 CGL defaults, explicit backend overrides, and preservation of existing library
 search paths. A separate `macos-15` CI job invokes the actual installer, runs
 native MABEL physics tests and headless launcher smoke checks, and exports the
-house with CGL previews. The interactive viewer remains a manual check.
+house scene. Linux CI requires the rendered house previews. CGL rendering and
+the interactive viewer remain manual checks on a Mac with graphics access.
+
+The first native CI run passed installation, the headless launcher and 62 tests
+(one expected Emet adapter skip), then failed CGL rendering with
+`invalid pixel format` on the hosted macOS 15.8.2 VM. That
+[failed attempt](https://github.com/cpaxton/abstract_stack/actions/runs/44004661921)
+is retained; it does not invalidate the earlier hardware rendering evidence or
+establish CGL support on hosted runners. The required Mac job checks physics and
+scene export without claiming a rendering pass.
 
 Runner details follow [GitHub's hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 The `mjpython` viewer requirement is documented by
