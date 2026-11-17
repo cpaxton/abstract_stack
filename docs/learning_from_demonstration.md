@@ -218,9 +218,9 @@ that is not a real LeRobot v3 writer. No upstream source was copied or modified.
 
 The focused suite currently has 17 LfD tests, including causal clocks, action
 contracts, privilege separation, interrupted outcomes, payload tampering and
-float32 overflow rejection. Nine sensor tests cover native measurement
-conventions. These 26 tests passed as part of the 30-test combined development
-suite alongside the separately proposed compliant-lookahead checks
+float32 overflow rejection. Nine sensor tests and four admittance/clock tests
+cover native measurement conventions, bounded feedback signs and exact forecast
+duration admission. All 30 passed
 together with native MABEL assets available. The official SDK roundtrip is
 separate retained process evidence; it is not replaced by an adapter mock.
 

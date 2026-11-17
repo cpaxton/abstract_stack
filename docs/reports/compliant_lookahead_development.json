@@ -1,0 +1,2053 @@
+{
+  "kind": "development_contact_forecasts_and_checkpoint_continuations",
+  "fresh_task_credit": 0,
+  "full_task_success_claimed": false,
+  "original_episode_remains_failed": true,
+  "raw_root": "outputs/compliant-lookahead-v1",
+  "known_reporting_issues": [
+    "continued-v1 source_state_unchanged is incorrectly true after prefix execution; valid only for forecast generation",
+    "Historical live_execution_admitted=false refers to fresh task admission, not whether native continuation steps occurred"
+  ],
+  "runs": [
+    {
+      "name": "probe-v1",
+      "artifacts": "outputs/compliant-lookahead-v1/probe-v1",
+      "fresh_task_credit": 0,
+      "task_success": false,
+      "source_revision": "75fc28e4ebb646b062cd977bba78e9e42bc36ab9",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode",
+        "horizon": 0.4,
+        "candidates": 8,
+        "shortlist": 4,
+        "generation_seconds": 10.0,
+        "wall_seconds": 60.0,
+        "worker": false
+      },
+      "source_sha256": {
+        "inputs/manifest.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+        "inputs/rollout_terminal.npz": "0dada5de3380dfdeaf3578e77ec407dccd9145e570be1982b8721bc370182e63",
+        "inputs/summary.json": "ff47e0daf0e349160f8f8821e9fb1da5a85e9b174320d8ba00515f0e51ad26ea",
+        "inputs/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+        "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+        "source_snapshot/uv.lock": "58c0c70b229eae3bc5c24ce12553fef2f1cc9b42e2468ec101d0761687fbe31e",
+        "source_snapshot/probe.py": "a04a20e8a849eaa3ef5d360e15ff5a85aab33135bace70ddc1f19cff79107975",
+        "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+        "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+        "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+        "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+        "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+        "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+        "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+        "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+        "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+        "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+        "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+        "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+        "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+        "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+        "source_snapshot/src/abstract_stack/cli.py": "fad4d33fa773d35786566fb748230eac62e6ada6050cc76975b3d647a0bb82a7",
+        "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+        "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+        "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+        "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+        "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+        "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+        "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+        "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+        "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+        "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+        "source_snapshot/src/abstract_stack/sim_sensors.py": "00b064db9612391b04649b7abec8afcd75c456d2aa2d050973af416462d80521",
+        "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+        "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+        "source_snapshot/src/abstract_stack/contact_rollout.py": "ab4d81595befed9877a89041e614c28453cd5b950b60c87f694776299a606834",
+        "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+        "source_snapshot/src/abstract_stack/compliant_lookahead.py": "589a5a55ed9bcc657ca0fd1bf10e6f9ca82002087e1022957f2fc93842f3a3d6",
+        "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+        "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+        "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+        "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+        "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+        "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+        "source_snapshot/src/abstract_stack/lfd/lerobot.py": "caabdebc3043c39173e463ff3f43abc57aa4ad8993e0a9a249ba28cae93444f9",
+        "source_snapshot/src/abstract_stack/lfd/episode.py": "c7e26e2d86732e9c59408d22f3d337a2fe0991eae8c3578afe8ee15dee127195",
+        "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+        "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+        "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+        "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+        "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+        "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+        "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+        "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+        "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+        "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+        "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+      },
+      "initial_integration_state_sha256": "d2acf8ae96cd6ffc25f67a88649729511c8f53f52028c6b8940e7d41ffd481b2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 1.6177556559996447,
+        "wall_budget_seconds": 60.0,
+        "verification_status": "completed_forecast",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "generation": {
+        "scheduled_candidates": 8,
+        "generated": 1,
+        "generation_seconds": 0.35158929399949557,
+        "rejected": [
+          {
+            "name": "proposal_1",
+            "normal_scale": 1,
+            "lateral_bias_m_s": 0.004,
+            "tilt_delta_deg": 0,
+            "velocity_world_m_s": [
+              -0.00782872805479235,
+              0.0033460247306742632,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6896789324297437,
+                -0.08453784471356801,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6869156755017792,
+                -0.08629398150999337,
+                0.8358469860391528
+              ],
+              "predicted_position_error_m": 0.0033005273799627337,
+              "predicted_position_error_xyz_m": [
+                0.0027632569279644192,
+                -0.0017561367964253616,
+                -0.0004169840382810541
+              ],
+              "predicted_orientation_error_deg": 0.9920321348471758,
+              "deviation_from_preferred_orientation_deg": 0.9920321348471758,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.3420162913959922,
+                  -0.9396820376961008
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0016232252593926162,
+                  0.004459774746869586
+                ],
+                [
+                  0.0,
+                  0.9396926207859084,
+                  -0.3420201433256687
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 0.03942234956156219,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "failure": "projected_applied_reference_outside_corridor"
+          },
+          {
+            "name": "proposal_2",
+            "normal_scale": 0.5,
+            "lateral_bias_m_s": 0.004,
+            "tilt_delta_deg": 0,
+            "velocity_world_m_s": [
+              -0.003914364027396175,
+              0.0033460247306742632,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6881131868187852,
+                -0.08453784471356801,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6866906660966265,
+                -0.08625068618841181,
+                0.8358465107751267
+              ],
+              "predicted_position_error_m": 0.0022653175035739575,
+              "predicted_position_error_xyz_m": [
+                0.0014225207221586489,
+                -0.001712841474843796,
+                -0.0004174593023070772
+              ],
+              "predicted_orientation_error_deg": 0.9773672796485766,
+              "deviation_from_preferred_orientation_deg": 0.9773672796485766,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.3420162913959922,
+                  -0.9396820376961008
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0016232252593926162,
+                  0.004459774746869586
+                ],
+                [
+                  0.0,
+                  0.9396926207859084,
+                  -0.3420201433256687
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 0.04596774710439186,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "failure": "projected_applied_reference_outside_corridor"
+          },
+          {
+            "name": "proposal_3",
+            "normal_scale": 1,
+            "lateral_bias_m_s": 0,
+            "tilt_delta_deg": 0,
+            "velocity_world_m_s": [
+              -0.00782872805479235,
+              -0.000653975269325737,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6896789324297437,
+                -0.086137844713568,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6869362406765123,
+                -0.08643043133662967,
+                0.8359253879741678
+              ],
+              "predicted_position_error_m": 0.002778957147184911,
+              "predicted_position_error_xyz_m": [
+                0.0027426917532313855,
+                -0.00029258662306166916,
+                -0.00033858210326598304
+              ],
+              "predicted_orientation_error_deg": 0.9896505163149427,
+              "deviation_from_preferred_orientation_deg": 0.9896505163149427,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.3420162913959922,
+                  -0.9396820376961008
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0016232252593926162,
+                  0.004459774746869586
+                ],
+                [
+                  0.0,
+                  0.9396926207859084,
+                  -0.3420201433256687
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 0.03759529306467322,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "failure": "projected_applied_reference_outside_corridor"
+          },
+          {
+            "name": "proposal_4",
+            "normal_scale": 0.5,
+            "lateral_bias_m_s": 0,
+            "tilt_delta_deg": 0,
+            "velocity_world_m_s": [
+              -0.003914364027396175,
+              -0.000653975269325737,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6881131868187852,
+                -0.086137844713568,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6867112596098405,
+                -0.08638718018681367,
+                0.8359249329615991
+              ],
+              "predicted_position_error_m": 0.0014637329822449507,
+              "predicted_position_error_xyz_m": [
+                0.00140192720894472,
+                -0.0002493354732456682,
+                -0.0003390371158347172
+              ],
+              "predicted_orientation_error_deg": 0.975040880870723,
+              "deviation_from_preferred_orientation_deg": 0.975040880870723,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.3420162913959922,
+                  -0.9396820376961008
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0016232252593926162,
+                  0.004459774746869586
+                ],
+                [
+                  0.0,
+                  0.9396926207859084,
+                  -0.3420201433256687
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 0.05088807033142495,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "failure": "projected_applied_reference_outside_corridor"
+          },
+          {
+            "name": "proposal_5",
+            "normal_scale": 1,
+            "lateral_bias_m_s": -0.004,
+            "tilt_delta_deg": 0,
+            "velocity_world_m_s": [
+              -0.00782872805479235,
+              -0.004653975269325737,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6896789324297437,
+                -0.087737844713568,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6890547877790831,
+                -0.08878361047455227,
+                0.836897023740866
+              ],
+              "predicted_position_error_m": 0.0013725667607005975,
+              "predicted_position_error_xyz_m": [
+                0.0006241446506605186,
+                -0.0010457657609842658,
+                0.0006330536634322481
+              ],
+              "predicted_orientation_error_deg": 1.0724904304044338,
+              "deviation_from_preferred_orientation_deg": 1.0724904304044338,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.3420162913959922,
+                  -0.9396820376961008
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0016232252593926162,
+                  0.004459774746869586
+                ],
+                [
+                  0.0,
+                  0.9396926207859084,
+                  -0.3420201433256687
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 0.1986212228860377,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "failure": "projected_applied_reference_outside_corridor"
+          },
+          {
+            "name": "proposal_6",
+            "normal_scale": 0.5,
+            "lateral_bias_m_s": -0.004,
+            "tilt_delta_deg": 0,
+            "velocity_world_m_s": [
+              -0.003914364027396175,
+              -0.004653975269325737,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6881131868187852,
+                -0.087737844713568,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6867105134525335,
+                -0.08660730354324703,
+                0.8359194551733078
+              ],
+              "predicted_position_error_m": 0.0018342045767436768,
+              "predicted_position_error_xyz_m": [
+                0.001402673366251661,
+                0.0011305411703209783,
+                -0.00034451490412601427
+              ],
+              "predicted_orientation_error_deg": 0.9696679449514114,
+              "deviation_from_preferred_orientation_deg": 0.9696679449514114,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.3420162913959922,
+                  -0.9396820376961008
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0016232252593926162,
+                  0.004459774746869586
+                ],
+                [
+                  0.0,
+                  0.9396926207859084,
+                  -0.3420201433256687
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 0.05637403041862084,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "failure": "projected_applied_reference_outside_corridor"
+          },
+          {
+            "name": "proposal_7",
+            "normal_scale": 1,
+            "lateral_bias_m_s": 0.004,
+            "tilt_delta_deg": -5,
+            "velocity_world_m_s": [
+              -0.00782872805479235,
+              0.0033460247306742632,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6896789324297437,
+                -0.08453784471356801,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6869316984598437,
+                -0.08700779915968698,
+                0.8359112026622487
+              ],
+              "predicted_position_error_m": 0.003711120356508463,
+              "predicted_position_error_xyz_m": [
+                0.0027472339698999537,
+                -0.0024699544461189715,
+                -0.0003527674151850846
+              ],
+              "predicted_orientation_error_deg": 4.837032422834372,
+              "deviation_from_preferred_orientation_deg": 4.837032422834372,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.4226135020917255,
+                  -0.9062975799364863
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0020057433777661907,
+                  0.004301330554385814
+                ],
+                [
+                  0.0,
+                  0.90630778703665,
+                  -0.4226182617406994
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 1.1293467268198967,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "failure": "projected_applied_reference_outside_corridor"
+          }
+        ]
+      },
+      "selected_forecast": {
+        "name": "held_native_targets",
+        "screen_progress_minus_x_m": -1.3259863025361085e-06,
+        "eligible": true,
+        "verification_status": "guarded_forecast",
+        "fresh_task_credit": 0,
+        "failure": null,
+        "completed_steps": 200,
+        "requested_steps": 200,
+        "progress_minus_x_m": -1.3259863025361085e-06,
+        "displacement_xyz_m": [
+          1.3259863025361085e-06,
+          -8.828266932589535e-06,
+          -2.9556148040121855e-07
+        ],
+        "peak_forces_N": {
+          "robot_product_N": 1.3470771455055184,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 9.281464485866309e-14,
+          "carton_1": 9.414691248821327e-14,
+          "carton_2": 9.325873406851315e-14,
+          "carton_3": 9.392486788328824e-14,
+          "carton_4": 9.392486788328824e-14,
+          "carton_5": 9.270362255620057e-14,
+          "carton_6": 9.325873406851315e-14,
+          "carton_7": 9.314771176605063e-14,
+          "carton_8": 1.1602347735719226e-05,
+          "carton_9": 9.381384558082573e-14
+        },
+        "last_sample": {
+          "sim_time": 146.27999999997036,
+          "hand_N": 1.3178676786901555,
+          "support_N": 1.8565170963755833,
+          "active_force_world_N": [
+            -1.3243724521543252,
+            0.06448416138680736,
+            -0.09328681040665776
+          ],
+          "robot_product_N": 1.3178676786901555,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "wall_seconds": 0.1752445460006129,
+        "live_execution_admitted": false,
+        "contact_seen": true
+      },
+      "continuation": {}
+    },
+    {
+      "name": "probe-v2-diagnostic",
+      "artifacts": "outputs/compliant-lookahead-v1/probe-v2-diagnostic",
+      "fresh_task_credit": 0,
+      "task_success": false,
+      "source_revision": "75fc28e4ebb646b062cd977bba78e9e42bc36ab9",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode",
+        "horizon": 0.4,
+        "candidates": 2,
+        "shortlist": 2,
+        "generation_seconds": 10.0,
+        "wall_seconds": 30.0,
+        "worker": false
+      },
+      "source_sha256": {
+        "inputs/manifest.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+        "inputs/rollout_terminal.npz": "0dada5de3380dfdeaf3578e77ec407dccd9145e570be1982b8721bc370182e63",
+        "inputs/summary.json": "ff47e0daf0e349160f8f8821e9fb1da5a85e9b174320d8ba00515f0e51ad26ea",
+        "inputs/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+        "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+        "source_snapshot/uv.lock": "58c0c70b229eae3bc5c24ce12553fef2f1cc9b42e2468ec101d0761687fbe31e",
+        "source_snapshot/probe.py": "a04a20e8a849eaa3ef5d360e15ff5a85aab33135bace70ddc1f19cff79107975",
+        "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+        "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+        "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+        "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+        "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+        "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+        "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+        "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+        "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+        "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+        "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+        "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+        "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+        "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+        "source_snapshot/src/abstract_stack/cli.py": "fad4d33fa773d35786566fb748230eac62e6ada6050cc76975b3d647a0bb82a7",
+        "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+        "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+        "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+        "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+        "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+        "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+        "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+        "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+        "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+        "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+        "source_snapshot/src/abstract_stack/sim_sensors.py": "00b064db9612391b04649b7abec8afcd75c456d2aa2d050973af416462d80521",
+        "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+        "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+        "source_snapshot/src/abstract_stack/contact_rollout.py": "ab4d81595befed9877a89041e614c28453cd5b950b60c87f694776299a606834",
+        "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+        "source_snapshot/src/abstract_stack/compliant_lookahead.py": "8d35a5020be62ae61ef0ade9cc7c4804ce5bb92bca3febb79d6bdb26a34909c8",
+        "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+        "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+        "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+        "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+        "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+        "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+        "source_snapshot/src/abstract_stack/lfd/lerobot.py": "e6f9a7f81867792f0a923eea5abe5a02fde640853f6d2309848df387fd33ef4d",
+        "source_snapshot/src/abstract_stack/lfd/episode.py": "c7e26e2d86732e9c59408d22f3d337a2fe0991eae8c3578afe8ee15dee127195",
+        "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+        "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+        "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+        "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+        "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+        "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+        "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+        "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+        "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+        "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+        "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+      },
+      "initial_integration_state_sha256": "d2acf8ae96cd6ffc25f67a88649729511c8f53f52028c6b8940e7d41ffd481b2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 1.2691925399994943,
+        "wall_budget_seconds": 30.0,
+        "verification_status": "completed_forecast",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "generation": {
+        "scheduled_candidates": 2,
+        "generated": 1,
+        "generation_seconds": 0.04574682699967525,
+        "rejected": [
+          {
+            "name": "proposal_1",
+            "normal_scale": 1,
+            "lateral_bias_m_s": 0.004,
+            "tilt_delta_deg": 0,
+            "velocity_world_m_s": [
+              -0.00782872805479235,
+              0.0033460247306742632,
+              0.0011602603812097337
+            ],
+            "endpoint": {
+              "status": "accepted",
+              "requested_position": [
+                -0.6896789324297437,
+                -0.08453784471356801,
+                0.8362639700774338
+              ],
+              "predicted_position": [
+                -0.6869156755017792,
+                -0.08629398150999337,
+                0.8358469860391528
+              ],
+              "predicted_position_error_m": 0.0033005273799627337,
+              "predicted_position_error_xyz_m": [
+                0.0027632569279644192,
+                -0.0017561367964253616,
+                -0.0004169840382810541
+              ],
+              "predicted_orientation_error_deg": 0.9920321348471758,
+              "deviation_from_preferred_orientation_deg": 0.9920321348471758,
+              "selected_orientation": [
+                [
+                  -0.004745993155868,
+                  -0.3420162913959922,
+                  -0.9396820376961008
+                ],
+                [
+                  -0.9999887377110627,
+                  0.0016232252593926162,
+                  0.004459774746869586
+                ],
+                [
+                  0.0,
+                  0.9396926207859084,
+                  -0.3420201433256687
+                ]
+              ],
+              "active_limits": [
+                "Left Arm 2",
+                "Left Arm 5"
+              ],
+              "planning_posture_constraints": {
+                "Left Wrist": 0.0
+              },
+              "planning_reference_ranges": {},
+              "collisions": [],
+              "sampled_path_collisions": [],
+              "sampled_path_model": "cartesian",
+              "sampled_path_ik_error": null,
+              "retained_cartesian_joint_waypoints": 10,
+              "bounded_feedback": null,
+              "initial_cartesian_transition": {
+                "joint_gap": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  -0.00018906615327746084,
+                  0.0
+                ],
+                "samples": 3,
+                "checked_samples": 3,
+                "minimum_seconds": 0.00035449903739523907,
+                "maximum_hold_position_error_m": 3.1799523339503804e-05,
+                "maximum_hold_orientation_error_deg": 0.010832692631573314,
+                "accepted": true,
+                "included_in_duration": true
+              },
+              "endpoint_within_collision_tolerance": true,
+              "sampled_path_checked": true,
+              "safe_sampled_path": true,
+              "blocked_continuation": [],
+              "rejection_reasons": [],
+              "allowed_target_hand_contact": "carton_8",
+              "carried_object_swept_volume": null,
+              "supported_slide_prediction": {
+                "object": "carton_8",
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed",
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee"
+              },
+              "collision_tolerance_m": 0.002,
+              "existing_contact_allowance_m": 0.001,
+              "candidate": "preferred",
+              "predicted_minimum_seconds": 0.03942234956156219,
+              "prediction_scope": "kinematic; measured base held at current pose; not a dynamics guarantee"
+            },
+            "compensation": "frozen initial applied-minus-nominal offsets",
+            "applied_rejection": {
+              "position_m": [
+                -0.6994988964911579,
+                -0.08470568051345093,
+                0.8873839498267554
+              ],
+              "lower_m": [
+                -0.7165474412078268,
+                -0.09145773781552168,
+                0.8243696168732146
+              ],
+              "upper_m": [
+                -0.6565474412078267,
+                -0.05145773781552167,
+                0.8543696168732147
+              ],
+              "linear_step_m": 0.0001536099320579391,
+              "max_linear_step_m": 0.00045825756949558405,
+              "angular_step_rad": 0.00029996869917815977,
+              "max_angular_step_rad": 0.006
+            },
+            "failure": "projected_applied_reference_outside_corridor"
+          }
+        ]
+      },
+      "selected_forecast": {
+        "name": "held_native_targets",
+        "screen_progress_minus_x_m": -1.3259863025361085e-06,
+        "eligible": true,
+        "verification_status": "guarded_forecast",
+        "fresh_task_credit": 0,
+        "failure": null,
+        "completed_steps": 200,
+        "requested_steps": 200,
+        "progress_minus_x_m": -1.3259863025361085e-06,
+        "displacement_xyz_m": [
+          1.3259863025361085e-06,
+          -8.828266932589535e-06,
+          -2.9556148040121855e-07
+        ],
+        "peak_forces_N": {
+          "robot_product_N": 1.3470771455055184,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 9.281464485866309e-14,
+          "carton_1": 9.414691248821327e-14,
+          "carton_2": 9.325873406851315e-14,
+          "carton_3": 9.392486788328824e-14,
+          "carton_4": 9.392486788328824e-14,
+          "carton_5": 9.270362255620057e-14,
+          "carton_6": 9.325873406851315e-14,
+          "carton_7": 9.314771176605063e-14,
+          "carton_8": 1.1602347735719226e-05,
+          "carton_9": 9.381384558082573e-14
+        },
+        "last_sample": {
+          "sim_time": 146.27999999997036,
+          "hand_N": 1.3178676786901555,
+          "support_N": 1.8565170963755833,
+          "active_force_world_N": [
+            -1.3243724521543252,
+            0.06448416138680736,
+            -0.09328681040665776
+          ],
+          "robot_product_N": 1.3178676786901555,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "wall_seconds": 0.13777194999966014,
+        "live_execution_admitted": false,
+        "contact_seen": true
+      },
+      "continuation": {}
+    },
+    {
+      "name": "probe-v3",
+      "artifacts": "outputs/compliant-lookahead-v1/probe-v3",
+      "fresh_task_credit": 0,
+      "task_success": false,
+      "source_revision": "75fc28e4ebb646b062cd977bba78e9e42bc36ab9",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode",
+        "horizon": 0.4,
+        "candidates": 8,
+        "shortlist": 4,
+        "generation_seconds": 10.0,
+        "wall_seconds": 60.0,
+        "worker": false
+      },
+      "source_sha256": {
+        "inputs/manifest.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+        "inputs/rollout_terminal.npz": "0dada5de3380dfdeaf3578e77ec407dccd9145e570be1982b8721bc370182e63",
+        "inputs/summary.json": "ff47e0daf0e349160f8f8821e9fb1da5a85e9b174320d8ba00515f0e51ad26ea",
+        "inputs/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+        "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+        "source_snapshot/uv.lock": "58c0c70b229eae3bc5c24ce12553fef2f1cc9b42e2468ec101d0761687fbe31e",
+        "source_snapshot/probe.py": "a04a20e8a849eaa3ef5d360e15ff5a85aab33135bace70ddc1f19cff79107975",
+        "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+        "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+        "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+        "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+        "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+        "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+        "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+        "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+        "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+        "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+        "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+        "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+        "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+        "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+        "source_snapshot/src/abstract_stack/cli.py": "fad4d33fa773d35786566fb748230eac62e6ada6050cc76975b3d647a0bb82a7",
+        "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+        "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+        "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+        "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+        "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+        "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+        "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+        "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+        "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+        "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+        "source_snapshot/src/abstract_stack/sim_sensors.py": "00b064db9612391b04649b7abec8afcd75c456d2aa2d050973af416462d80521",
+        "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+        "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+        "source_snapshot/src/abstract_stack/contact_rollout.py": "ab4d81595befed9877a89041e614c28453cd5b950b60c87f694776299a606834",
+        "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+        "source_snapshot/src/abstract_stack/compliant_lookahead.py": "bbadbf2f38eea808ea34cbee5d3e18e74f0c8dfd69d0c4241cea05ec58880659",
+        "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+        "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+        "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+        "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+        "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+        "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+        "source_snapshot/src/abstract_stack/lfd/lerobot.py": "e6f9a7f81867792f0a923eea5abe5a02fde640853f6d2309848df387fd33ef4d",
+        "source_snapshot/src/abstract_stack/lfd/episode.py": "c7e26e2d86732e9c59408d22f3d337a2fe0991eae8c3578afe8ee15dee127195",
+        "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+        "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+        "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+        "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+        "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+        "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+        "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+        "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+        "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+        "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+        "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+      },
+      "initial_integration_state_sha256": "d2acf8ae96cd6ffc25f67a88649729511c8f53f52028c6b8940e7d41ffd481b2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 2.2223194020007213,
+        "wall_budget_seconds": 60.0,
+        "verification_status": "completed_forecast",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "generation": {
+        "scheduled_candidates": 8,
+        "generated": 8,
+        "generation_seconds": 0.792510000999755,
+        "rejected": []
+      },
+      "selected_forecast": {
+        "name": "proposal_1",
+        "screen_progress_minus_x_m": 0.0022313083424068125,
+        "eligible": true,
+        "verification_status": "guarded_forecast",
+        "fresh_task_credit": 0,
+        "failure": null,
+        "completed_steps": 200,
+        "requested_steps": 200,
+        "progress_minus_x_m": 0.0022313083424068125,
+        "displacement_xyz_m": [
+          -0.0022313083424068125,
+          0.0003218714608220208,
+          4.6820694942661945e-05
+        ],
+        "peak_forces_N": {
+          "robot_product_N": 1.6327791813665495,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 9.281464485866309e-14,
+          "carton_1": 9.414691248821327e-14,
+          "carton_2": 9.325873406851315e-14,
+          "carton_3": 9.392486788328824e-14,
+          "carton_4": 9.392486788328824e-14,
+          "carton_5": 9.270362255620057e-14,
+          "carton_6": 9.325873406851315e-14,
+          "carton_7": 9.314771176605063e-14,
+          "carton_8": 0.0022548903152173174,
+          "carton_9": 9.381384558082573e-14
+        },
+        "last_sample": {
+          "sim_time": 146.27999999997036,
+          "hand_N": 1.6033838380669376,
+          "support_N": 1.984006858001058,
+          "active_force_world_N": [
+            -1.6162955898311262,
+            0.13769368211564573,
+            -0.2193264193236918
+          ],
+          "robot_product_N": 1.6033838380669376,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "wall_seconds": 0.2493107529990084,
+        "live_execution_admitted": false,
+        "contact_seen": true
+      },
+      "continuation": {}
+    },
+    {
+      "name": "held-baseline",
+      "artifacts": "outputs/compliant-lookahead-v1/held-baseline",
+      "fresh_task_credit": 0,
+      "task_success": false,
+      "source_revision": "75fc28e4ebb646b062cd977bba78e9e42bc36ab9",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode",
+        "horizon": 0.4,
+        "candidates": 1,
+        "shortlist": 1,
+        "generation_seconds": 10.0,
+        "wall_seconds": 60.0,
+        "execute_prefix": 0.1,
+        "replans": 20,
+        "worker": false
+      },
+      "source_sha256": {
+        "inputs/manifest.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+        "inputs/rollout_terminal.npz": "0dada5de3380dfdeaf3578e77ec407dccd9145e570be1982b8721bc370182e63",
+        "inputs/summary.json": "ff47e0daf0e349160f8f8821e9fb1da5a85e9b174320d8ba00515f0e51ad26ea",
+        "inputs/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+        "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+        "source_snapshot/uv.lock": "58c0c70b229eae3bc5c24ce12553fef2f1cc9b42e2468ec101d0761687fbe31e",
+        "source_snapshot/probe.py": "3f0a453ba254fe1961cc2a4710611ba0ad2c1a1d0debcd7a767af6483cc629f0",
+        "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+        "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+        "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+        "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+        "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+        "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+        "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+        "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+        "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+        "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+        "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+        "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+        "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+        "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+        "source_snapshot/src/abstract_stack/cli.py": "fad4d33fa773d35786566fb748230eac62e6ada6050cc76975b3d647a0bb82a7",
+        "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+        "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+        "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+        "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+        "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+        "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+        "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+        "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+        "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+        "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+        "source_snapshot/src/abstract_stack/sim_sensors.py": "3d0cdb670a077493363a50fe6afe2fe3180b92839d2f8fab603ed8480213b245",
+        "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+        "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+        "source_snapshot/src/abstract_stack/contact_rollout.py": "ab4d81595befed9877a89041e614c28453cd5b950b60c87f694776299a606834",
+        "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+        "source_snapshot/src/abstract_stack/compliant_lookahead.py": "bbadbf2f38eea808ea34cbee5d3e18e74f0c8dfd69d0c4241cea05ec58880659",
+        "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+        "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+        "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+        "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+        "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+        "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+        "source_snapshot/src/abstract_stack/lfd/lerobot.py": "05eebecd5ff5fb7c6036669069b20cd5be0b4d4e91625fb5c1d438dfe03d67af",
+        "source_snapshot/src/abstract_stack/lfd/episode.py": "9c7cfdb149bd226c638e59c50e7eec38e42cdd3ccd7b4569bf92f7cc53f2b920",
+        "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+        "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+        "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+        "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+        "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+        "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+        "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+        "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+        "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+        "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+        "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+      },
+      "initial_integration_state_sha256": "d2acf8ae96cd6ffc25f67a88649729511c8f53f52028c6b8940e7d41ffd481b2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 5.7272115260002465,
+        "wall_budget_seconds": 60.0,
+        "verification_status": "completed_forecast",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "generation": {
+        "scheduled_candidates": 1,
+        "generated": 1,
+        "generation_seconds": 4.742700002680067e-05,
+        "rejected": []
+      },
+      "selected_forecast": {
+        "name": "held_native_targets",
+        "screen_progress_minus_x_m": -1.3259863025361085e-06,
+        "eligible": true,
+        "verification_status": "guarded_forecast",
+        "fresh_task_credit": 0,
+        "failure": null,
+        "completed_steps": 200,
+        "requested_steps": 200,
+        "progress_minus_x_m": -1.3259863025361085e-06,
+        "displacement_xyz_m": [
+          1.3259863025361085e-06,
+          -8.828266932589535e-06,
+          -2.9556148040121855e-07
+        ],
+        "peak_forces_N": {
+          "robot_product_N": 1.3470771455055184,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 9.281464485866309e-14,
+          "carton_1": 9.414691248821327e-14,
+          "carton_2": 9.325873406851315e-14,
+          "carton_3": 9.392486788328824e-14,
+          "carton_4": 9.392486788328824e-14,
+          "carton_5": 9.270362255620057e-14,
+          "carton_6": 9.325873406851315e-14,
+          "carton_7": 9.314771176605063e-14,
+          "carton_8": 1.1602347735719226e-05,
+          "carton_9": 9.381384558082573e-14
+        },
+        "last_sample": {
+          "sim_time": 146.27999999997036,
+          "hand_N": 1.3178676786901555,
+          "support_N": 1.8565170963755833,
+          "active_force_world_N": [
+            -1.3243724521543252,
+            0.06448416138680736,
+            -0.09328681040665776
+          ],
+          "robot_product_N": 1.3178676786901555,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "wall_seconds": 0.14303370199922938,
+        "live_execution_admitted": false,
+        "contact_seen": true
+      },
+      "continuation": {
+        "kind": "retained_checkpoint_continuation_not_new_episode",
+        "scheduled_replans": 20,
+        "executed_physics_steps": 1000,
+        "simulated_seconds": 2.0,
+        "progress_minus_x_m": -4.846374557665456e-06,
+        "failure": null,
+        "measured_back_contact_N": 0.0,
+        "peak_forces_N": {
+          "robot_product_N": 1.3470771455055184,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 1.1479706074624119e-13,
+          "carton_1": 1.1468603844377867e-13,
+          "carton_2": 1.1501910535116622e-13,
+          "carton_3": 1.1479706074624119e-13,
+          "carton_4": 1.1479706074624119e-13,
+          "carton_5": 1.149080830487037e-13,
+          "carton_6": 1.1934897514720433e-13,
+          "carton_7": 1.1479706074624119e-13,
+          "carton_8": 1.2383400198478299e-05,
+          "carton_9": 1.1468603844377867e-13
+        },
+        "measured_base_nominal_fk_tracking_peak_m": null,
+        "tracking_scope": "actual tool versus nominal FK at measured base; separate from IK error",
+        "full_stocking_success": false,
+        "fresh_task_credit": 0,
+        "completed_replans": 20
+      }
+    },
+    {
+      "name": "continued-v1",
+      "artifacts": "outputs/compliant-lookahead-v1/continued-v1",
+      "fresh_task_credit": 0,
+      "task_success": false,
+      "source_revision": "75fc28e4ebb646b062cd977bba78e9e42bc36ab9",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode",
+        "horizon": 0.4,
+        "candidates": 8,
+        "shortlist": 4,
+        "generation_seconds": 10.0,
+        "wall_seconds": 90.0,
+        "execute_prefix": 0.1,
+        "replans": 20,
+        "worker": false
+      },
+      "source_sha256": {
+        "inputs/manifest.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+        "inputs/rollout_terminal.npz": "0dada5de3380dfdeaf3578e77ec407dccd9145e570be1982b8721bc370182e63",
+        "inputs/summary.json": "ff47e0daf0e349160f8f8821e9fb1da5a85e9b174320d8ba00515f0e51ad26ea",
+        "inputs/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+        "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+        "source_snapshot/uv.lock": "58c0c70b229eae3bc5c24ce12553fef2f1cc9b42e2468ec101d0761687fbe31e",
+        "source_snapshot/probe.py": "9a50a1b6a53be1a97088de310f878ff9e38fb92be32da3fbabc5954e71d851a5",
+        "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+        "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+        "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+        "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+        "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+        "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+        "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+        "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+        "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+        "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+        "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+        "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+        "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+        "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+        "source_snapshot/src/abstract_stack/cli.py": "fad4d33fa773d35786566fb748230eac62e6ada6050cc76975b3d647a0bb82a7",
+        "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+        "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+        "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+        "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+        "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+        "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+        "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+        "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+        "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+        "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+        "source_snapshot/src/abstract_stack/sim_sensors.py": "00b064db9612391b04649b7abec8afcd75c456d2aa2d050973af416462d80521",
+        "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+        "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+        "source_snapshot/src/abstract_stack/contact_rollout.py": "ab4d81595befed9877a89041e614c28453cd5b950b60c87f694776299a606834",
+        "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+        "source_snapshot/src/abstract_stack/compliant_lookahead.py": "bbadbf2f38eea808ea34cbee5d3e18e74f0c8dfd69d0c4241cea05ec58880659",
+        "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+        "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+        "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+        "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+        "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+        "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+        "source_snapshot/src/abstract_stack/lfd/lerobot.py": "0757e8a903ba09519877e87458d9b865f5d2970407601defa8725268e96036d6",
+        "source_snapshot/src/abstract_stack/lfd/episode.py": "c7e26e2d86732e9c59408d22f3d337a2fe0991eae8c3578afe8ee15dee127195",
+        "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+        "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+        "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+        "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+        "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+        "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+        "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+        "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+        "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+        "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+        "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+      },
+      "initial_integration_state_sha256": "d2acf8ae96cd6ffc25f67a88649729511c8f53f52028c6b8940e7d41ffd481b2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 25.980079550001392,
+        "wall_budget_seconds": 90.0,
+        "verification_status": "completed_forecast",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "generation": {
+        "scheduled_candidates": 8,
+        "generated": 8,
+        "generation_seconds": 0.7963632050013985,
+        "rejected": []
+      },
+      "selected_forecast": {
+        "name": "proposal_1",
+        "screen_progress_minus_x_m": 0.0022313083424068125,
+        "eligible": true,
+        "verification_status": "guarded_forecast",
+        "fresh_task_credit": 0,
+        "failure": null,
+        "completed_steps": 200,
+        "requested_steps": 200,
+        "progress_minus_x_m": 0.0022313083424068125,
+        "displacement_xyz_m": [
+          -0.0022313083424068125,
+          0.0003218714608220208,
+          4.6820694942661945e-05
+        ],
+        "peak_forces_N": {
+          "robot_product_N": 1.6327791813665495,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 9.281464485866309e-14,
+          "carton_1": 9.414691248821327e-14,
+          "carton_2": 9.325873406851315e-14,
+          "carton_3": 9.392486788328824e-14,
+          "carton_4": 9.392486788328824e-14,
+          "carton_5": 9.270362255620057e-14,
+          "carton_6": 9.325873406851315e-14,
+          "carton_7": 9.314771176605063e-14,
+          "carton_8": 0.0022548903152173174,
+          "carton_9": 9.381384558082573e-14
+        },
+        "last_sample": {
+          "sim_time": 146.27999999997036,
+          "hand_N": 1.6033838380669376,
+          "support_N": 1.984006858001058,
+          "active_force_world_N": [
+            -1.6162955898311262,
+            0.13769368211564573,
+            -0.2193264193236918
+          ],
+          "robot_product_N": 1.6033838380669376,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "wall_seconds": 0.2197626430006494,
+        "live_execution_admitted": false,
+        "contact_seen": true
+      },
+      "continuation": {
+        "kind": "retained_checkpoint_continuation_not_new_episode",
+        "executed_physics_steps": 1000,
+        "simulated_seconds": 2.0,
+        "progress_minus_x_m": 0.009477093251031965,
+        "failure": null,
+        "measured_back_contact_N": 0.0,
+        "peak_forces_N": {
+          "robot_product_N": 1.6359654727264126,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 1.1479706074624119e-13,
+          "carton_1": 1.1468603844377867e-13,
+          "carton_2": 1.1501910535116622e-13,
+          "carton_3": 1.1479706074624119e-13,
+          "carton_4": 1.1479706074624119e-13,
+          "carton_5": 1.149080830487037e-13,
+          "carton_6": 1.1934897514720433e-13,
+          "carton_7": 1.1479706074624119e-13,
+          "carton_8": 0.009571286543256665,
+          "carton_9": 1.1468603844377867e-13
+        },
+        "full_stocking_success": false,
+        "fresh_task_credit": 0,
+        "completed_replans": 20
+      }
+    },
+    {
+      "name": "continued-v2",
+      "artifacts": "outputs/compliant-lookahead-v1/continued-v2",
+      "fresh_task_credit": 0,
+      "task_success": false,
+      "source_revision": "75fc28e4ebb646b062cd977bba78e9e42bc36ab9",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode",
+        "horizon": 0.4,
+        "candidates": 8,
+        "shortlist": 4,
+        "generation_seconds": 10.0,
+        "wall_seconds": 90.0,
+        "execute_prefix": 0.1,
+        "replans": 40,
+        "worker": false
+      },
+      "source_sha256": {
+        "inputs/manifest.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+        "inputs/rollout_terminal.npz": "0dada5de3380dfdeaf3578e77ec407dccd9145e570be1982b8721bc370182e63",
+        "inputs/summary.json": "ff47e0daf0e349160f8f8821e9fb1da5a85e9b174320d8ba00515f0e51ad26ea",
+        "inputs/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+        "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+        "source_snapshot/uv.lock": "58c0c70b229eae3bc5c24ce12553fef2f1cc9b42e2468ec101d0761687fbe31e",
+        "source_snapshot/probe.py": "1cbc1717a6b388078d4d8cfd98be71bfeb0ce9f6cb91d2d90959a73b1429a226",
+        "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+        "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+        "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+        "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+        "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+        "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+        "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+        "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+        "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+        "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+        "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+        "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+        "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+        "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+        "source_snapshot/src/abstract_stack/cli.py": "fad4d33fa773d35786566fb748230eac62e6ada6050cc76975b3d647a0bb82a7",
+        "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+        "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+        "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+        "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+        "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+        "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+        "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+        "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+        "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+        "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+        "source_snapshot/src/abstract_stack/sim_sensors.py": "00b064db9612391b04649b7abec8afcd75c456d2aa2d050973af416462d80521",
+        "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+        "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+        "source_snapshot/src/abstract_stack/contact_rollout.py": "ab4d81595befed9877a89041e614c28453cd5b950b60c87f694776299a606834",
+        "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+        "source_snapshot/src/abstract_stack/compliant_lookahead.py": "bbadbf2f38eea808ea34cbee5d3e18e74f0c8dfd69d0c4241cea05ec58880659",
+        "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+        "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+        "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+        "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+        "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+        "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+        "source_snapshot/src/abstract_stack/lfd/lerobot.py": "ded602267f0461f9d02acb06b09c315b76d26075ae34826fb4800632667bf2ad",
+        "source_snapshot/src/abstract_stack/lfd/episode.py": "c7e26e2d86732e9c59408d22f3d337a2fe0991eae8c3578afe8ee15dee127195",
+        "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+        "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+        "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+        "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+        "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+        "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+        "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+        "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+        "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+        "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+        "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+      },
+      "initial_integration_state_sha256": "d2acf8ae96cd6ffc25f67a88649729511c8f53f52028c6b8940e7d41ffd481b2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 27.688386805000846,
+        "wall_budget_seconds": 90.0,
+        "verification_status": "completed_forecast",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "generation": {
+        "scheduled_candidates": 8,
+        "generated": 8,
+        "generation_seconds": 0.7996537649996753,
+        "rejected": []
+      },
+      "selected_forecast": {
+        "name": "proposal_1",
+        "screen_progress_minus_x_m": 0.0022313083424068125,
+        "eligible": true,
+        "verification_status": "guarded_forecast",
+        "fresh_task_credit": 0,
+        "failure": null,
+        "completed_steps": 200,
+        "requested_steps": 200,
+        "progress_minus_x_m": 0.0022313083424068125,
+        "displacement_xyz_m": [
+          -0.0022313083424068125,
+          0.0003218714608220208,
+          4.6820694942661945e-05
+        ],
+        "peak_forces_N": {
+          "robot_product_N": 1.6327791813665495,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 9.281464485866309e-14,
+          "carton_1": 9.414691248821327e-14,
+          "carton_2": 9.325873406851315e-14,
+          "carton_3": 9.392486788328824e-14,
+          "carton_4": 9.392486788328824e-14,
+          "carton_5": 9.270362255620057e-14,
+          "carton_6": 9.325873406851315e-14,
+          "carton_7": 9.314771176605063e-14,
+          "carton_8": 0.0022548903152173174,
+          "carton_9": 9.381384558082573e-14
+        },
+        "last_sample": {
+          "sim_time": 146.27999999997036,
+          "hand_N": 1.6033838380669376,
+          "support_N": 1.984006858001058,
+          "active_force_world_N": [
+            -1.6162955898311262,
+            0.13769368211564573,
+            -0.2193264193236918
+          ],
+          "robot_product_N": 1.6033838380669376,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "wall_seconds": 0.2335810610002227,
+        "live_execution_admitted": false,
+        "contact_seen": true
+      },
+      "continuation": {
+        "kind": "retained_checkpoint_continuation_not_new_episode",
+        "scheduled_replans": 40,
+        "executed_physics_steps": 1050,
+        "simulated_seconds": 2.1,
+        "progress_minus_x_m": 0.009748469349822764,
+        "failure": null,
+        "measured_back_contact_N": 0.7076671365758455,
+        "peak_forces_N": {
+          "robot_product_N": 2.331400062163282,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.7076671365758455
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 1.1479706074624119e-13,
+          "carton_1": 1.1468603844377867e-13,
+          "carton_2": 1.1501910535116622e-13,
+          "carton_3": 1.1479706074624119e-13,
+          "carton_4": 1.1479706074624119e-13,
+          "carton_5": 1.149080830487037e-13,
+          "carton_6": 1.1934897514720433e-13,
+          "carton_7": 1.1479706074624119e-13,
+          "carton_8": 0.009831912592361172,
+          "carton_9": 1.1468603844377867e-13
+        },
+        "full_stocking_success": false,
+        "fresh_task_credit": 0,
+        "completed_replans": 21
+      }
+    },
+    {
+      "name": "continued-v3",
+      "artifacts": "outputs/compliant-lookahead-v1/continued-v3",
+      "fresh_task_credit": 0,
+      "task_success": false,
+      "source_revision": "75fc28e4ebb646b062cd977bba78e9e42bc36ab9",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": "outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode",
+        "horizon": 0.4,
+        "candidates": 8,
+        "shortlist": 4,
+        "generation_seconds": 10.0,
+        "wall_seconds": 90.0,
+        "execute_prefix": 0.1,
+        "replans": 40,
+        "worker": false
+      },
+      "source_sha256": {
+        "inputs/manifest.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+        "inputs/rollout_terminal.npz": "0dada5de3380dfdeaf3578e77ec407dccd9145e570be1982b8721bc370182e63",
+        "inputs/summary.json": "ff47e0daf0e349160f8f8821e9fb1da5a85e9b174320d8ba00515f0e51ad26ea",
+        "inputs/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+        "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+        "source_snapshot/uv.lock": "58c0c70b229eae3bc5c24ce12553fef2f1cc9b42e2468ec101d0761687fbe31e",
+        "source_snapshot/probe.py": "3f0a453ba254fe1961cc2a4710611ba0ad2c1a1d0debcd7a767af6483cc629f0",
+        "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+        "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+        "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+        "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+        "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+        "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+        "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+        "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+        "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+        "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+        "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+        "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+        "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+        "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+        "source_snapshot/src/abstract_stack/cli.py": "fad4d33fa773d35786566fb748230eac62e6ada6050cc76975b3d647a0bb82a7",
+        "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+        "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+        "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+        "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+        "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+        "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+        "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+        "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+        "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+        "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+        "source_snapshot/src/abstract_stack/sim_sensors.py": "3d0cdb670a077493363a50fe6afe2fe3180b92839d2f8fab603ed8480213b245",
+        "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+        "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+        "source_snapshot/src/abstract_stack/contact_rollout.py": "ab4d81595befed9877a89041e614c28453cd5b950b60c87f694776299a606834",
+        "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+        "source_snapshot/src/abstract_stack/compliant_lookahead.py": "bbadbf2f38eea808ea34cbee5d3e18e74f0c8dfd69d0c4241cea05ec58880659",
+        "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+        "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+        "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+        "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+        "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+        "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+        "source_snapshot/src/abstract_stack/lfd/lerobot.py": "05eebecd5ff5fb7c6036669069b20cd5be0b4d4e91625fb5c1d438dfe03d67af",
+        "source_snapshot/src/abstract_stack/lfd/episode.py": "9c7cfdb149bd226c638e59c50e7eec38e42cdd3ccd7b4569bf92f7cc53f2b920",
+        "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+        "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+        "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+        "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+        "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+        "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+        "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+        "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+        "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+        "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+        "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+      },
+      "initial_integration_state_sha256": "d2acf8ae96cd6ffc25f67a88649729511c8f53f52028c6b8940e7d41ffd481b2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 27.335553875000187,
+        "wall_budget_seconds": 90.0,
+        "verification_status": "completed_forecast",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "generation": {
+        "scheduled_candidates": 8,
+        "generated": 8,
+        "generation_seconds": 0.7868375899997773,
+        "rejected": []
+      },
+      "selected_forecast": {
+        "name": "proposal_1",
+        "screen_progress_minus_x_m": 0.0022313083424068125,
+        "eligible": true,
+        "verification_status": "guarded_forecast",
+        "fresh_task_credit": 0,
+        "failure": null,
+        "completed_steps": 200,
+        "requested_steps": 200,
+        "progress_minus_x_m": 0.0022313083424068125,
+        "displacement_xyz_m": [
+          -0.0022313083424068125,
+          0.0003218714608220208,
+          4.6820694942661945e-05
+        ],
+        "peak_forces_N": {
+          "robot_product_N": 1.6327791813665495,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 9.281464485866309e-14,
+          "carton_1": 9.414691248821327e-14,
+          "carton_2": 9.325873406851315e-14,
+          "carton_3": 9.392486788328824e-14,
+          "carton_4": 9.392486788328824e-14,
+          "carton_5": 9.270362255620057e-14,
+          "carton_6": 9.325873406851315e-14,
+          "carton_7": 9.314771176605063e-14,
+          "carton_8": 0.0022548903152173174,
+          "carton_9": 9.381384558082573e-14
+        },
+        "last_sample": {
+          "sim_time": 146.27999999997036,
+          "hand_N": 1.6033838380669376,
+          "support_N": 1.984006858001058,
+          "active_force_world_N": [
+            -1.6162955898311262,
+            0.13769368211564573,
+            -0.2193264193236918
+          ],
+          "robot_product_N": 1.6033838380669376,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "wall_seconds": 0.2557235749991378,
+        "live_execution_admitted": false,
+        "contact_seen": true
+      },
+      "continuation": {
+        "kind": "retained_checkpoint_continuation_not_new_episode",
+        "scheduled_replans": 40,
+        "executed_physics_steps": 1050,
+        "simulated_seconds": 2.1,
+        "progress_minus_x_m": 0.009748469349822764,
+        "failure": null,
+        "measured_back_contact_N": 0.7076671365758455,
+        "peak_forces_N": {
+          "robot_product_N": 2.331400062163282,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.7076671365758455
+        },
+        "incidents": [],
+        "maximum_product_displacement_m": {
+          "carton_0": 1.1479706074624119e-13,
+          "carton_1": 1.1468603844377867e-13,
+          "carton_2": 1.1501910535116622e-13,
+          "carton_3": 1.1479706074624119e-13,
+          "carton_4": 1.1479706074624119e-13,
+          "carton_5": 1.149080830487037e-13,
+          "carton_6": 1.1934897514720433e-13,
+          "carton_7": 1.1479706074624119e-13,
+          "carton_8": 0.009831912592361172,
+          "carton_9": 1.1468603844377867e-13
+        },
+        "measured_base_nominal_fk_tracking_peak_m": 0.00270462701882642,
+        "tracking_scope": "actual tool versus nominal FK at measured base; separate from IK error",
+        "full_stocking_success": false,
+        "fresh_task_credit": 0,
+        "completed_replans": 21
+      }
+    }
+  ]
+}
