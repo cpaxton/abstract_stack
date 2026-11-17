@@ -12,6 +12,9 @@ hardware-robot endpoint. Only `zed_left` and `zed_right` are streamed, into a
 room-anchored stereo window on Quest 3. Base driving, wrist video, avatars,
 autonomy, demonstration training and a full immersive view are deferred.
 
+The [simulation host adapter](sim_adapter.md) implements the simulator boundary
+from #14, including native state/commands, reset ownership and paired head renders.
+
 ## Baseline and ownership
 
 [contract.json](contract.json) pins the source/model revision and the reference
