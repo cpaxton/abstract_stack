@@ -17,7 +17,7 @@ No dataset was uploaded and no training job was started.
 | LeRobot | Pinned official 0.7.0 local export/reload passed in a separate locked worker |
 | Student training or DAgger | Not implemented |
 | VR demonstration loop | Not integrated with the new recorder |
-| Raw synchronized camera collection | Schema supports HWC RGB; native hold fixture marks camera unavailable |
+| Raw synchronized camera collection | Opt-in native first-/third-person RGB; real-image SDK roundtrip passed |
 | F/T and tactile | Native simulated signals from `sim_sensors.py`; not calibrated hardware measurements |
 
 The existing `trace.npz` records post-physics-step task metrics and applied
@@ -131,8 +131,8 @@ The standalone fixture settles the native robot, captures measured proprioceptio
 and the virtual sensor suite before each decision, commands clean nominal holds
 through `MabelController`, and records applied compensated targets separately.
 `BaseContactGuard` samples each 2 ms physics step. It performs no pose writes,
-hidden attachments or external-force actions. Its camera channel is explicitly
-unavailable; no renderer runs.
+hidden attachments or external-force actions. By default its camera channel is
+explicitly unavailable and no renderer runs.
 
 The frozen ten-transition probe completed in 1.47 s wall time with a 30 s budget,
 at 50 Hz control and 500 Hz physics. It captured 11 snapshots of 177-dimensional
@@ -147,6 +147,57 @@ This is not a hook in the stocking loop: that loop applies finger compensation
 before some common-control hooks, so attaching a recorder afterward could lose
 the actual teacher reference. The later integration must capture the clean
 decision before **all** compensation and retain per-control action timing.
+
+## Opt-in synchronized raw cameras
+
+On a Linux EGL setup, a bounded collection command is:
+
+```bash
+flock -w 30 /tmp/abstract-stack-render.lock timeout 60s env MUJOCO_GL=egl \
+  MABEL_ROOT="$PWD/third_party/open_mabel" \
+  .venv/bin/python scripts/export_lfd_fixture.py \
+  --output outputs/my-fresh-camera-fixture --steps 5 --cameras \
+  --camera-width 160 --camera-height 120
+```
+
+The camera option adds raw `observation.images.zed_left` and
+`observation.images.stocking_third_person` HWC uint8 RGB at every control
+boundary, including the final next-observation. It leaves original camera
+poses and all physical geometry unchanged. Both views render sequentially
+while physics is paused, before the corresponding nominal action. Their
+sample timestamps equal that boundary's native physics time. This represents
+instantaneous ideal cameras; no exposure, readout, latency or noise is modeled.
+Rendering blocks collection, so 50 Hz simulation decisions do not imply 50 Hz
+wall-clock operation.
+
+`camera_captures.jsonl` records every attempted view's native capture/sample time,
+monotonic start/end times, availability and error. Monotonic times are local
+process diagnostics and never substitute for simulation timestamps or become
+student features. A render failure produces a zero image, false availability
+and sample time -1; it never reuses the last good frame. Invalid camera names
+or dimensions fail configuration. Framebuffer limits are respected without
+modifying the native model. The collector detects physics advancement during
+capture and aborts rather than labeling that frame synchronized.
+
+Camera provenance includes native IDs, parent bodies, local poses, camera modes,
+vertical FOV, image dimensions, renderer/version/backend and visibility options.
+The scene/model and source hashes bind the remaining camera configuration.
+Raw images contain no review overlays or target/annotation sites, and use no
+display cutaways. Default camera orientations may occlude useful task geometry;
+this fixture validates capture, not useful gaze or view selection.
+
+A source-frozen native probe collected five hold transitions and six paired
+snapshots. All 12 raw frames were available at 160x120; every image sample time
+matched its proprioception boundary. Collection completed in 4.93 s under its
+60 s budget. Copied sources, hashes, logs, raw PNG previews and the first strict
+SDK verification failure remain under `outputs/lfd-cameras-v1/frozen-run/` in
+the camera feature worktree. The corrected CPU-only export/reload each completed
+in about 2 s under separate 45 s budgets; results remain in
+`outputs/lfd-cameras-v1/export-fixed/verified/audit.json`, with a combined report
+at `outputs/lfd-cameras-v1/report.json`. Native rendering held the shared lock.
+The fixture outcome stays failure/no stocking attempted, training-eligible stays
+false and task credit stays zero. Synthetic dropped-frame tests cover masks;
+this native probe did not experience a camera dropout. No MP4 codec was tested.
 
 ## LeRobot adapter and local validation
 
@@ -200,6 +251,14 @@ attempt and the initial precision diagnostic are retained alongside it. No video
 was encoded or decoded: the raw camera feature is a masked, unavailable image,
 and this does not validate camera collection or codec operation.
 
+The later camera probe above separately validates nonzero raw image storage.
+The SDK writes embedded PNG pixels losslessly; `verify-lerobot` checks every
+stored uint8 pixel against the neutral episode. In LeRobot 0.7.0 the default
+`get_raw_item()` image path returns float32 CHW RGB divided by 255 even when
+the dataset constructor receives `return_uint8=True`. Verification checks that
+explicit normalization exactly, separately from lossless stored pixels. The
+older zero-only probe could not establish this image representation contract.
+
 The SDK owns its relative `timestamp = frame_index/fps`. Native absolute clock
 values use the separate float64 `diagnostics.observation_time_s` feature and
 float64 sensor sample-time features. Parquet stores these doubles exactly, as
@@ -216,13 +275,13 @@ that is not a real LeRobot v3 writer. No upstream source was copied or modified.
 
 ## Next learning milestones
 
-The focused suite currently has 17 LfD tests, including causal clocks, action
-contracts, privilege separation, interrupted outcomes, payload tampering and
-float32 overflow rejection. Nine sensor tests cover native measurement
-conventions. These 26 tests passed as part of the 30-test combined development
-suite alongside the separately proposed compliant-lookahead checks
-together with native MABEL assets available. The official SDK roundtrip is
-separate retained process evidence; it is not replaced by an adapter mock.
+The foundation has 17 LfD tests covering causal clocks, action contracts,
+privilege separation, interrupted outcomes, payload tampering and float32
+overflow rejection. Five camera tests add synchronized views, dropped-frame
+masks, configuration admission, physics-advancement rejection and exact image
+storage/reader checks. All 22 LfD tests pass with native MABEL assets available.
+Sensor convention tests remain separate. The official SDK roundtrip is retained
+process evidence; it is not replaced by an adapter mock.
 
 Collect actual successful pick/carry/insert/retreat demonstrations with raw
 synchronized views, plus retained failures and recovery annotations. Freeze
