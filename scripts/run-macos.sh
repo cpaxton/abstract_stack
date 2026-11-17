@@ -2,6 +2,27 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ $# -eq 0 || "${1:-}" == --help || "${1:-}" == -h ]]; then
+    cat <<'HELP'
+Usage: scripts/run-macos.sh <command> [CLI options]
+
+Run Abstract Stack from this checkout's .venv without synchronizing dependencies.
+Install first with scripts/install-macos.sh (Python 3.10–3.12; default 3.11).
+
+Examples:
+  scripts/run-macos.sh sim
+  scripts/run-macos.sh sim --headless --steps 500
+  scripts/run-macos.sh build-scene --scene house --render
+  scripts/run-macos.sh sim --help
+
+This launcher sets MUJOCO_GL=cgl for every subcommand, including headless runs,
+overriding any existing MUJOCO_GL value. CGL rendering needs macOS graphics access.
+Interactive sim/serve use mjpython; other commands use ordinary Python.
+serve requires Emet, which the lightweight installer excludes.
+Use a command's --help for its CLI options.
+HELP
+    exit 0
+fi
 if [[ "$(uname -s)" != Darwin ]]; then
     echo "This launcher requires macOS. See README.md for other platforms." >&2
     exit 1
