@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.Android;
+using System.Xml.Linq;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
@@ -14,8 +16,17 @@ using UnityEngine.XR.OpenXR;
 
 public static class ProbeBuilder
 {
+    public static void SelectAndroidTarget()
+    {
+        EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android &&
+            !EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android))
+            throw new Exception("Could not switch the active build target to Android");
+    }
+
     public static void Configure()
     {
+        EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
         Directory.CreateDirectory("Assets/Probe");
         Directory.CreateDirectory("Assets/XR");
         PlayerSettings.companyName = "Abstrakt Robots";
@@ -31,8 +42,8 @@ public static class ProbeBuilder
         PlayerSettings.colorSpace = ColorSpace.Linear;
         PlayerSettings.runInBackground = true;
         PlayerSettings.Android.forceInternetPermission = false;
-        PlayerSettings.bundleVersion = "0.3.0";
-        PlayerSettings.Android.bundleVersionCode = 3;
+        PlayerSettings.bundleVersion = "0.3.1";
+        PlayerSettings.Android.bundleVersionCode = 4;
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
         var input = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
         var activeInput = input.FindProperty("activeInputHandler");
@@ -134,6 +145,16 @@ public static class ProbeBuilder
     }
     public static void Build()
     {
+        // Meta's build processors inspect selectedBuildTargetGroup independently
+        // of BuildPlayerOptions.target; mismatch silently omits tracking permissions.
+        EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
+            throw new Exception("Select Android first with ProbeBuilder.SelectAndroidTarget, then rebuild after import");
+        var general = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android);
+        var xr = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
+        if (general?.Manager == null || !general.Manager.activeLoaders.Any(l => l is OpenXRLoader) ||
+            xr == null || !xr.GetFeatures<UnityEngine.XR.OpenXR.Features.OpenXRFeature>().Any(f => f.enabled && f.GetType().Name == "MetaXRFeature"))
+            throw new Exception("Android OpenXR loader and MetaXRFeature must be enabled before building");
         Directory.CreateDirectory("Builds");
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions {
             scenes = new[]{ "Assets/Probe/TrackingProbe.unity" }, locationPathName = "Builds/QuestTrackingProbe.apk",
@@ -141,5 +162,28 @@ public static class ProbeBuilder
         });
         Debug.Log("[ProbeBuild] " + report.summary.result + " errors=" + report.summary.totalErrors);
         if (report.summary.result != BuildResult.Succeeded) throw new Exception("Probe APK build failed");
+    }
+}
+
+// Fail before Gradle packaging if SDK preprocessing was skipped. Never inject
+// permissions here: the Meta SDK must generate its complete supported manifest.
+public sealed class ProbeManifestValidation : IPostGenerateGradleAndroidProject
+{
+    public int callbackOrder => int.MaxValue;
+    public void OnPostGenerateGradleAndroidProject(string path)
+    {
+        var manifest = XDocument.Load(Path.Combine(path, "src/main/AndroidManifest.xml"));
+        XNamespace android = "http://schemas.android.com/apk/res/android";
+        string[] permissions = { "com.oculus.permission.HAND_TRACKING", "com.oculus.permission.BODY_TRACKING" };
+        string[] features = { "oculus.software.handtracking", "com.oculus.software.body_tracking" };
+        foreach (string name in permissions)
+            if (!manifest.Root.Elements("uses-permission").Any(e => (string)e.Attribute(android + "name") == name))
+                throw new BuildFailedException("Quest tracking permission missing from generated manifest: " + name);
+        foreach (string name in features)
+            if (!manifest.Root.Elements("uses-feature").Any(e => (string)e.Attribute(android + "name") == name))
+                throw new BuildFailedException("Quest tracking feature missing from generated manifest: " + name);
+        if (!manifest.Descendants("category").Any(e => (string)e.Attribute(android + "name") == "com.oculus.intent.category.VR"))
+            throw new BuildFailedException("Quest immersive VR activity category missing from generated manifest");
+        Debug.Log("[ProbeBuild] Verified Meta hand/body manifest declarations and immersive VR category");
     }
 }

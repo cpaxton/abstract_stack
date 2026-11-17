@@ -19,6 +19,9 @@ case "${1:-}" in
   configure|build)
     mkdir -p "$repo_root/outputs"
     if editor_is_open; then
+      unity command eval --caller plugin --skill unity-cli --project-path "$project_path" \
+        --timeout 300 "ProbeBuilder.SelectAndroidTarget();" --format json
+      unity status --until-ready --project-path "$project_path" --format json
       if [[ "$1" == configure ]]; then method=Configure; else method=Build; fi
       unity command eval --caller plugin --skill unity-cli --project-path "$project_path" \
         --timeout 900 "ProbeBuilder.$method();" --format json

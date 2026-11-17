@@ -39,7 +39,12 @@ Build output: `unity/QuestTrackingProbe/Builds/QuestTrackingProbe.apk` (ignored)
 Build logs go to ignored `outputs/` for batch builds or the project’s ignored
 `Logs/Editor.log` for live builds. The helper detects an open project and uses
 its live CLI/Pipeline connection rather than starting a second Editor.
-Configuration resets the diagnostic scene.
+Configuration resets the diagnostic scene. The helper selects both the active
+Android target and selected target group before building. Meta’s SDK checks the
+selected group separately; a mismatch can produce an APK without tracking
+permissions or immersive VR metadata. A post-generation build guard now rejects
+missing hand/body tracking declarations or the immersive VR activity category
+before Gradle packaging.
 
 Wear the headset, put controllers down, enable hand tracking and allow the body
 tracking permission. The room-anchored panel shows runtime availability, hand
