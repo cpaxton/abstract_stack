@@ -88,6 +88,12 @@ squash commit, dropping the old parent commits, then update its PR base and
 rerun required checks. Check that its diff contains only the remaining child
 changes. Review or stack maintenance alone does not authorize merging.
 
+Before rewriting a stack, preserve source revisions cited by experiment reports
+under a durable archive ref. The original reviewed stack is available on
+`archive/pre-squash-stack-20261117`, and the independent Mac setup history is on
+`archive/pre-squash-macos-20261117`. Historical commands still require their
+recorded source commit and settings; rebasing must not rewrite measured results.
+
 Potential Emet fixes belong in `home_robot_issues.md` first. Upstream drafts must
 use upstream-only reproductions without naming this repository or task.
 
