@@ -28,7 +28,8 @@ class OwnerMailbox:
         self.calibration_provider = calibration_provider
         self._lock = threading.Lock()
         self._input = None
-        self._urgent_disconnect = None
+        self._urgent_disconnects = set()
+        self._pending_connects = {}
         self._urgent_pause = False
         self._status = None
         self.replaced_inputs = 0
@@ -37,17 +38,25 @@ class OwnerMailbox:
         if method not in {"connect", "control", "host_pause", "host_reset"}:
             raise ValueError("unsupported owner request")
         future = Future()
-        try:
-            self.controls.put_nowait((method, copy.deepcopy(args), copy.deepcopy(kwargs), future))
-        except queue.Full:
-            with self._lock:
+        with self._lock:
+            try:
+                self.controls.put_nowait(
+                    (method, copy.deepcopy(args), copy.deepcopy(kwargs), future)
+                )
+            except queue.Full:
                 self._urgent_pause = True
-            future.set_exception(RuntimeError("control mailbox full; host pause requested"))
+                future.set_exception(RuntimeError("control mailbox full; host pause requested"))
+            else:
+                if method == "connect":
+                    self._pending_connects[future] = args[0]
         return future
 
     def disconnect(self, session_id):
         with self._lock:
-            self._urgent_disconnect = session_id
+            self._urgent_disconnects.add(session_id)
+            for future, pending_session in self._pending_connects.items():
+                if pending_session == session_id:
+                    future.cancel()
 
     def request_pause(self):
         with self._lock:
@@ -66,14 +75,14 @@ class OwnerMailbox:
     def drain(self, gate, *, now, max_controls=8):
         gate._owner()
         with self._lock:
-            observation, disconnect, pause = (
+            observation, disconnects, pause = (
                 self._input,
-                self._urgent_disconnect,
+                self._urgent_disconnects,
                 self._urgent_pause,
             )
-            self._input, self._urgent_disconnect, self._urgent_pause = None, None, False
-        if disconnect is not None:
-            gate.disconnect(disconnect, now=now)
+            self._input, self._urgent_disconnects, self._urgent_pause = None, set(), False
+        if gate.session_id in disconnects:
+            gate.disconnect(gate.session_id, now=now)
         if pause:
             gate.host_pause(now=now)
         if observation is not None:
@@ -83,9 +92,14 @@ class OwnerMailbox:
                 method, args, kwargs, future = self.controls.get_nowait()
             except queue.Empty:
                 break
-            if not future.set_running_or_notify_cancel():
+            with self._lock:
+                self._pending_connects.pop(future, None)
+                running = future.set_running_or_notify_cancel()
+            if not running:
                 continue
             try:
+                if method == "connect" and args[0] in disconnects:
+                    raise ValueError("session disconnected before owner accepted it")
                 kwargs["now"] = now
                 if (
                     method == "control"
