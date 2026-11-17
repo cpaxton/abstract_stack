@@ -7,8 +7,9 @@ from pathlib import Path
 
 from abstract_stack.evaluation import reported_manipulations
 
-# These ranges change compliance/feedback only. They never change the task,
-# IK acceptance, contact verification, displacement guards or force abort limit.
+# These ranges change compliance, timing and motion-reference staging only.
+# They never change the task, IK acceptance, contact verification, displacement
+# guards or force abort limit.
 CONTROL_BOUNDS = {
     "grasp_force_target": (3.0, 10.0),
     "push_force_target": (0.5, 5.0),
@@ -26,6 +27,10 @@ CONTROL_BOUNDS = {
     "fixture_unload_distance": (0.005, 0.025),
     "fixture_clearance": (0.002, 0.012),
     "release_lateral_limit": (0.01, 0.06),
+    "alignment_timeout_seconds": (6.0, 14.0),
+    "front_staging_depth": (0.01, 0.12),
+    "insertion_yaw_lever_gain": (0.05, 0.6),
+    "insertion_back_force_target": (0.3, 5.0),
 }
 
 

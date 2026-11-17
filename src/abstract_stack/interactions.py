@@ -68,6 +68,10 @@ class ScriptConfig:
     fixture_unload_distance: float = 0.025
     fixture_clearance: float = 0.004
     thumb_preshape: bool = True
+    alignment_timeout_seconds: float = 6.0
+    insertion_yaw_lever_gain: float = 0.12
+    insertion_back_force_target: float = 0.6
+    front_staging_depth: float = 0.07
 
     def __post_init__(self):
         values = asdict(self)
@@ -83,12 +87,15 @@ class ScriptConfig:
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
             raise ValueError("grip must be <= 1 and max_force must exceed contact_threshold")
+        if self.front_staging_depth > 0.12:
+            raise ValueError("Front staging depth must be within the bounded 0.12 m corridor")
         if (
             max(
                 self.grasp_force_target,
                 self.push_force_target,
                 self.approach_force_target,
                 self.fixture_force_target,
+                self.insertion_back_force_target,
             )
             >= self.max_force
         ):

@@ -177,7 +177,7 @@ class DenseStockingScript(StockingScript):
     def _front_center_x(self, extent):
         # Stage in the empty front portion of the deep shelf, before the
         # occupied row. Reduces unsupported lateral/yaw drift during the push.
-        return self.env.config.front_x - 0.07
+        return self.env.config.front_x - self.config.front_staging_depth
 
     def _change_hand(self, kind, **kwargs):
         previous = self.controller
@@ -290,7 +290,9 @@ class DenseStockingScript(StockingScript):
                     name: float(np.clip(value, *env.model.actuator(name).ctrlrange))
                     for name, value in opening.items()
                 }
-                if hand.check_hand_step(prediction, 0, product.name, targets=opening):
+                collisions = hand.check_hand_step(prediction, 0, product.name, targets=opening)
+                if collisions:
+                    self.events[-1]["finger_sweep_rejection"] = collisions
                     raise InteractionFailure("release_front: coupled stationary opening rejected")
                 action.update(opening)
             hand.last_target = target.copy()
@@ -318,7 +320,7 @@ class DenseStockingScript(StockingScript):
             return np.linalg.norm(error_now) < 0.0002 and abs(yaw_now) < np.radians(0.15)
 
         stable = 0.0
-        for _ in range(int(6.0 / env.dt)):
+        for _ in range(int(self.config.alignment_timeout_seconds / env.dt)):
             good = tick()
             stable = stable + env.dt if good else 0.0
             if stable >= 0.1:
@@ -455,7 +457,12 @@ class DenseStockingScript(StockingScript):
                     attempt = {**settings, "raise_first": raise_first}
                     attempts.append(attempt)
                     for point in waypoints:
-                        prediction = hand.predict(point, alternatives=False, carrying=False)
+                        prediction = hand.predict(
+                            point,
+                            alternatives=False,
+                            carrying=False,
+                            path_mode=getattr(self, "PUSHER_APPROACH_PATH_MODE", "joint"),
+                        )
                         if not prediction.feasible:
                             attempt.update(rejected="approach", prediction=prediction.report())
                             break
@@ -541,7 +548,12 @@ class DenseStockingScript(StockingScript):
             if rotation[2, 2] < np.cos(np.radians(15)):
                 raise InteractionFailure("finger_push: carton tilting; replan required")
             if self.last_forces["back"] >= config.contact_threshold:
-                scale = np.clip((0.6 - self.last_forces["back"]) / 0.6, -1, 1)
+                scale = np.clip(
+                    (config.insertion_back_force_target - self.last_forces["back"])
+                    / config.insertion_back_force_target,
+                    -1,
+                    1,
+                )
                 speed = 0.01
             else:
                 scale = np.clip(
@@ -558,7 +570,7 @@ class DenseStockingScript(StockingScript):
             # Torque depends on the contact lever relative to the MEASURED
             # carton center. A lever based only on the canonical slot changes
             # sign after lateral drift and can amplify yaw during a jam.
-            desired_y = body.xpos[1] - np.clip(0.12 * yaw, -0.014, 0.014)
+            desired_y = body.xpos[1] - np.clip(config.insertion_yaw_lever_gain * yaw, -0.014, 0.014)
             measured_y = contact[1] if contact is not None else hand.position()[1]
             force_y = self.last_forces.get("hand_force_world_N", [0, 0, 0])[1]
             lateral_speed = (

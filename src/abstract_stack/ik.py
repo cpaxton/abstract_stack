@@ -68,6 +68,7 @@ class IKPrediction:
     path_ik_error: dict | None = None
     posture_constraints: dict = field(default_factory=dict)
     baseline_qpos: np.ndarray | None = field(default=None, repr=False)
+    joint_path: np.ndarray | None = field(default=None, repr=False)
 
     @property
     def safe(self):
@@ -104,6 +105,9 @@ class IKPrediction:
             "sampled_path_collisions": self.path_collisions,
             "sampled_path_model": self.path_mode,
             "sampled_path_ik_error": self.path_ik_error,
+            "retained_cartesian_joint_waypoints": (
+                0 if self.joint_path is None else len(self.joint_path)
+            ),
             "endpoint_within_collision_tolerance": not self.collisions,
             "sampled_path_checked": self.path_checked,
             "safe_sampled_path": self.path_checked and self.safe,
@@ -502,6 +506,7 @@ class PoseIK:
                 angular_error = float(np.linalg.norm(rotation_error(actual_rotation, rotation)))
                 collisions = self.collision_errors(q, reference, baseline, object_id)
                 path_collisions, prefix, path_ik_error = [], None, None
+                retained_path = None
                 duration = float(1.875 * np.max(np.abs(q - start) / rates))
                 if check_path:
                     start_point, start_rotation = self.forward(start, reference)
@@ -560,6 +565,7 @@ class PoseIK:
                         duration = float(
                             1.875 * np.max(np.abs(np.diff(path, axis=0)).sum(axis=0) / rates)
                         )
+                        retained_path = np.asarray(path).copy()
                 limits = [
                     name
                     for name, value, lo, hi in zip(
@@ -606,6 +612,7 @@ class PoseIK:
                         self.names[i]: value for i, value in self.posture_constraints.items()
                     },
                     baseline_qpos=baseline_reference.copy(),
+                    joint_path=retained_path,
                 )
                 key = (position_error, angular_error)
                 if best_any is None or key < (
