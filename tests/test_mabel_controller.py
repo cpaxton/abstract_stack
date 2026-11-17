@@ -98,3 +98,19 @@ def test_invalid_tracking_configuration():
         TrackingConfig(lift_speed=0)
     with pytest.raises(ValueError):
         TrackingConfig(wrist_damping=-1)
+
+
+@pytest.mark.mabel
+def test_partial_update_validates_retained_nominal_instead_of_live_servo_target(clear_robot):
+    env = clear_robot
+    tracker = MabelController(env.model, env.data)
+    index = tracker.NAMES.index("Left Arm 1")
+    nominal = tracker.nominal[index]
+    # Synthetic controller-bound fixture: compensated live ctrl may differ
+    # from the retained nominal. Native model limits/gains remain untouched.
+    tracker.upper[index] = nominal + 0.01
+    env.data.ctrl[tracker.ids[index]] = nominal + 0.02
+    tracker.targets({"Right Arm 1": -0.08}, dt=env.dt)
+    assert tracker.nominal[index] == nominal
+    with pytest.raises(ValueError, match="joint bounds"):
+        tracker.targets({"Left Arm 1": nominal + 0.02}, dt=env.dt)

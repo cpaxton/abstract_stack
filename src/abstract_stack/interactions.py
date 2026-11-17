@@ -340,6 +340,8 @@ class CartesianHand:
             or not prediction.safe
             or prediction.baseline_qpos is None
             or not np.array_equal(prediction.baseline_qpos, self.data.qpos)
+            or prediction.carried_object is not None
+            or self.ik.carry is not None
             or prediction.preferred_orientation_error_rad
             > np.radians(
                 self.config.ik_orientation_span_deg + self.config.ik_orientation_tolerance_deg
@@ -374,6 +376,7 @@ class CartesianHand:
                     candidate="staging:" + prediction.candidate,
                     minimum_seconds=float(1.875 * np.max(np.abs(q - start) / rates)),
                     active_limits=[],
+                    path_mode="joint",
                 )
         if best is not None and self.ik.check_path(
             best.q,
