@@ -17,6 +17,9 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   and log why a tail was abandoned. Full-route tail admission remains below.
 - [ ] Expand from whole-object actions to pick, loaded transfer, insert, compact,
   unload, retreat and bounded recovery. Replan at primitive boundaries and jams.
+- [x] Add an opt-in supported partial-insertion boundary: unload, clear the hand,
+  replan native base position, then plan the remaining push from measured state.
+  Implementation and guard checks exist; physical completion remains unvalidated.
 - [x] Add opt-in scratch forecasts of the empty approach, nominal closed grasp
   and loaded corridor; recheck actual loaded segments before execution. Preserve
   sampled Cartesian joint waypoints when direct joint interpolation fails.
@@ -50,6 +53,13 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   retained separately from tracking results.
 - [ ] Use bounded wrench feedback through native position-servo reference offsets;
   retain gravity/load feedforward. Specify world/tool frames and wrench signs.
+- [x] Prototype measured wrist-load compensation for grasp/carry; reserve nominal
+  wrist and lift headroom without changing native ranges, gains or force limits.
+  Test native torque sign and applied geometry before actuation. Not promoted.
+- [x] Add geometry-derived elevated inventory transit and sampled rigid-payload
+  clearance checks. These nominal forecasts do not guarantee live clearance.
+- [x] Specify/test a narrow named-neighbor contact contract with coupled finger
+  checks and measured shelf support. Not integrated or physically validated.
 - [ ] Share normal-force, tangential/yaw compliance, anti-windup, reference bounds,
   force release and retreat between insertion and lateral compaction.
 - [ ] Detect jams by force plus lack of object progress; unload, back off and try
@@ -82,8 +92,11 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 ## 5. Acceptance and evidence
 
 - [ ] Close native process stability gate: primitive-only named-view accesses
-  reproduce an intermittent signal. Retained-view mitigation needs native replay
-  and full-suite validation; preserve all unknown outcomes.
+  reproduce an intermittent signal. Retained model/data wrappers passed one
+  227-test suite and exact replay, but a later frozen suite still segfaulted;
+  preserve every unknown outcome. The mitigation is not a sufficient fix.
+- [x] Freeze package, runner and control configs before each supervised probe;
+  record wall budgets and process failures. Invalid/missing outcomes earn zero.
 - [ ] Development curriculum: isolated side push; middle insertion plus side push;
   several consecutive stocks; then ten cartons with zero prefills.
 - [ ] Freeze source/config before ten-scene validation, separate from development.
@@ -101,4 +114,5 @@ Design and references: [receding-horizon plan](docs/receding_horizon_stocking.md
 Initial evidence: [planning probes](docs/reports/replanning_development.md) and
 [sideways contact probes](docs/reports/lateral_contact_development.md).
 Tracking diagnosis: [sent-reference error](docs/reports/mobile_contact_reference_diagnostic.md).
+Carry/insertion development: [payload and split insertion](docs/reports/payload_insertion_development.md).
 Base evidence: [native wheel actions](docs/reports/native_base_motion_development.md).

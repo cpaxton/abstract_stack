@@ -29,6 +29,17 @@ def main():
     parser.add_argument("--bounded-contact-ik", action="store_true")
     parser.add_argument("--square-backstop", action="store_true")
     parser.add_argument("--contact-recovery", action="store_true")
+    parser.add_argument("--payload-load-compensation", action="store_true")
+    parser.add_argument("--split-insertion", action="store_true")
+    parser.add_argument("--video", action="store_true", help="Record synchronized native views")
+    parser.add_argument("--video-fps", type=int, default=15)
+    parser.add_argument("--video-width", type=int, default=640)
+    parser.add_argument("--video-height", type=int, default=480)
+    parser.add_argument(
+        "--grasp-wrist-posture",
+        type=float,
+        help="Nominal grasp/carry wrist planning posture; preserves native limits",
+    )
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--admit-loaded-route", action="store_true")
     parser.add_argument(
@@ -65,6 +76,14 @@ def main():
             bounded_contact_ik=args.bounded_contact_ik,
             square_backstop=args.square_backstop,
             contact_recovery=args.contact_recovery,
+            grasp_wrist_posture=args.grasp_wrist_posture,
+            payload_load_compensation=args.payload_load_compensation,
+            split_insertion=args.split_insertion,
+            video_options=(
+                dict(fps=args.video_fps, width=args.video_width, height=args.video_height)
+                if args.video
+                else None
+            ),
         )
         if args.plan_only:
             # The regular episode runner owns settling and the StageObserver.

@@ -27,6 +27,54 @@ def observation(count=3):
     return RowObservation(cartons, tuple(c.name for c in cartons), (0.0, 0.0, 1.0))
 
 
+@pytest.mark.mabel
+def test_grasp_wrist_posture_is_reinstated_after_pushing_tool_change(tmp_path, monkeypatch):
+    import numpy as np
+
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.dense_interactions import FingerPusher
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.interactions import CartesianHand, InteractionFailure
+    from abstract_stack.mabel_controller import MabelController
+    from abstract_stack.packing import dense_shelf_config
+    from abstract_stack.receding_stocking import RecedingStockingScript
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0))
+    try:
+        script = RecedingStockingScript(env, tmp_path, grasp_wrist_posture=0.0)
+        script.tracker = MabelController(env.model, env.data)
+        before = env.data.qpos.copy(), env.data.ctrl.copy()
+        index = script.controller.ik.names.index("Left Wrist")
+        assert script.controller.ik.posture_constraints[index] == 0
+        script._change_hand(FingerPusher, wrist_posture=0.4)
+        assert script.controller.ik.posture_constraints[index] == 0.4
+        script._change_hand(CartesianHand)
+        assert script.controller.ik.posture_constraints[index] == 0
+        np.testing.assert_array_equal(env.data.qpos, before[0])
+        np.testing.assert_array_equal(env.data.ctrl, before[1])
+        # run() recreates the hand after bundle settling. Stop at its first
+        # planning boundary: no manipulation can conceal a dropped constraint.
+        monkeypatch.setattr("abstract_stack.bundle.build_scene_bundle", lambda *a, **k: None)
+        checked = []
+
+        def stop(pending):
+            checked.append(script.controller.ik.posture_constraints[index])
+            raise InteractionFailure("unit fixture stops before first motion")
+
+        monkeypatch.setattr(script, "_select_grasp", stop)
+        result = script.run()
+        assert checked == [0.0]
+        assert result["failure"] == "unit fixture stops before first motion"
+        np.testing.assert_array_equal(env.data.qpos, before[0])
+        np.testing.assert_array_equal(env.data.ctrl, before[1])
+    finally:
+        env.close()
+
+
 def test_reject_cheap_root_and_check_other_complete_order():
     state = observation()
     attempted = []

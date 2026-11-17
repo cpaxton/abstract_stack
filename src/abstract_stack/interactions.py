@@ -316,7 +316,7 @@ class CartesianHand:
         """Check three coupled arm/finger poses on scratch data, never live qpos."""
         start = self.ik.measured_q()
         reference = self.data.qpos.copy()
-        object_id = self.model.body(allowed_object).id
+        object_id = None if allowed_object is None else self.model.body(allowed_object).id
         baseline = self.ik._contacts(start, reference, object_id)
         for alpha in (0.0, 0.5, 1.0):
             fingers = reference.copy()
@@ -471,6 +471,7 @@ class CartesianHand:
             or prediction.sliding_object is not None
             or self.ik.carry is not None
             or self.ik.slide is not None
+            or prediction.reference_ranges != self.ik.reference_range_report()
             or prediction.preferred_orientation_error_rad
             > np.radians(
                 self.config.ik_orientation_span_deg + self.config.ik_orientation_tolerance_deg
@@ -554,7 +555,7 @@ class StockingScript:
         self.force_profile = force_profile
         self.directory, self.render = Path(directory), render
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.controller = CartesianHand(env, self.config)
+        self.controller = self._new_cartesian_hand()
         self.hand_bodies = _descendants(env.model, "left_palm")
         self.left_arm_bodies = _descendants(env.model, "l_shoulder_1")
         self.arm_bodies = self.left_arm_bodies | _descendants(env.model, "r_shoulder_1")
@@ -585,6 +586,19 @@ class StockingScript:
         self.observer = None
         self.fixture_unloading = False
         self.fixture_feedback = np.zeros(3)
+
+    def _new_cartesian_hand(self):
+        """Construct the empty hand again after settling, preserving subclass policy."""
+        return CartesianHand(self.env, self.config)
+
+    def _tracking_config(self):
+        return TrackingConfig(
+            gravity_compensation=self.config.gravity_compensation,
+            joint_speed=self.config.max_joint_speed,
+        )
+
+    def _check_tracked_targets(self, targets):
+        """Optional final coupled geometry guard, before native actuation."""
 
     def _sample(self, env):
         if self.observer is not None:
@@ -773,8 +787,12 @@ class StockingScript:
                 lo, hi = self.env.model.actuator(name).ctrlrange
                 action[name] = float(lo + self.active_grip * (hi - lo))
         self.fixture_feedback = np.zeros(3)
+        targets = self.tracker.targets(
+            action, dt=self.env.dt, load_feedforward=self._load_feedforward()
+        )
+        self._check_tracked_targets(targets)
         _, _, terminated, truncated, _ = self.env.step(
-            self.tracker.targets(action, dt=self.env.dt, load_feedforward=self._load_feedforward()),
+            targets,
             on_physics_step=self._sample,
         )
         if truncated:
@@ -1375,14 +1393,11 @@ class StockingScript:
             if p.initially_stocked and self.env._stocked[i]
         )
         # The bundle settles the world; initialize IK targets from that measured state.
-        self.controller = CartesianHand(self.env, self.config)
+        self.controller = self._new_cartesian_hand()
         self.tracker = MabelController(
             self.env.model,
             self.env.data,
-            TrackingConfig(
-                gravity_compensation=self.config.gravity_compensation,
-                joint_speed=self.config.max_joint_speed,
-            ),
+            self._tracking_config(),
         )
         self.base_start = self.env.data.body("mabel_chassis").xpos.copy()
         if self.config.head_tracking:
