@@ -73,6 +73,12 @@ project names, task descriptions, repository links, or private context.
   Preserve `outputs/pr-publication-squaring-v1/` separately from the earlier
   successful 300-test publication and any allocator diagnostic. This need not
   share a cause with the previously observed signals. Nothing was filed upstream.
+- **Debug allocator follow-up:** the full required hook at `d886e1a`, with
+  `PYTHONMALLOC=debug`, also aborted with signal 6 during fresh model compilation,
+  this time in a released-contact fixture. It produced no terminal test XML;
+  Git exited 1 and no publication occurred. Preserve
+  `outputs/pr-publication-squaring-v2-debug/` with the original failure. Changing
+  the allocator did not establish a workaround or isolate the native cause.
 
 - **Status:** at least two SIGSEGVs observed 2026-11-16: an isolated headless
   process during concurrent simulation runs, and a later serial pre-push test
