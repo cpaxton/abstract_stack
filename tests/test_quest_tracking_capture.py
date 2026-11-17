@@ -86,6 +86,173 @@ def write_capture(tmp_path, records):
     return path
 
 
+def add_skeleton(records, side="left_hand"):
+    """Complete named SDK profile with synthetic identity binds/chain topology."""
+    profile, names = summary.SKELETON_PROFILES[side]
+    skeleton = {
+        "format": summary.FORMAT,
+        "type": "skeleton",
+        "session_id": "synthetic",
+        "capture_monotonic_s": 0.5,
+        "side": side,
+        "profile": profile,
+        "bones": [
+            {
+                "id": index,
+                "name": name,
+                "parent_index": index - 1,
+                "bind_pose": {
+                    "position_m": [0, 0, 0],
+                    "quaternion_xyzw": [0, 0, 0, 1],
+                },
+            }
+            for index, name in enumerate(names)
+        ],
+    }
+    records.insert(1, skeleton)
+    return skeleton
+
+
+def test_missing_metadata_is_explicitly_unverified(tmp_path):
+    result = summary.summarize(write_capture(tmp_path, capture_records()))
+    for side in ("left_hand", "right_hand", "body"):
+        assert result["skeleton_metadata_validation"][side] == {
+            "status": "missing",
+            "profile": None,
+            "bone_count": 0,
+            "records_verified": 0,
+        }
+
+
+def test_complete_profiles_are_verified_independently(tmp_path):
+    records = capture_records()
+    for side in ("left_hand", "right_hand", "body"):
+        add_skeleton(records, side)
+    result = summary.summarize(write_capture(tmp_path, records))
+    assert result["skeleton_metadata_bone_counts"] == {
+        "left_hand": 24,
+        "right_hand": 24,
+        "body": 70,
+    }
+    for side, expected_profile in (
+        ("left_hand", "HandLeft"),
+        ("right_hand", "HandRight"),
+        ("body", "Body"),
+    ):
+        validation = result["skeleton_metadata_validation"][side]
+        assert validation["status"] == "verified"
+        assert validation["profile"] == expected_profile
+        assert validation["records_verified"] == 1
+
+
+@pytest.mark.parametrize("side", ["left_hand", "right_hand", "body"])
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "profile",
+        "side",
+        "incomplete",
+        "duplicate_id",
+        "name",
+        "order",
+        "root_out_of_range",
+        "root_self_cycle",
+        "unsigned_root_sentinel",
+        "negative_root_sentinel",
+        "extra_root",
+        "parent_out_of_range",
+        "parent_type",
+        "fractional_parent",
+        "missing_parent",
+        "self_cycle",
+        "disconnected_cycle",
+        "zero_bind",
+        "nonunit_bind",
+        "extreme_bind",
+        "nonfinite_bind",
+        "missing_bind",
+    ],
+)
+def test_invalid_bind_metadata_is_rejected(tmp_path, side, corruption):
+    records = capture_records()
+    skeleton = add_skeleton(records, side)
+    bones = skeleton["bones"]
+    if corruption == "profile":
+        skeleton["profile"] = "XRHandLeft"
+    elif corruption == "side":
+        skeleton["side"] = "unsupported"
+    elif corruption == "incomplete":
+        bones.pop()
+    elif corruption == "duplicate_id":
+        bones[1]["id"] = bones[0]["id"]
+    elif corruption == "name":
+        bones[1]["name"] = "wrong_sdk_bone"
+    elif corruption == "order":
+        bones[1], bones[2] = bones[2], bones[1]
+    elif corruption == "root_out_of_range":
+        bones[0]["parent_index"] = 999
+    elif corruption == "root_self_cycle":
+        bones[0]["parent_index"] = 0
+    elif corruption == "unsigned_root_sentinel":
+        bones[0]["parent_index"] = 65535
+    elif corruption == "negative_root_sentinel":
+        bones[0]["parent_index"] = -2
+    elif corruption == "extra_root":
+        bones[1]["parent_index"] = -1
+    elif corruption == "parent_out_of_range":
+        bones[1]["parent_index"] = len(bones)
+    elif corruption == "parent_type":
+        bones[1]["parent_index"] = True
+    elif corruption == "fractional_parent":
+        bones[1]["parent_index"] = 0.5
+    elif corruption == "missing_parent":
+        del bones[1]["parent_index"]
+    elif corruption == "self_cycle":
+        bones[1]["parent_index"] = 1
+    elif corruption == "disconnected_cycle":
+        bones[1]["parent_index"], bones[2]["parent_index"] = 2, 1
+    elif corruption == "zero_bind":
+        bones[1]["bind_pose"]["quaternion_xyzw"] = [0, 0, 0, 0]
+    elif corruption == "nonunit_bind":
+        bones[1]["bind_pose"]["quaternion_xyzw"] = [0, 0, 0, 2]
+    elif corruption == "extreme_bind":
+        bones[1]["bind_pose"]["quaternion_xyzw"] = [10**200, 0, 0, 0]
+    elif corruption == "nonfinite_bind":
+        bones[1]["bind_pose"]["position_m"] = [0, float("nan"), 0]
+    elif corruption == "missing_bind":
+        del bones[1]["bind_pose"]
+    with pytest.raises(ValueError):
+        summary.summarize(write_capture(tmp_path, records))
+
+
+def test_forward_parent_references_and_quaternion_double_cover_are_valid(tmp_path):
+    records = capture_records()
+    skeleton = add_skeleton(records)
+    skeleton["bones"][1]["parent_index"] = 2
+    skeleton["bones"][2]["parent_index"] = 0
+    skeleton["bones"][2]["bind_pose"]["quaternion_xyzw"] = [0, 0, 0, -1]
+    result = summary.summarize(write_capture(tmp_path, records))
+    assert result["skeleton_metadata_validation"]["left_hand"]["status"] == "verified"
+
+
+def test_later_skeleton_revision_cannot_bypass_validation(tmp_path):
+    records = capture_records()
+    initial = add_skeleton(records, "body")
+    changed = copy.deepcopy(initial)
+    changed["capture_monotonic_s"] = 6
+    changed["bones"][1]["parent_index"] = 999
+    records.append(changed)
+    with pytest.raises(ValueError, match="parent index"):
+        summary.summarize(write_capture(tmp_path, records))
+
+
+def test_swapped_hand_bind_profile_is_rejected(tmp_path):
+    records = capture_records()
+    add_skeleton(records)["profile"] = "HandRight"
+    with pytest.raises(ValueError, match="profile"):
+        summary.summarize(write_capture(tmp_path, records))
+
+
 def test_sample_dedup_ignores_repeats_regressions_and_untrusted_fresh_labels(tmp_path):
     result = summary.summarize(write_capture(tmp_path, capture_records()))
     assert result["counts"]["sample"] == 5
@@ -183,6 +350,7 @@ def test_terminal_event_retains_late_drop_count_and_failure_reason(tmp_path):
 
 def test_runtime_profile_cannot_silently_change_bone_transform_semantics(tmp_path):
     records = capture_records()
+    add_skeleton(records)
     records[-1]["left_hand"]["skeleton_profile"] = "openxr_hand_26"
     with pytest.raises(ValueError, match="unsupported hand profile"):
         summary.summarize(write_capture(tmp_path, records))
@@ -190,25 +358,7 @@ def test_runtime_profile_cannot_silently_change_bone_transform_semantics(tmp_pat
 
 def test_bone_names_must_match_recorded_bind_hierarchy(tmp_path):
     records = capture_records()
-    records.insert(
-        1,
-        {
-            "format": summary.FORMAT,
-            "type": "skeleton",
-            "session_id": "synthetic",
-            "capture_monotonic_s": 0.5,
-            "side": "left_hand",
-            "profile": "HandLeft",
-            "bones": [
-                {
-                    "id": 0,
-                    "name": "Hand_WristRoot",
-                    "parent_index": -1,
-                    "bind_pose": records[1]["head"]["pose"],
-                }
-            ],
-        },
-    )
+    add_skeleton(records)
     records[-1]["left_hand"]["bones"][0]["name"] = "XRHand_Palm"
     with pytest.raises(ValueError, match="does not match skeleton metadata"):
         summary.summarize(write_capture(tmp_path, records))
