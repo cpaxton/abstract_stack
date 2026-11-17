@@ -148,6 +148,13 @@ public sealed class RawTrackingRecorder : MonoBehaviour
     void LateUpdate()
     {
         if (session == null || stopping) return;
+        if (OVRPlugin.HandSkeletonVersion != OVRHandSkeletonVersion.OVR)
+        {
+            Debug.LogError("[RawTracking] Unsupported hand profile; bind metadata would not match observations");
+            StopRecording("unsupported_hand_profile_" + OVRPlugin.HandSkeletonVersion);
+            enabled = false;
+            return;
+        }
         if (Time.realtimeSinceStartupAsDouble - startedAt >= CaptureSeconds) { StopRecording("duration_limit"); return; }
         if (Time.realtimeSinceStartupAsDouble >= nextMarkerCheck)
         {

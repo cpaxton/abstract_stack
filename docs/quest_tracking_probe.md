@@ -106,7 +106,10 @@ and `position_m` (empty when the legacy API does not return positions).
 `per_joint_validity` and `per_joint_tracking` are explicitly `unavailable`: the
 hand-level tracked bit does not establish that every finger joint was measured.
 
-The pinned project requests **legacy OVR hands (24 bones)**. Their rotations use
+The builder explicitly pins **legacy OVR hands (24 bones)**; SDK 209's default
+is OpenXR26, so leaving that setting implicit is incorrect. Both the build and
+recorder reject an unexpected hand profile. The strict host analyzer also rejects
+unknown profiles and ID/name mismatches against bind metadata. OVR24 rotations use
 the SDK's **parent-local hand bone basis**, not the tracking-space basis. Bind
 poses and hierarchy are raw, and hand scale is separate. Reconstructing tracking
 poses requires the SDK's hand-specific flip-X/wrist correction and forward

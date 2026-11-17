@@ -29,6 +29,7 @@ def capture_records():
     }
     p = {"position_m": [0.0, 1.0, 0.0], "quaternion_xyzw": [0, 0, 0, 1]}
     hand = {
+        "skeleton_profile": "ovr_hand_24",
         "api_success": True,
         "tracked": True,
         "confidence": "High",
@@ -178,6 +179,39 @@ def test_terminal_event_retains_late_drop_count_and_failure_reason(tmp_path):
     result = summary.summarize(write_capture(tmp_path, records))
     assert result["max_reported_dropped_records"] == 7
     assert result["terminal_detail"] == "writer_failure; dropped_records=7"
+
+
+def test_runtime_profile_cannot_silently_change_bone_transform_semantics(tmp_path):
+    records = capture_records()
+    records[-1]["left_hand"]["skeleton_profile"] = "openxr_hand_26"
+    with pytest.raises(ValueError, match="unsupported hand profile"):
+        summary.summarize(write_capture(tmp_path, records))
+
+
+def test_bone_names_must_match_recorded_bind_hierarchy(tmp_path):
+    records = capture_records()
+    records.insert(
+        1,
+        {
+            "format": summary.FORMAT,
+            "type": "skeleton",
+            "session_id": "synthetic",
+            "capture_monotonic_s": 0.5,
+            "side": "left_hand",
+            "profile": "HandLeft",
+            "bones": [
+                {
+                    "id": 0,
+                    "name": "Hand_WristRoot",
+                    "parent_index": -1,
+                    "bind_pose": records[1]["head"]["pose"],
+                }
+            ],
+        },
+    )
+    records[-1]["left_hand"]["bones"][0]["name"] = "XRHand_Palm"
+    with pytest.raises(ValueError, match="does not match skeleton metadata"):
+        summary.summarize(write_capture(tmp_path, records))
 
 
 @pytest.mark.parametrize("corruption", ["session", "sequence", "missing", "nan", "quaternion"])

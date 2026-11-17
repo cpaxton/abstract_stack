@@ -42,8 +42,8 @@ public static class ProbeBuilder
         PlayerSettings.colorSpace = ColorSpace.Linear;
         PlayerSettings.runInBackground = true;
         PlayerSettings.Android.forceInternetPermission = false;
-        PlayerSettings.bundleVersion = "0.3.1";
-        PlayerSettings.Android.bundleVersionCode = 4;
+        PlayerSettings.bundleVersion = "0.3.2";
+        PlayerSettings.Android.bundleVersionCode = 5;
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
         var input = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
         var activeInput = input.FindProperty("activeInputHandler");
@@ -78,6 +78,9 @@ public static class ProbeBuilder
         config.bodyTrackingSupport = OVRProjectConfig.FeatureSupport.Supported;
         OVRProjectConfig.CommitProjectConfig(config);
         var runtime = OVRRuntimeSettings.GetRuntimeSettings();
+        // SDK 209 defaults newly serialized settings to OpenXR26. This probe's
+        // declared raw bind hierarchy and T01 profile deliberately use OVR24.
+        runtime.HandSkeletonVersion = OVRHandSkeletonVersion.OVR;
         runtime.BodyTrackingJointSet = OVRPlugin.BodyJointSet.UpperBody;
         runtime.BodyTrackingFidelity = OVRPlugin.BodyTrackingFidelity2.High;
         OVRRuntimeSettings.CommitRuntimeSettings(runtime);
@@ -150,6 +153,8 @@ public static class ProbeBuilder
         EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
         if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
             throw new Exception("Select Android first with ProbeBuilder.SelectAndroidTarget, then rebuild after import");
+        if (OVRRuntimeSettings.GetRuntimeSettings().HandSkeletonVersion != OVRHandSkeletonVersion.OVR)
+            throw new Exception("This probe requires the declared OVR24 hand profile; run Configure first");
         var general = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android);
         var xr = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
         if (general?.Manager == null || !general.Manager.activeLoaders.Any(l => l is OpenXRLoader) ||

@@ -44,8 +44,20 @@ case "${1:-}" in
       start) "$adb_bin" -s "$device_serial" shell am start -n "$package_id/$activity" ;;
       pull)
         output_dir="${3:-$repo_root/outputs/quest-tracking}"
-        mkdir -p "$output_dir"
-        "$adb_bin" -s "$device_serial" pull "$destination" "$output_dir/"
+        mkdir -p "$output_dir/files"
+        listing_path="$(mktemp)"
+        trap 'rm -f "$listing_path"' EXIT
+        "$adb_bin" -s "$device_serial" shell ls "$destination" > "$listing_path"
+        # marker.txt is consumed by the app and can vanish during a directory
+        # pull. Copy only persistent capture files, not markers or IL2CPP data.
+        while IFS= read -r capture_name; do
+          capture_name="${capture_name%$'\r'}"
+          case "$capture_name" in
+            raw-*.jsonl|tracking-probe.jsonl)
+              "$adb_bin" -s "$device_serial" pull "$destination/$capture_name" "$output_dir/files/"
+              ;;
+          esac
+        done < "$listing_path"
         ;;
       marker)
         label="${3:?Pass a short phase label}"

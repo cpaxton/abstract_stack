@@ -212,6 +212,8 @@ def summarize(path: Path):
                 measure("head", head["pose"], hv, ho)
                 for side in ("left_hand", "right_hand"):
                     hand = record[side]
+                    if hand["skeleton_profile"] != "ovr_hand_24":
+                        raise ValueError("unsupported hand profile; expected declared OVR24")
                     usable = boolean(hand["api_success"]) and boolean(hand["tracked"])
                     qualities[side][hand["confidence"]] += 1
                     counts[side + "_tracked_observations"] += usable
