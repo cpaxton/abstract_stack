@@ -788,5 +788,27 @@
     "task_success": false
   },
   "fresh_task_credit": 0,
-  "task_success": false
+  "task_success": false,
+  "publication_check": {
+    "source_revision": "2660b35",
+    "passed_before_abort": 59,
+    "process": {
+      "returncode": 1,
+      "timeout": false,
+      "wall_seconds": 15.108057198001916,
+      "wall_budget_seconds": 300,
+      "command": [
+        "git",
+        "push",
+        "--atomic",
+        "origin",
+        "087b8ae:refs/heads/feat/sustained-contact",
+        "HEAD:refs/heads/feat/sim-checkpoints"
+      ]
+    },
+    "native_signal": 11,
+    "native_python_frame": "MjModel.from_xml_string in existing released-contact fixture",
+    "terminal_test_xml": false,
+    "published": false
+  }
 }

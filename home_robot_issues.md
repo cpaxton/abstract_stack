@@ -73,6 +73,12 @@ project names, task descriptions, repository links, or private context.
   do not replace these unknown outcomes or identify their cause. MJB avoids XML
   recompilation on restore; it is not a fix for native import/process stability.
   Nothing has been filed or sent upstream.
+- **Checkpoint publication check:** at `2660b35`, the complete required hook
+  passed 59 tests before a signal 11 in `MjModel.from_xml_string` during an
+  existing released-contact fixture construction. Retain
+  `outputs/pr-publication-checkpoints-v1/`; Git exited 1 and neither branch was
+  published. No terminal test XML exists. Passing replay witnesses and focused
+  tests do not replace this separate unknown full-suite outcome.
 
 - **Additional construction abort, 2026-11-17:** a required publication hook at
   `3a0dcab` collected 310 tests, passed seven and aborted with signal 6 while
