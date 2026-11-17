@@ -4,7 +4,9 @@ New development: [CPU/GPU rollout evaluation](backend_evaluation.md),
 [measured throughput report](reports/rollout_backend_development.md), and
 [stationary bimanual/shared-lift control](whole_body_control.md). These prototypes
 do not establish full-shelf success or close the native process-stability gate.
-The [LfD pipeline](learning_from_demonstration.md) and
+The [compliant lookahead study](reports/compliant_lookahead_development.md)
+retains failed proposals and native checkpoint continuations, including measured
+backstop contact. The [LfD pipeline](learning_from_demonstration.md) and
 [simulated sensors](sim_sensors.md) document causal collection, local LeRobot
 roundtrip evidence and the remaining student/camera integration work.
 
