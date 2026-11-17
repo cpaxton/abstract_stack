@@ -51,6 +51,7 @@ class IKPrediction:
     position_tolerance_m: float = 0.015
     angle_tolerance_degrees: float = 12.0
     allowed_contact_object: str | None = None
+    baseline_qpos: np.ndarray | None = field(default=None, repr=False)
 
     @property
     def safe(self):
@@ -202,11 +203,24 @@ class PoseIK:
             < min(-0.002, baseline.get(pair, {"distance_m": 0.0})["distance_m"] - 0.001)
         ]
 
-    def check_path(self, q, reference, max_joint_speed, allowed_object=None):
-        """Recheck a selected joint segment, including its exact endpoint."""
-        start = self.measured_q()
+    def check_path(
+        self, q, reference, max_joint_speed, allowed_object=None, *, baseline_reference=None
+    ):
+        """Recheck a joint segment from its measured-state baseline snapshot.
+
+        ``reference`` includes the proposed finger posture; existing-contact
+        allowances come from ``baseline_reference`` (live state by default).
+        Callers must reject stale predictions before executing the segment.
+        """
+        baseline_reference = (
+            self.data.qpos.copy() if baseline_reference is None else baseline_reference
+        )
+        start = np.r_[
+            baseline_reference[self.qadr],
+            sum(baseline_reference[j.qposadr[0]] for j in self.lifts),
+        ]
         object_id = self.model.body(allowed_object).id if allowed_object else None
-        baseline = self._contacts(start, self.data.qpos.copy(), object_id)
+        baseline = self._contacts(start, baseline_reference, object_id)
         rates = np.r_[np.full(len(self.joints), max_joint_speed), 0.08]
         samples = max(8, int(np.ceil(np.max(np.abs(q - start) / rates) / 0.08)))
         for t in np.linspace(0, 1, samples):
@@ -345,6 +359,7 @@ class PoseIK:
                     position_tolerance_m=position_tolerance,
                     angle_tolerance_degrees=angle_tolerance_degrees,
                     allowed_contact_object=allowed_object,
+                    baseline_qpos=baseline_reference.copy(),
                 )
                 key = (position_error, angular_error)
                 if best_any is None or key < (

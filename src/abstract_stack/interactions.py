@@ -273,6 +273,8 @@ class CartesianHand:
         if (
             not prediction.path_checked
             or not prediction.safe
+            or prediction.baseline_qpos is None
+            or not np.array_equal(prediction.baseline_qpos, self.data.qpos)
             or prediction.preferred_orientation_error_rad
             > np.radians(
                 self.config.ik_orientation_span_deg + self.config.ik_orientation_tolerance_deg
@@ -309,7 +311,11 @@ class CartesianHand:
                     active_limits=[],
                 )
         if best is not None and self.ik.check_path(
-            best.q, best.reference_qpos, self.config.max_joint_speed
+            best.q,
+            best.reference_qpos,
+            self.config.max_joint_speed,
+            allowed_object=best.allowed_contact_object,
+            baseline_reference=best.baseline_qpos,
         ):
             return None
         return best
