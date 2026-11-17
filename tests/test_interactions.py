@@ -9,6 +9,7 @@ import pytest
 from abstract_stack.assets import mabel_model_path
 from abstract_stack.config import load_scene_config
 from abstract_stack.env import ShelfStockingEnv
+from abstract_stack.ik import rotation_error
 from abstract_stack.interactions import (
     CartesianHand,
     InteractionFailure,
@@ -89,6 +90,161 @@ def test_script_writes_honest_physics_evidence(robot, tmp_path):
     assert np.isfinite(trace["samples"]).all()
     assert (np.diff(trace["samples"][:, 0]) > 0).all()
     assert robot.info()["intervention_count"] == 0
+    assert not result["physical_success"]
+    assert result["events"][0]["phase"] == "grasp_precheck"
+    assert result["events"][0]["decision"] == "reject_grasp_candidate"
+    assert not any(e["phase"] == "close" for e in result["events"])
+    assert not result["metrics"]["tipped"]
+    assert not result["metrics"]["dropped"]
+    stage = result["events"][-1]
+    assert stage["decision"] == "bounded_staging_then_replan"
+    assert "replan required" in result["failure"]
+    assert stage["prediction_execution_gap_m"] < 0.035
+    assert stage["requested_position_error_m"] > 0.1
+    assert not stage["staging_prediction"]["allowed_target_hand_contact"]
+    assert result["last_ik_prediction"] == stage["staging_prediction"]
+    components = stage["execution_diagnostics"]
+    displacement = sum(np.array(v) for k, v in components.items() if k.endswith("xyz_m"))
+    np.testing.assert_allclose(
+        displacement,
+        np.array(stage["measured_position"])
+        - np.array(stage["staging_prediction"]["predicted_position"]),
+        atol=1e-12,
+    )
+
+
+@pytest.mark.mabel
+def test_prediction_matches_forward_kinematics_without_changing_live_state(robot):
+    controller = CartesianHand(robot, ScriptConfig())
+    state = (
+        robot.data.qpos.copy(),
+        robot.data.qvel.copy(),
+        robot.data.ctrl.copy(),
+        robot.data.time,
+    )
+    point, rotation = controller.ik.forward(controller.ik.measured_q())
+    prediction = controller.ik.predict(point, rotation, controller.command)
+    assert prediction.feasible
+    assert prediction.path_checked and prediction.safe
+    predicted_point, predicted_rotation = controller.ik.forward(
+        prediction.q, prediction.reference_qpos
+    )
+    assert prediction.position_error_m == pytest.approx(np.linalg.norm(predicted_point - point))
+    assert prediction.orientation_error_rad == pytest.approx(
+        np.linalg.norm(rotation_error(predicted_rotation, prediction.requested_rotation))
+    )
+    for actual, previous in zip(
+        (robot.data.qpos, robot.data.qvel, robot.data.ctrl, robot.data.time), state, strict=True
+    ):
+        np.testing.assert_array_equal(actual, previous)
+
+
+@pytest.mark.mabel
+def test_orientation_candidates_can_resolve_a_rejected_fixed_pose(robot):
+    controller = CartesianHand(robot, ScriptConfig())
+    point, rotation = controller.ik.forward(controller.ik.measured_q())
+    preferred = dict(controller.ik.orientations(rotation, 40))["axis1:40deg"]
+    fixed = controller.ik.predict(
+        point, preferred, controller.command, alternatives=False, check_path=False
+    )
+    relaxed = controller.ik.predict(point, preferred, controller.command, check_path=False)
+    assert not fixed.feasible
+    assert relaxed.feasible
+    assert relaxed.position_error_m < fixed.position_error_m
+    assert relaxed.preferred_orientation_error_rad <= np.radians(52)
+    assert not relaxed.path_checked
+    assert not relaxed.report()["safe_sampled_path"]
+
+
+@pytest.mark.mabel
+def test_unreachable_target_reports_remaining_error_and_bounds(robot):
+    controller = CartesianHand(robot, ScriptConfig())
+    command = controller.command.copy()
+    prediction = controller.predict([5, -5, 5])
+    assert not prediction.feasible
+    assert prediction.position_error_m > 5
+    assert (prediction.q >= controller.lower).all()
+    assert (prediction.q <= controller.upper).all()
+    report = prediction.report()
+    assert report["status"] == "no_acceptable_solution_found"
+    assert "position_tolerance" in report["rejection_reasons"]
+    assert np.linalg.norm(report["predicted_position_error_xyz_m"]) == pytest.approx(
+        report["predicted_position_error_m"]
+    )
+    np.testing.assert_array_equal(controller.command, command)
+    with pytest.raises(InteractionFailure, match="before actuation"):
+        controller.targets([5, -5, 5], 0.8)
+    np.testing.assert_array_equal(controller.command, command)
+
+
+@pytest.mark.mabel
+def test_staging_recheck_keeps_contact_context_and_rejects_stale_state(robot, monkeypatch):
+    controller = CartesianHand(robot, ScriptConfig())
+    target = robot.data.body("carton_0").xpos.copy()
+    prediction = controller.predict(target)
+    # Contract fixture: preserve this selected contact permission through the
+    # recheck. No actuator command or successful physical stage is implied.
+    prediction.allowed_contact_object = "carton_0"
+    calls = []
+
+    def check_path(q, reference, max_speed, **kwargs):
+        calls.append(kwargs)
+        return []
+
+    monkeypatch.setattr(controller.ik, "check_path", check_path)
+    stage = controller.staging_pose(prediction)
+    assert stage is not None
+    assert calls[0]["allowed_object"] == "carton_0"
+    np.testing.assert_array_equal(calls[0]["baseline_reference"], prediction.baseline_qpos)
+    # A new fixture state invalidates the old prediction before any actuation.
+    adr = int(robot.model.joint("carton_0_joint").qposadr[0])
+    robot.data.qpos[adr] += 0.001
+    mujoco.mj_forward(robot.model, robot.data)
+    assert controller.staging_pose(prediction) is None
+    assert len(calls) == 1
+
+
+@pytest.mark.mabel
+def test_collision_rejection_and_bounded_staging(robot):
+    controller = CartesianHand(robot, ScriptConfig())
+    target = robot.data.body("carton_0").xpos.copy()
+    prediction = controller.predict(target)
+    assert not prediction.feasible
+    assert prediction.blocked_by or prediction.collisions or prediction.path_collisions
+    stage = controller.staging_pose(prediction)
+    assert stage is not None and not stage.feasible
+    start, _ = controller.ik.forward(controller.ik.measured_q(), stage.reference_qpos)
+    assert 0.005 < np.linalg.norm(stage.position - start) <= 0.10
+    assert stage.position_error_m < np.linalg.norm(start - target)
+    assert stage.position_error_m == pytest.approx(np.linalg.norm(stage.position - target))
+    assert not controller.ik.check_path(stage.q, stage.reference_qpos, 1.0)
+    assert controller.staging_pose(controller.predict(target, check_path=False)) is None
+
+
+@pytest.mark.mabel
+def test_hold_mode_rejects_before_commanding_motion(robot, tmp_path):
+    script = StockingScript(robot, tmp_path, ScriptConfig(best_effort_staging=False))
+    result = script.run()
+    assert not result["physical_success"]
+    assert result["events"][-1]["decision"] == "hold_for_replan"
+    assert len(script.rows) == 0
+    assert robot.data.time == pytest.approx(1.0)
+    assert "replan required" in result["failure"]
+
+
+@pytest.mark.mabel
+@pytest.mark.parametrize("target,rotation", [([np.nan, 0, 0], np.eye(3)), ([0, 0, 1], -np.eye(3))])
+def test_invalid_pose_rejected(robot, target, rotation):
+    controller = CartesianHand(robot, ScriptConfig())
+    before = robot.data.qpos.copy()
+    with pytest.raises(ValueError):
+        controller.ik.predict(target, rotation, controller.command)
+    np.testing.assert_array_equal(robot.data.qpos, before)
+
+
+def test_rotation_error_handles_half_turn():
+    error = rotation_error(np.eye(3), np.diag([1.0, -1.0, -1.0]))
+    assert np.linalg.norm(error) == pytest.approx(np.pi)
 
 
 @pytest.mark.parametrize("values", [{"grip": 2}, {"max_force": 0}, {"lift_height": -0.1}])

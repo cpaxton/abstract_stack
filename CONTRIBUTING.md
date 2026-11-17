@@ -50,6 +50,12 @@ uses the active checkout's environment without synchronizing it again.
 - For manipulation, measure palm/object tracking, hand contact forces, actual
   object lift, support/release, and final contact. A closing hand command is not
   a verified grasp. Log aborted phases and timeouts as failures.
+- Before commanding a waypoint, predict its position/orientation residuals and
+  check sampled paths against scene and robot geometry. Keep position error in
+  metres, orientation error in degrees, and physical execution error separate.
+  Report joint-limit and collision rejection reasons. Bounded alternative poses
+  and closest-pose staging must not silently relax grasp acceptance. Retain the
+  original target, remaining error and explicit replan/abort decision.
 - Seed resets; record actual dependency/model revisions. Save traces and summaries
   under `outputs/`, with commands that reproduce the result. Document failed or
   partial runs as carefully as successful ones.
@@ -62,6 +68,12 @@ preview for scene changes and numeric/trace evidence for control changes. Use a
 draft PR for a control prototype that has not demonstrated the full task. Keep
 generated downloads, full videos, credentials and machine-specific configuration
 out of commits. Do not merge until reviewed.
+
+Use **squash merge** when a PR is approved and merging is authorized. For a PR
+stack, merge parents first. Rebase each dependent branch onto the parent's new
+squash commit, dropping the old parent commits, then update its PR base and
+rerun required checks. Check that its diff contains only the remaining child
+changes. Review or stack maintenance alone does not authorize merging.
 
 Potential Emet fixes belong in `home_robot_issues.md` first. Upstream drafts must
 use upstream-only reproductions without naming this repository or task.

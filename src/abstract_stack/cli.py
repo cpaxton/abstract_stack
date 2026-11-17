@@ -54,6 +54,17 @@ def _parser():
             sub.add_argument(
                 "--grip", type=float, default=0.8, help="Finger closure fraction (0, 1]"
             )
+            sub.add_argument(
+                "--no-best-effort",
+                action="store_true",
+                help="Hold instead of taking a bounded safe staging step",
+            )
+            sub.add_argument(
+                "--ik-orientation-span",
+                type=float,
+                default=40.0,
+                help="Maximum sampled orientation offset from the preferred pose (deg)",
+            )
         if command in ("sim", "serve"):
             sub.add_argument("--headless", action="store_true")
             sub.add_argument(
@@ -170,7 +181,12 @@ def main(argv=None):
                 result = StockingScript(
                     env,
                     args.output_dir,
-                    ScriptConfig(max_force=args.max_force, grip=args.grip),
+                    ScriptConfig(
+                        max_force=args.max_force,
+                        grip=args.grip,
+                        best_effort_staging=not args.no_best_effort,
+                        ik_orientation_span_deg=args.ik_orientation_span,
+                    ),
                     render=args.render,
                 ).run()
                 print(json.dumps(result, indent=2))
