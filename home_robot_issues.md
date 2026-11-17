@@ -93,3 +93,10 @@ project names, task descriptions, repository links, or private context.
   broadens the observed locations; it does not establish the cause. Focused
   controller/planning tests passed separately. A successful diagnostic rerun
   must not replace this failure.
+- **Ordered-restack observation (2026-11-17):** a pre-push physics invocation
+  at audit-only head `92f6e8e` also failed with SIGSEGV; Git exited 1 and did not
+  publish the branch. Its simulator and test files were byte-identical to parent
+  `037c61e`, whose 163-test local hook and all three CI jobs passed. The original
+  tool output was truncated, so no exact crashing frame is claimed. This outcome
+  is retained under `outputs/native-crashes/restacked-audit-prepush-92f6e8e/`;
+  a separate complete-log diagnostic must not erase it. The cause remains open.
