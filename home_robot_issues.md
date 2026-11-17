@@ -86,3 +86,10 @@ project names, task descriptions, repository links, or private context.
   initial integration state and controls, and isolate a standalone upstream-only
   model/state sequence before reporting a library bug. Do not include downstream
   names, repository paths, task details or private artifacts in a future report.
+- **Review-followup observation (2026-11-16):** a full pytest process exited 139
+  after 36 completed tests, with its Python frame at `MjModel.from_xml_string`
+  during a robot fixture's construction. The failed invocation and traceback
+  are retained in `outputs/native-crashes/review-followups-pytest-v1/`. This
+  broadens the observed locations; it does not establish the cause. Focused
+  controller/planning tests passed separately. A successful diagnostic rerun
+  must not replace this failure.
