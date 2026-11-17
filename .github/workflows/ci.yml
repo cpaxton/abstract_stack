@@ -13,6 +13,36 @@ env:
   PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
   MUJOCO_GL: egl
 jobs:
+  macos-simulation:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      MUJOCO_GL: cgl
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+      - name: Install using the native macOS installer
+        run: scripts/install-macos.sh
+      - name: Exercise launcher and native physics
+        run: |
+          scripts/run-macos.sh --help
+          scripts/run-macos.sh sim --help
+          scripts/run-macos.sh sim --headless --steps 20 --json outputs/macos-smoke.json
+          scripts/test.sh --junitxml=outputs/pytest-macos.xml
+      - name: Render and export the house with CGL
+        run: scripts/run-macos.sh build-scene --scene house --render --output-dir outputs/house
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: macos-simulation-evidence
+          path: |
+            outputs/macos-smoke.json
+            outputs/pytest-macos.xml
+            outputs/house/manifest.json
+            outputs/house/*.png
+          if-no-files-found: ignore
   macos-scripts:
     runs-on: ubuntu-latest
     timeout-minutes: 5

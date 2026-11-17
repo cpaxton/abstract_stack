@@ -15,8 +15,8 @@ Examples:
   scripts/run-macos.sh build-scene --scene house --render
   scripts/run-macos.sh sim --help
 
-This launcher sets MUJOCO_GL=cgl for every subcommand, including headless runs,
-overriding any existing MUJOCO_GL value. CGL rendering needs macOS graphics access.
+This launcher defaults MUJOCO_GL to cgl; an explicit value is preserved.
+CGL rendering needs macOS graphics access, including offscreen rendering.
 Interactive sim/serve use mjpython; other commands use ordinary Python.
 serve requires Emet, which the lightweight installer excludes.
 Use a command's --help for its CLI options.
@@ -34,7 +34,7 @@ if [[ ! -x "$PYTHON" ]]; then
 fi
 
 cd -- "$PROJECT_ROOT"
-export MUJOCO_GL=cgl
+export MUJOCO_GL="${MUJOCO_GL:-cgl}"
 case "${1:-}" in
     sim|serve)
         USE_VIEWER=true
@@ -51,6 +51,10 @@ case "${1:-}" in
                 export DYLD_FALLBACK_LIBRARY_PATH="$PYTHON_LIBDIR${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}:/usr/local/lib:/usr/lib"
             fi
             PYTHON="$PROJECT_ROOT/.venv/bin/mjpython"
+            if [[ ! -x "$PYTHON" ]]; then
+                echo "Missing mjpython. Run $PROJECT_ROOT/scripts/install-macos.sh first." >&2
+                exit 1
+            fi
         fi
         ;;
 esac
