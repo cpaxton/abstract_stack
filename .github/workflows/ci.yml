@@ -13,6 +13,15 @@ env:
   PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
   MUJOCO_GL: egl
 jobs:
+  macos-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check Mac shell scripts
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/install-macos.sh scripts/run-macos.sh
   simulation:
     runs-on: ubuntu-latest
     timeout-minutes: 15

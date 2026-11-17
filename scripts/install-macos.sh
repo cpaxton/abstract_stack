@@ -10,6 +10,7 @@ Usage: scripts/install-macos.sh
 Install the lightweight native macOS simulator and development tools into .venv,
 fetch the pinned MABEL assets, and install Git hooks. Emet is excluded.
 Requires Git and uv. Defaults to Python 3.11; set PYTHON_VERSION to override.
+Supported Python versions: 3.10–3.12 (>=3.10,<3.13).
 HELP
     exit 0
 fi

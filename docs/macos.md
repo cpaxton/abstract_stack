@@ -16,14 +16,20 @@ Install Git and [uv](https://docs.astral.sh/uv/), then run from this checkout:
 ./scripts/run-macos.sh sim --scene house
 ```
 
-The installer selects Python 3.11 by default (`PYTHON_VERSION=3.12` also selects
-a supported interpreter). It installs the locked `ci` dependency group into
+Supported Python versions are 3.10–3.12 (`>=3.10,<3.13`); 3.13 and newer are
+excluded. The installer selects 3.11 by default; set `PYTHON_VERSION=3.10` or
+`PYTHON_VERSION=3.12` to choose another supported interpreter.
+It installs the locked `ci` dependency group into
 `.venv`, installs this project editable without Emet, fetches the pinned MABEL
 model and meshes, and installs development hooks. Existing MABEL checkouts are
 validated rather than overwritten. Both scripts work from any working directory;
 relative output paths are resolved from the checkout root.
 
-The launcher uses CGL for native Mac rendering. Interactive `sim` commands run
+The launcher sets `MUJOCO_GL=cgl` for every subcommand, including headless and
+offscreen runs, overriding any existing `MUJOCO_GL` value. CGL rendering requires
+access to macOS graphics services even when no viewer window is opened. For a
+custom backend, invoke `.venv/bin/python -m abstract_stack.cli` directly instead.
+Interactive `sim` commands run
 through MuJoCo's `mjpython` launcher so Cocoa rendering can use the main thread.
 It also adds the interpreter's library directory to the process-local
 `DYLD_FALLBACK_LIBRARY_PATH`, allowing uv-managed Python's `libpython` to load.
@@ -44,8 +50,10 @@ uv run --no-sync pre-commit run --all-files
 uv build
 ```
 
-Press R in the interactive viewer to reset the episode. Use `--help` or
-`sim --help` with the launcher for other CLI options. The `serve` command
+Press R in the interactive viewer to reset the episode. Use `--help` with the
+launcher for launcher usage, or `sim --help` for simulation CLI options. Launcher
+help is available before installation and on other operating systems.
+The `serve` command
 requires Emet and is unavailable in this lightweight environment.
 
 ## Keeping the environment lightweight
@@ -68,3 +76,9 @@ MuJoCo 3.17.0, and NumPy 1.26.4. Validation covers real-MABEL physics tests,
 a bounded native viewer session, and the eight house render cameras. It does not
 establish Intel Mac compatibility or autonomous manipulation success. Some floor
 speckling was visible in house previews; its cause has not been established.
+
+Linux CI runs ShellCheck on both scripts and portable subprocess tests for
+launcher help, platform/setup errors, interpreter selection, argument forwarding,
+CGL selection, and preservation of existing library search paths. The existing
+simulation job also installs the locked `ci` group. These checks do not replace
+native Mac viewer and rendering validation.
