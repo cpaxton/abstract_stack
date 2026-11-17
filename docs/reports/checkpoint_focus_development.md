@@ -89,6 +89,16 @@ labels the cumulative scope explicitly. The controller source was frozen once
 for the entire comparison. This is a development comparison, not a held-out
 success rate or ten-carton acceptance result.
 
+## Publication check
+
+The complete required pre-push at `2660b35` passed 59 tests before a native
+SIGSEGV in `MjModel.from_xml_string` while constructing an existing
+released-contact test fixture. No terminal test XML was produced. Git exited 1
+and the atomic push published neither branch. The full log/process result is
+retained in `outputs/pr-publication-checkpoints-v1/`. No hook was bypassed;
+the feature remains local. The 48 focused checkpoint/contact/sensor tests,
+package build and all-file hooks pass, but do not replace this failed full run.
+
 ## Native previews
 
 First back contact and the later bound-limited state, using a debug-only camera:
