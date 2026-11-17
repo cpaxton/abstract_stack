@@ -120,6 +120,8 @@ def campaign_report(path):
         "controllers": controllers,
         "provenance": provenance,
         "control_overrides": campaign.get("control_overrides", {}),
+        "force_profile": campaign.get("force_profile"),
+        "force_profile_settings": campaign.get("force_profile_settings"),
         "episode_wall_timeout_seconds": campaign.get("episode_wall_timeout_seconds"),
         "scheduled_scenes": n,
         "completed_scenes": len(rows),

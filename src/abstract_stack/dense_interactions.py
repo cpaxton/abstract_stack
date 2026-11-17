@@ -1,6 +1,5 @@
 """Pick, release on the shelf front, then insert with a native selected finger."""
 
-import copy
 import time
 from dataclasses import replace
 
@@ -449,10 +448,7 @@ class DenseStockingScript(StockingScript):
                     finger=self._pushing_finger(), tilt_degrees=tilt, wrist_posture=wrist
                 )
                 for raise_first in (False, True):
-                    clone = copy.copy(self.env)
-                    clone.data = mujoco.MjData(self.env.model)
-                    clone._renderer = None
-                    mujoco.mj_copyData(clone.data, clone.model, self.env.data)
+                    clone = self.env.clone_for_planning()
                     hand = FingerPusher(clone, self.config, **settings)
                     hand.command = self.controller.command.copy()
                     waypoints = ([precontact + [0, 0, 0.08]] if raise_first else []) + [precontact]

@@ -128,8 +128,6 @@ class MabelController:
             load[self.NAMES.index(name)] = effort
         desired = validate_targets(self.model, self.data.ctrl, requested)
         reference = desired[self.ids]
-        if np.any(reference < self.lower) or np.any(reference > self.upper):
-            raise ValueError("MABEL joint reference exceeds joint bounds")
         # Omitted tracking dimensions retain their nominal reference, even when
         # live ctrl already contains a feedforward offset.
         if hasattr(requested, "keys"):
@@ -139,6 +137,8 @@ class MabelController:
                     for i, n in enumerate(self.NAMES)
                 ]
             )
+        if np.any(reference < self.lower) or np.any(reference > self.upper):
+            raise ValueError("MABEL joint reference exceeds joint bounds")
         nominal = self.nominal + np.clip(
             reference - self.nominal, -self.rates * dt, self.rates * dt
         )

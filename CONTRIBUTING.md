@@ -92,7 +92,8 @@ source fingerprints in every episode bundle. If child source fingerprints
 differ, preserve the outcomes and report the mismatch as development evidence;
 do not combine them into a frozen-policy success rate.
 
-The benchmark baseline uses `--legacy-contact-control`; the selected script
+The benchmark baseline uses `--force-profile legacy --legacy-contact-control`;
+the selected script
 enables checked alternate withdrawal paths and wrist/board clearance feedback.
 The baseline also uses `--no-thumb-preshape`. The selected script opens the
 native left thumb MCP to 0.4 rad before descent and retains that reference
@@ -112,6 +113,14 @@ when available. For an archived checkout, record its commit explicitly alongside
 the campaign. Compare settled integration-state hashes as well as scene/model
 inputs before claiming a matched experiment. Historical reports must name their
 historical checkout; the current benchmark command follows current defaults.
+
+`--force-profile selected` uses the current default grasp/push force setpoints
+(4.5 N / 1.875 N). `--force-profile legacy` selects 6 N / 2 N without changing
+contact-control or hand mode flags. Explicit `--control-config` values override
+either profile. Campaigns and terminal summaries record the profile and effective
+settings. `configs/controllers/low_force.json` remains a fixed historical snapshot,
+even when it matches current defaults. Named force profiles do not reconstruct
+historical source code; reproduce old algorithms at their recorded commits.
 
 Work on a feature branch. Describe the concrete behavior, reproduction command,
 tests actually run, and unresolved acceptance gates. Include a small rendered

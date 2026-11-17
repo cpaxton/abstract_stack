@@ -300,6 +300,33 @@ def test_unreachable_target_reports_remaining_error_and_bounds(robot):
 
 
 @pytest.mark.mabel
+def test_staging_recheck_keeps_contact_context_and_rejects_stale_state(robot, monkeypatch):
+    controller = CartesianHand(robot, ScriptConfig())
+    target = robot.data.body("carton_0").xpos.copy()
+    prediction = controller.predict(target)
+    # Contract fixture: preserve this selected contact permission through the
+    # recheck. No actuator command or successful physical stage is implied.
+    prediction.allowed_contact_object = "carton_0"
+    calls = []
+
+    def check_path(q, reference, max_speed, **kwargs):
+        calls.append(kwargs)
+        return []
+
+    monkeypatch.setattr(controller.ik, "check_path", check_path)
+    stage = controller.staging_pose(prediction)
+    assert stage is not None
+    assert calls[0]["allowed_object"] == "carton_0"
+    np.testing.assert_array_equal(calls[0]["baseline_reference"], prediction.baseline_qpos)
+    # A new fixture state invalidates the old prediction before any actuation.
+    adr = int(robot.model.joint("carton_0_joint").qposadr[0])
+    robot.data.qpos[adr] += 0.001
+    mujoco.mj_forward(robot.model, robot.data)
+    assert controller.staging_pose(prediction) is None
+    assert len(calls) == 1
+
+
+@pytest.mark.mabel
 def test_collision_rejection_and_bounded_staging(robot):
     controller = CartesianHand(robot, ScriptConfig())
     target = robot.data.body("carton_0").xpos.copy()

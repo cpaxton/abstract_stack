@@ -456,6 +456,10 @@ class CartesianHand:
         if (
             not prediction.path_checked
             or not prediction.safe
+            or prediction.baseline_qpos is None
+            or not np.array_equal(prediction.baseline_qpos, self.data.qpos)
+            or prediction.carried_object is not None
+            or prediction.sliding_object is not None
             or prediction.preferred_orientation_error_rad
             > np.radians(
                 self.config.ik_orientation_span_deg + self.config.ik_orientation_tolerance_deg
@@ -490,9 +494,14 @@ class CartesianHand:
                     candidate="staging:" + prediction.candidate,
                     minimum_seconds=float(1.875 * np.max(np.abs(q - start) / rates)),
                     active_limits=[],
+                    path_mode="joint",
                 )
         if best is not None and self.ik.check_path(
-            best.q, best.reference_qpos, self.config.max_joint_speed
+            best.q,
+            best.reference_qpos,
+            self.config.max_joint_speed,
+            allowed_object=best.allowed_contact_object,
+            baseline_reference=best.baseline_qpos,
         ):
             return None
         return best
@@ -522,6 +531,7 @@ class StockingScript:
         video_height=480,
         first_person="zed_left",
         third_person="stocking_third_person",
+        force_profile=None,
     ):
         if not env.robot or not env.products or any(p.kind != "carton" for p in env.products):
             raise ValueError("The script requires MABEL and a carton-only scene (pick_place)")
@@ -530,6 +540,7 @@ class StockingScript:
         ):
             raise ValueError("This first script supports the stationary pick_place bench only")
         self.env, self.config = env, config or ScriptConfig()
+        self.force_profile = force_profile
         self.directory, self.render = Path(directory), render
         self.directory.mkdir(parents=True, exist_ok=True)
         self.controller = CartesianHand(env, self.config)
@@ -640,11 +651,12 @@ class StockingScript:
             raise InteractionFailure("release: product moved beyond bounded ungrasp allowance")
         if (
             max(
+                # Combined hand + non-grasping arm normal load. Components
+                # remain separate in diagnostics; their sum guards contact.
                 forces["robot_product"],
                 forces["back"],
                 forces["arm_fixture"],
                 forces["other_product"],
-                forces["arm_product"],
             )
             > self.config.max_force
         ):
@@ -1391,6 +1403,7 @@ class StockingScript:
                 p.name for p in self.env.products if not p.initially_stocked
             ],
             "controller": asdict(self.config),
+            "force_profile": self.force_profile,
             "assistance": "none",
             "state_access": "privileged_mujoco_world_state",
             "policy_kind": "handwritten_feedback_program",
