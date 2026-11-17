@@ -70,6 +70,7 @@ revision `498059a` retains both model and data wrappers.
 | `498059a`, r4 | 227 passed in 199.20 s; process exited normally |
 | `working-controller-v1` source snapshot | Native signal 11 after 135.23 s; no completed suite |
 | `split-insertion-v2` source snapshot | 250 passed in 205.03 s; process exited normally |
+| `236a308`, required pre-push hook | Stopped after over eight minutes without suite completion; push failed |
 
 The final printed test in the working snapshot was
 `test_adaptive_solver_verifies_a_physical_lift`. No terminal native traceback
@@ -82,6 +83,15 @@ pass for that revision and process only. Retaining both sets of wrappers is
 **not a sufficient fix**, and native process stability remains an open gate.
 The later 250-test pass has its own source manifest and process record; it
 neither replaces the signaled process nor identifies the native cause.
+The subsequent required hook collected 251 tests and was still CPU-active in
+the `tests/test_mabel.py` module when its identified pytest child was stopped
+with SIGTERM. This cutoff was imposed during diagnosis, not declared at process
+startup. The hook exited 143 and Git exited 141 after its remote connection had
+also closed. No tests were skipped to publish the branch. An attempted GDB
+attachment was unavailable (`ptrace` refused); no native frame or crash signal
+was obtained, so this does not identify a shared cause with earlier SIGSEGVs.
+The cutoff record and failed attachment log are retained beside the other
+native artifacts. Revision `236a308` remains a local commit pending checks.
 
 The diagnostic script imports only MuJoCo, NumPy and the standard library. It
 contains no robot/task assets or downstream imports, so it can be copied into an

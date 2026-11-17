@@ -90,4 +90,9 @@ def test_timeout_terminates_the_created_process_group_including_its_child(tmp_pa
     assert result["timeout"]
     assert result["returncode"] == -signal.SIGKILL
     stat = Path(f"/proc/{int(pid_path.read_text())}/stat")
-    assert not stat.exists() or stat.read_text().split(") ", 1)[1].startswith("Z ")
+    try:
+        state = stat.read_text().split(") ", 1)[1]
+    except (FileNotFoundError, ProcessLookupError):
+        # A killed child may be reaped between opening and reading /proc.
+        state = None
+    assert state is None or state.startswith("Z ")

@@ -79,11 +79,10 @@ def main():
             grasp_wrist_posture=args.grasp_wrist_posture,
             payload_load_compensation=args.payload_load_compensation,
             split_insertion=args.split_insertion,
-            video_options=(
-                dict(fps=args.video_fps, width=args.video_width, height=args.video_height)
-                if args.video
-                else None
-            ),
+            video=args.video,
+            video_fps=args.video_fps,
+            video_width=args.video_width,
+            video_height=args.video_height,
         )
         if args.plan_only:
             # The regular episode runner owns settling and the StageObserver.

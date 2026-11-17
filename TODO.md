@@ -73,6 +73,13 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 
 ## 3. Robustness — after initial contact skills
 
+- [ ] Evaluate bounded native CPU rollout batches, then an isolated pinned
+  MuJoCo Warp backend for scripted contact lookahead. Audit MABEL model,
+  actuator and force contracts before allowing GPU forecasts to guide execution.
+  Consider mjlab for shared batching/instrumentation and Newton for later
+  material/contact experiments; no backend migration or RL is validated.
+  See [backend evaluation](docs/backend_evaluation.md).
+
 - [ ] Separate observation adapter from clean evaluator state. Start with seeded
   object/shelf pose biases (2–10 mm, 1–5 degrees) and actuator reference error.
 - [ ] Keep privileged collision checks explicitly labeled; do not silently use
