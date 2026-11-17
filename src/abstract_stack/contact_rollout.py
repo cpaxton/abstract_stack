@@ -431,8 +431,17 @@ def evaluate_screened_batch(
 
     if type(shortlist) is not int or not 1 <= shortlist <= len(candidates) <= 32:
         raise ValueError("Shortlist must be between one and the bounded candidate count")
-    if objective not in ("advance", "square_backstop"):
+    if objective not in ("advance", "square_backstop", "lateral_left", "lateral_right"):
         raise ValueError("Unknown contact forecast objective")
+    direction = -1 if objective == "lateral_left" else 1
+
+    def score(progress, yaw, lateral):
+        if objective == "advance":
+            return (progress,)
+        if objective == "square_backstop":
+            return (-abs(yaw), progress)
+        return (direction * lateral, -abs(yaw))
+
     # Validate every complete applied-target sequence before launching the
     # screen. Neither ranking nor finite endpoint state establishes force safety.
     if type(workers) is not int or not 1 <= workers <= 8:
@@ -522,6 +531,7 @@ def evaluate_screened_batch(
             )
         )
         progress = float(data.qpos[x_index - 1] - states[index, -1, x_index]) if valid else None
+        lateral = float(states[index, -1, x_index + 1] - data.qpos[x_index]) if valid else None
         yaw = None
         if valid:
             rotation = np.empty(9)
@@ -535,6 +545,7 @@ def evaluate_screened_batch(
             dict(
                 name=candidate["name"],
                 screen_progress_minus_x_m=progress,
+                screen_displacement_y_m=lateral,
                 screen_active_yaw_rad=yaw,
                 eligible=False,
                 verification_status="not_force_checked",
@@ -542,8 +553,7 @@ def evaluate_screened_batch(
             )
         )
         if valid:
-            score = (progress,) if objective == "advance" else (-abs(yaw), progress)
-            ranking.append((index, score))
+            ranking.append((index, score(progress, yaw, lateral)))
         else:
             rows[-1]["verification_status"] = "invalid_screen_trajectory"
     ranking.sort(key=lambda item: tuple(-v for v in item[1]) + (item[0],))
@@ -560,10 +570,8 @@ def evaluate_screened_batch(
     best = (
         max(
             admitted,
-            key=lambda r: (
-                (r["progress_minus_x_m"],)
-                if objective == "advance"
-                else (-abs(r["active_yaw_rad"]), r["progress_minus_x_m"])
+            key=lambda r: score(
+                r["progress_minus_x_m"], r["active_yaw_rad"], r["displacement_xyz_m"][1]
             ),
         )
         if admitted

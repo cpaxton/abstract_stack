@@ -1,0 +1,265 @@
+{
+  "kind": "environmental_squaring_development",
+  "fresh_task_credit": 0,
+  "task_success": false,
+  "pick_credit": 0,
+  "release_verified": false,
+  "side_bracing_verified": false,
+  "whole_row_stocking_verified": false,
+  "starting_yaw_deg": 2.7475827758625395,
+  "total_simulated_seconds": 13.69,
+  "force_peak_scope": "Cumulative since declared fixture reset, including captured instantaneous forces; excludes older source history",
+  "source_scope": "Frozen separately for each supervised process; continuation crosses bookkeeping source revisions, not a single-policy validation campaign",
+  "chain": [
+    {
+      "artifact": "outputs/squaring-focus-v3/left-front-face-recovery",
+      "manifest_sha256": "f22504ca96c038ecdc25cc62daf873b53f73944cebe086f397645ad5e40fff4c",
+      "source_revision": "cce44138c55d10448c9701d560ad106de849be74",
+      "runtime": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/compliance-focus-v3/frames/bound_limited_squaring/checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-focus-v3/left-front-face-recovery",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 120.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": "left",
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 15.0,
+        "front_face_sweep": true,
+        "replans": 60,
+        "worker": false
+      },
+      "simulated_seconds": 6.0,
+      "final_yaw_deg": 1.074397456984737,
+      "failure": "backstop_dwell_decision_budget_exhausted",
+      "peak_forces_N": {
+        "robot_product_N": 2.5806004891064434,
+        "nonhand_product_N": 0.0,
+        "robot_fixture_N": 0.0,
+        "carton_pair_N": 0.0,
+        "back_N": 2.083346074579177
+      },
+      "incidents": [],
+      "dwell": {
+        "physics_dt_s": 0.002,
+        "force_threshold_N": 0.4,
+        "required_seconds": 0.12,
+        "upright_limit_degrees": 5.0,
+        "yaw_limit_degrees": 0.15,
+        "held_seconds": 0.0,
+        "maximum_held_seconds": 0.0,
+        "last_time_s": 159.8800000000353,
+        "verified": false,
+        "kind": "measured_supported_squared_backstop_dwell",
+        "task_success": false,
+        "release_verified": false,
+        "fresh_task_credit": 0
+      },
+      "motion_bounds": {
+        "lower_m": [
+          -0.7165474412078268,
+          -0.10069017488790327,
+          0.8243696168732146
+        ],
+        "upper_m": [
+          -0.6565474412078267,
+          -0.062205809797296834,
+          0.8543696168732147
+        ],
+        "reason": "supported front-face recovery; measured carton Y span minus 6 mm edges"
+      },
+      "wrist_reference_range": [
+        -0.2617993877991494,
+        0.2617993877991494
+      ]
+    },
+    {
+      "artifact": "outputs/squaring-focus-v3/left-front-face-continuation",
+      "manifest_sha256": "15fb9a911e91d192df4b01a2afab0fe12cd3fcfdcaec44c44d9e4fb6d9acbb09",
+      "source_revision": "cce44138c55d10448c9701d560ad106de849be74",
+      "runtime": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/squaring-focus-v3/left-front-face-recovery/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-focus-v3/left-front-face-continuation",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 120.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": true,
+        "replans": 60,
+        "worker": false
+      },
+      "simulated_seconds": 6.0,
+      "final_yaw_deg": 0.19734601630687187,
+      "failure": "backstop_dwell_decision_budget_exhausted",
+      "peak_forces_N": {
+        "robot_product_N": 2.654725123215037,
+        "nonhand_product_N": 0.0,
+        "robot_fixture_N": 0.0,
+        "carton_pair_N": 0.0,
+        "back_N": 2.083346074579177
+      },
+      "incidents": [],
+      "dwell": {
+        "physics_dt_s": 0.002,
+        "force_threshold_N": 0.4,
+        "required_seconds": 0.12,
+        "upright_limit_degrees": 5.0,
+        "yaw_limit_degrees": 0.15,
+        "held_seconds": 0.0,
+        "maximum_held_seconds": 0.0,
+        "last_time_s": 165.88000000006394,
+        "verified": false,
+        "kind": "measured_supported_squared_backstop_dwell",
+        "task_success": false,
+        "release_verified": false,
+        "fresh_task_credit": 0
+      },
+      "motion_bounds": {
+        "lower_m": [
+          -0.7165474412078268,
+          -0.10075973426782435,
+          0.8243696168732146
+        ],
+        "upper_m": [
+          -0.6565474412078267,
+          -0.06421809593308701,
+          0.8543696168732147
+        ],
+        "reason": "supported front-face recovery; measured carton Y span minus 6 mm edges"
+      },
+      "wrist_reference_range": [
+        -0.2617993877991494,
+        0.2617993877991494
+      ]
+    },
+    {
+      "artifact": "outputs/squaring-focus-v3/left-front-face-last-mm",
+      "manifest_sha256": "c491626af21eb2e5782aae8d006a25711ad533cef18443a60feefeb40aef597b",
+      "source_revision": "cce44138c55d10448c9701d560ad106de849be74",
+      "runtime": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/squaring-focus-v3/left-front-face-continuation/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-focus-v3/left-front-face-last-mm",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 40.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": true,
+        "replans": 20,
+        "worker": false
+      },
+      "simulated_seconds": 1.69,
+      "final_yaw_deg": 0.14265874744990248,
+      "failure": null,
+      "peak_forces_N": {
+        "robot_product_N": 2.654725123215037,
+        "nonhand_product_N": 0.0,
+        "robot_fixture_N": 0.0,
+        "carton_pair_N": 0.0,
+        "back_N": 2.083346074579177
+      },
+      "incidents": [],
+      "dwell": {
+        "physics_dt_s": 0.002,
+        "force_threshold_N": 0.4,
+        "required_seconds": 0.12,
+        "upright_limit_degrees": 5.0,
+        "yaw_limit_degrees": 0.15,
+        "held_seconds": 0.12000000000057298,
+        "maximum_held_seconds": 0.12000000000057298,
+        "last_time_s": 167.570000000072,
+        "verified": true,
+        "kind": "measured_supported_squared_backstop_dwell",
+        "task_success": false,
+        "release_verified": false,
+        "fresh_task_credit": 0
+      },
+      "motion_bounds": {
+        "lower_m": [
+          -0.7165474412078268,
+          -0.10079661310368748,
+          0.8243696168732146
+        ],
+        "upper_m": [
+          -0.6565474412078267,
+          -0.06526011409803109,
+          0.8543696168732147
+        ],
+        "reason": "supported front-face recovery; measured carton Y span minus 6 mm edges"
+      },
+      "wrist_reference_range": [
+        -0.2617993877991494,
+        0.2617993877991494
+      ]
+    }
+  ],
+  "fixed_comparison_artifact": "outputs/squaring-focus-v2-fixed-suite/report.json",
+  "remaining": [
+    "Measured side/neighbor bracing",
+    "Unload and retreat",
+    "Generalization to other yaw signs and uncertainty",
+    "Original zero-prefill whole-shelf task"
+  ],
+  "long_held_baseline": {
+    "artifact": "outputs/squaring-focus-v3/left-held-long-baseline",
+    "manifest_sha256": "36889acbb027268abeec987a27d0e29a20ccb72fd886f4f1ee1fb6963df56d06",
+    "simulated_seconds": 14.0,
+    "final_yaw_deg": 1.7399783694605382,
+    "failure": "backstop_dwell_decision_budget_exhausted",
+    "dwell": {
+      "physics_dt_s": 0.002,
+      "force_threshold_N": 0.4,
+      "required_seconds": 0.12,
+      "upright_limit_degrees": 5.0,
+      "yaw_limit_degrees": 0.15,
+      "held_seconds": 0.0,
+      "maximum_held_seconds": 0.0,
+      "last_time_s": 167.8800000000735,
+      "verified": false,
+      "kind": "measured_supported_squared_backstop_dwell",
+      "task_success": false,
+      "release_verified": false,
+      "fresh_task_credit": 0
+    }
+  },
+  "strict_final_checkpoint_replay": "outputs/squaring-focus-v3/final-replay-verification",
+  "total_supervised_wall_seconds": 125.73989211700246
+}
