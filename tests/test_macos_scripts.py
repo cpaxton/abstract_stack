@@ -90,7 +90,7 @@ def interpreters(checkout):
         interpreter.write_text(probe)
         interpreter.chmod(0o755)
     env["TEST_LIBDIR"] = str(root / "Python lib")
-    env["MUJOCO_GL"] = "egl"
+    env.pop("MUJOCO_GL", None)
     return root, env
 
 
@@ -136,3 +136,21 @@ def test_viewer_preserves_existing_library_path(interpreters):
         "/usr/local/lib",
         "/usr/lib",
     ]
+
+
+@pytest.mark.parametrize("backend", ["glfw", "off"])
+def test_launcher_preserves_explicit_backend(interpreters, backend):
+    _, env = interpreters
+    env["MUJOCO_GL"] = backend
+    result = run(interpreters, "run-macos.sh", "sim", "--headless", "--steps", "1")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["gl"] == backend
+
+
+def test_missing_viewer_launcher_has_setup_error(interpreters):
+    root, _ = interpreters
+    (root / ".venv/bin/mjpython").unlink()
+    result = run(interpreters, "run-macos.sh", "sim")
+    assert result.returncode == 1
+    assert "Missing mjpython" in result.stderr
+    assert "install-macos.sh first" in result.stderr

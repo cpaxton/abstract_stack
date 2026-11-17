@@ -25,10 +25,10 @@ model and meshes, and installs development hooks. Existing MABEL checkouts are
 validated rather than overwritten. Both scripts work from any working directory;
 relative output paths are resolved from the checkout root.
 
-The launcher sets `MUJOCO_GL=cgl` for every subcommand, including headless and
-offscreen runs, overriding any existing `MUJOCO_GL` value. CGL rendering requires
-access to macOS graphics services even when no viewer window is opened. For a
-custom backend, invoke `.venv/bin/python -m abstract_stack.cli` directly instead.
+The launcher defaults `MUJOCO_GL` to `cgl` for every subcommand, including headless
+and offscreen runs. An explicit value is preserved; for example,
+`MUJOCO_GL=glfw ./scripts/run-macos.sh sim` selects GLFW. CGL rendering requires
+access to macOS graphics services even when no viewer window is opened.
 Interactive `sim` commands run
 through MuJoCo's `mjpython` launcher so Cocoa rendering can use the main thread.
 It also adds the interpreter's library directory to the process-local
@@ -79,6 +79,11 @@ speckling was visible in house previews; its cause has not been established.
 
 Linux CI runs ShellCheck on both scripts and portable subprocess tests for
 launcher help, platform/setup errors, interpreter selection, argument forwarding,
-CGL selection, and preservation of existing library search paths. The existing
-simulation job also installs the locked `ci` group. These checks do not replace
-native Mac viewer and rendering validation.
+CGL defaults, explicit backend overrides, and preservation of existing library
+search paths. A separate `macos-15` CI job invokes the actual installer, runs
+native MABEL physics tests and headless launcher smoke checks, and exports the
+house with CGL previews. The interactive viewer remains a manual check.
+
+Runner details follow [GitHub's hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+The `mjpython` viewer requirement is documented by
+[MuJoCo](https://mujoco.readthedocs.io/en/stable/python.html#passive-viewer).
