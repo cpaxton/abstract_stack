@@ -73,12 +73,19 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 
 ## 3. Robustness — after initial contact skills
 
-- [ ] Evaluate bounded native CPU rollout batches, then an isolated pinned
-  MuJoCo Warp backend for scripted contact lookahead. Audit MABEL model,
+- [ ] Extend the measured CPU/Warp rollout primitives to diverse scripted
+  contact continuations and live replanning. Audit MABEL model,
   actuator and force contracts before allowing GPU forecasts to guide execution.
   Consider mjlab for shared batching/instrumentation and Newton for later
   material/contact experiments; no backend migration or RL is validated.
   See [backend evaluation](docs/backend_evaluation.md).
+- [x] Implement supervised CPU/GPU throughput probes in the main optional locked
+  rollout group, plus per-step guarded native forecasts and C++ screening with
+  a guarded shortlist. Initial 32-world held-target probes favor CPU; no live
+  contact-search integration or stocking speedup is claimed.
+- [x] Build a stationary bimanual/shared-lift WBC foundation with nominal/applied
+  geometry admission and native unloaded tracking evidence. Mobile/loaded/contact
+  integration remains open; see [whole-body control](docs/whole_body_control.md).
 
 - [ ] Separate observation adapter from clean evaluator state. Start with seeded
   object/shelf pose biases (2–10 mm, 1–5 degrees) and actuator reference error.

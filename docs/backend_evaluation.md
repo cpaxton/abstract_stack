@@ -1,9 +1,57 @@
 # GPU rollout and contact-backend evaluation
 
-Research checked 2026-11-17. No new backend is installed or validated here.
-The current environment has an RTX 4090 (24 GB); `mjlab`, `mujoco_warp`, `warp`
-and `newton` are absent from the project's Python environment. Do not replace
-the native reference simulator or add unpinned dependencies as part of this note.
+Research and first throughput probes checked 2026-11-17. The main project now
+has an optional locked `rollout` dependency group: MuJoCo 3.17.0, MuJoCo Warp
+3.17.0 and NumPy 1.26.4, with Warp 1.19.0 resolved in `uv.lock`. The native
+MuJoCo version and Emet Git revision are unchanged. mjlab and Newton remain
+uninstalled. The workstation has an RTX 4090 (24 GB).
+
+```bash
+uv sync --locked --group rollout --inexact
+```
+
+This installs into the normal `.venv`; the GPU dependency is optional for
+lightweight/macOS users. The initial isolated installation is retained only
+under ignored `outputs/` and is not the benchmark environment.
+
+## Implemented throughput probe
+
+```bash
+flock --no-fork /tmp/abstract-stack-render.lock \
+  .venv/bin/python scripts/benchmark_rollout_backends.py \
+  --episode outputs/contact-rich-replanning-v1/mobile-table-ten-v17/episode \
+  --output outputs/my-fresh-rollout-probe \
+  --worlds 32 --steps 250 --threads 4 --wall-seconds 60
+```
+
+Use a fresh directory and an existing complete episode bundle. The supervisor
+copies sources, lockfile, exported XML and terminal state, records hashes and
+versions, and runs each backend in a separate process group with a wall budget.
+CUDA access may require execution outside this workstation's agent filesystem
+sandbox; a failed CUDA initialization is retained and never becomes a CPU GPU
+benchmark. All forecasts earn **zero fresh manipulation credit**.
+
+`contact_rollout.evaluate_batch` owns one native data object per candidate and
+checks forces, summed carton-pair loads, non-grasping robot links, all-product
+tip/drop events, released-object support and contact loss at every physics step.
+Native targets and rates are checked before stepping. Model arrays and the input
+state remain unchanged. It is a supported-push forecast primitive, not a grasp,
+carry or general whole-body policy.
+
+`evaluate_screened_batch` ranks up to 32 native C++ trajectories, then replays a
+bounded shortlist with the complete per-step guard. Unchecked candidates remain
+ineligible. Final ranking uses guarded progress, and no candidate is admitted
+for live execution by this function. The caller still needs task-specific IK,
+coupled finger/path admission and a fresh-state execution contract.
+
+The benchmark currently holds recorded native servo targets in identical cloned
+states. It measures backend costs; it does not measure candidate diversity,
+controller robustness or shelf success. C++ stepping and the Python
+step-plus-forward reference reached identical terminal states in the initial
+probes. Warp uses float32 and differs numerically. Its current fast path has no
+per-step force admission and cannot select a live action. A first GPU state-helper
+compilation crash is preserved; fresh native-to-GPU data construction then passed.
+See [the measured report](reports/rollout_backend_development.md).
 
 ## Recommended order
 

@@ -24,6 +24,7 @@ Repository = "https://github.com/cpaxton/abstract_stack"
 
 [dependency-groups]
 dev = ["pre-commit>=4,<5", "pytest>=8", "ruff==0.17.5"]
+rollout = ["mujoco==3.17.0", "mujoco-warp==3.17.0", "numpy==1.26.4"]
 ci = [
     { include-group = "dev" },
     "mujoco>=3.4,<4",
