@@ -3,6 +3,8 @@
 
 import argparse
 import hashlib
+import json
+import os
 import subprocess
 from dataclasses import asdict
 from pathlib import Path
@@ -14,6 +16,7 @@ from abstract_stack.base_motion import BaseContactGuard
 from abstract_stack.control import stationary_targets
 from abstract_stack.env import ShelfStockingEnv
 from abstract_stack.lfd import EpisodeRecorder, ObservationField, SensorSample, Snapshot
+from abstract_stack.lfd.cameras import RawCameraCollector
 from abstract_stack.lfd.native import action_contract, proprioception
 from abstract_stack.mabel_controller import MabelController, TrackingConfig
 from abstract_stack.packing import dense_shelf_config
@@ -26,11 +29,17 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--steps", type=int, default=30)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--cameras", action="store_true", help="Capture raw first-/third-person RGB"
+    )
+    parser.add_argument("--camera-width", type=int, default=160)
+    parser.add_argument("--camera-height", type=int, default=120)
     args = parser.parse_args()
     if not 1 <= args.steps <= 100:
         parser.error("Fixture supports one through 100 control steps")
     env = ShelfStockingEnv(dense_shelf_config(args.seed, product_count=2))
     recorder = None
+    cameras = None
     try:
         tracking = TrackingConfig()
         controller = MabelController(env.model, env.data, tracking)
@@ -69,15 +78,27 @@ def main():
                 "native geom frames",
                 sensor_metadata["tactile_provenance"],
             ),
-            ObservationField(
-                "observation.images.zed_left",
-                (64, 64, 3),
-                "uint8 RGB",
-                "zed_left",
-                "raw native camera channel; unavailable in this state-only fixture",
-                dtype="uint8",
-            ),
         )
+        if args.cameras:
+            cameras = RawCameraCollector(
+                env.model, width=args.camera_width, height=args.camera_height
+            )
+            camera_fields = cameras.fields
+            camera_metadata = cameras.metadata()
+            camera_metadata["MUJOCO_GL"] = os.environ.get("MUJOCO_GL", "platform default")
+        else:
+            camera_fields = (
+                ObservationField(
+                    "observation.images.zed_left",
+                    (64, 64, 3),
+                    "uint8 RGB",
+                    "zed_left",
+                    "raw native camera channel; unavailable in this state-only fixture",
+                    dtype="uint8",
+                ),
+            )
+            camera_metadata = dict(enabled=False, missing_frame_policy="camera not requested")
+        fields += camera_fields
         contract = action_contract(env.model)
         model_revision = subprocess.check_output(
             ["git", "-C", str(mabel_model_path(env.mabel_root).parent), "rev-parse", "HEAD"],
@@ -94,6 +115,7 @@ def main():
             scene_configuration=asdict(env.config),
             scene_xml_sha256=hashlib.sha256(env.xml.encode()).hexdigest(),
             collector_script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            camera_contract=camera_metadata,
             proprioception_order=[
                 kind + ":" + name
                 for kind in ("position", "velocity", "effort")
@@ -136,6 +158,8 @@ def main():
                     ),
                 }
             )
+            if cameras is not None:
+                measured.sensors.update(cameras.sample(env.data))
             return Snapshot(measured.time_s, measured.sensors)
 
         observation = observe()
@@ -173,6 +197,12 @@ def main():
             )
         raise
     finally:
+        if cameras is not None:
+            if recorder is not None:
+                (args.output / "camera_captures.jsonl").write_text(
+                    "".join(json.dumps(event) + "\n" for event in cameras.events)
+                )
+            cameras.close()
         env.close()
     return 0
 

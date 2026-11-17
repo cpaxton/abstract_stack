@@ -2,6 +2,7 @@
 
 import hashlib
 import importlib.metadata
+import io
 import json
 from pathlib import Path
 
@@ -135,6 +136,30 @@ def export_lerobot(directories, output, *, repo_id="local/mabel-lfd", include_fa
     return sidecar
 
 
+def _verify_image(stored, observed, expected):
+    """Check lossless storage separately from the official reader's transform."""
+    from PIL import Image
+
+    if not isinstance(stored, dict) or not isinstance(stored.get("bytes"), bytes):
+        raise ValueError("Expected an embedded raw image in local Parquet storage")
+    with Image.open(io.BytesIO(stored["bytes"])) as image:
+        decoded = np.asarray(image)
+    if decoded.dtype != np.uint8:
+        raise ValueError("Stored image lost its uint8 pixel contract")
+    np.testing.assert_array_equal(decoded, expected)
+    observed = np.asarray(observed)
+    if observed.shape != expected.shape:
+        observed = observed.transpose(1, 2, 0)
+    if observed.dtype == np.uint8:
+        np.testing.assert_array_equal(observed, expected)
+        return "uint8 RGB"
+    if observed.dtype == np.float32:
+        normalized = expected.astype(np.float32) / np.float32(255)
+        np.testing.assert_array_equal(observed, normalized)
+        return "float32 RGB divided by 255"
+    raise ValueError("Unexpected SDK image representation")
+
+
 def verify_lerobot(output):
     """Offline local reload plus exact stored-clock/action/sensor checks.
 
@@ -162,6 +187,7 @@ def verify_lerobot(output):
         raise ValueError("Exported frame count differs from scheduled transitions")
     global_index = 0
     reader_clock_dtypes = set()
+    reader_image_representations = set()
     for item in sidecar["episodes"]:
         episode = load_episode(item["source"])
         if episode.metadata["sha256"] != item["metadata"]["sha256"]:
@@ -189,9 +215,10 @@ def verify_lerobot(output):
                 name = field["name"]
                 expected = episode.arrays[name][index]
                 observed = np.asarray(row[name])
-                if field["dtype"] == "uint8" and observed.shape != expected.shape:
-                    observed = observed.transpose(1, 2, 0)
-                np.testing.assert_array_equal(observed, expected)
+                if field["dtype"] == "uint8":
+                    reader_image_representations.add(_verify_image(raw[name], observed, expected))
+                else:
+                    np.testing.assert_array_equal(observed, expected)
                 if bool(np.asarray(row[name + ".available"]).item()) != bool(
                     episode.arrays[name + ".available"][index]
                 ):
@@ -227,6 +254,8 @@ def verify_lerobot(output):
         frames=len(dataset),
         native_clock_float64_storage_exact=True,
         reader_clock_dtypes=sorted(reader_clock_dtypes),
+        raw_image_storage_uint8_pixels_exact=True,
+        reader_image_representations=sorted(reader_image_representations),
         nominal_applied_and_sensor_values_exact_at_declared_dtype=True,
         masks_and_outcomes_preserved=True,
         privileged_fields_exported=False,
