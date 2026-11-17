@@ -31,8 +31,11 @@ jobs:
           scripts/run-macos.sh sim --help
           scripts/run-macos.sh sim --headless --steps 20 --json outputs/macos-smoke.json
           scripts/test.sh --junitxml=outputs/pytest-macos.xml
-      - name: Render and export the house with CGL
-        run: scripts/run-macos.sh build-scene --scene house --render --output-dir outputs/house
+      # Hosted macos-15 lacks the CGL pixel format required by MuJoCo. Exercise
+      # native composition/export here; CGL rendering is a manual hardware check.
+      # Linux's simulation job continues to require rendered house previews.
+      - name: Export the house scene
+        run: scripts/run-macos.sh build-scene --scene house --output-dir outputs/house
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -41,7 +44,7 @@ jobs:
             outputs/macos-smoke.json
             outputs/pytest-macos.xml
             outputs/house/manifest.json
-            outputs/house/*.png
+            outputs/house/scene.xml
           if-no-files-found: ignore
   macos-scripts:
     runs-on: ubuntu-latest
