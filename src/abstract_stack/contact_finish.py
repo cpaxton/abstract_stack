@@ -74,3 +74,29 @@ class BackstopDwell:
             release_verified=False,
             fresh_task_credit=0,
         )
+
+    def restore_state(self, state, time_s):
+        for name in (
+            "physics_dt_s",
+            "force_threshold_N",
+            "required_seconds",
+            "upright_limit_degrees",
+            "yaw_limit_degrees",
+        ):
+            if state[name] != getattr(self, name):
+                raise ValueError("Dwell checkpoint changes an acceptance threshold")
+        held, maximum = state["held_seconds"], state["maximum_held_seconds"]
+        last = state["last_time_s"]
+        if (
+            not np.isfinite([held, maximum]).all()
+            or not 0 <= held <= maximum
+            or last is not None
+            and (not np.isfinite(last) or abs(last - time_s) > 1e-8)
+            or last is None
+            and held != 0
+            or type(state["verified"]) is not bool
+            or state["verified"] != (held + 1e-12 >= self.required_seconds)
+        ):
+            raise ValueError("Invalid dwell checkpoint clock/history")
+        self.held_seconds, self.maximum_held_seconds = float(held), float(maximum)
+        self.last_time_s, self.verified = last, state["verified"]

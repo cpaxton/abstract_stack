@@ -24,6 +24,9 @@ def _positive_int(value):
 def _parser():
     parser = argparse.ArgumentParser(prog="abstract-stack", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    from abstract_stack.checkpoint_cli import add_commands
+
+    add_commands(commands.add_parser("checkpoint", help="Capture, inspect and replay native state"))
     fetch = commands.add_parser("fetch-mabel", help="Download the pinned MABEL model and meshes")
     fetch.add_argument("--destination", type=Path)
     random_scene = commands.add_parser(
@@ -254,6 +257,13 @@ def _simulate(env, args):
 def main(argv=None):
     parser = _parser()
     args = parser.parse_args(argv)
+    if args.command == "checkpoint":
+        from abstract_stack.checkpoint_cli import run
+
+        result = run(args)
+        if result:
+            parser.exit(result, "Checkpoint operation did not verify; inspect retained logs.\n")
+        return
     if args.command == "solve":
         args.command = "script"
     if args.command == "tune":

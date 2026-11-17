@@ -86,6 +86,13 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 
 ## 3. Robustness — after initial contact skills
 
+- [x] Add compiled native checkpoints with complete integration state, explicit
+  nominal/applied/controller history, corruption/runtime checks and strict
+  state/force replay witnesses. Restores are separate zero-credit continuations.
+- [x] Build five replay-validated contact focus states and a fixed held/compliant
+  prefix comparison. All ten cases complete; no case passes squaring dwell.
+  Retain native-import failures separately; see [checkpoints](docs/sim_checkpoints.md).
+
 - [ ] Extend the measured CPU/Warp rollout primitives to diverse scripted
   contact continuations and live replanning. Audit MABEL model,
   actuator and force contracts before allowing GPU forecasts to guide execution.
@@ -134,6 +141,10 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 - [ ] Add calibrated sensor noise/bias and hardware observation adapters.
 - [ ] Train/evaluate a student with declared sensor inputs; add teacher queries
   on student-induced states after the teacher primitives are reliable. No RL yet.
+- [x] Collect a small parallel pilot: three fresh controller/sensing fixtures,
+  60 transitions and 126 raw camera images, with native guards and a verified
+  real LeRobot multi-episode roundtrip. Training eligibility remains false;
+  see the [pilot report](docs/reports/lfd_collection_pilot.md).
 
 See [learning from demonstrations](docs/learning_from_demonstration.md) and
 [simulated sensors](docs/sim_sensors.md). LeRobot's NumPy 2/Python 3.12 export

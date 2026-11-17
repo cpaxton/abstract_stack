@@ -12,6 +12,11 @@ roundtrip evidence and the remaining student/camera integration work.
 The [sustained-contact follow-up](reports/sustained_contact_development.md)
 distinguishes backstop contact from squaring: bounded continuations reduce yaw
 but do not pass the unchanged placement gate or earn new task credit.
+Use [simulation checkpoints](sim_checkpoints.md) and the
+[focus-bank report](reports/checkpoint_focus_development.md) to repeat the final
+millimeters without repeating pickup. The
+[small LfD pilot](reports/lfd_collection_pilot.md) documents three bounded
+controller/sensing fixtures, rather than a full manipulation dataset.
 
 ## Supported starting point
 

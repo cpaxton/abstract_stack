@@ -162,6 +162,27 @@ def test_tip_incident_survives_a_later_upright_fixture_state(fixture):
     mujoco.mj_forward(model, data)
     assert monitor.sample(data, elapsed=0.002) == "product_tip_or_drop"
     assert monitor.incidents[0]["product"] == "other"
+    restored = ContactMonitor(model, data, scene)
+    restored.restore_state(monitor.state_dict(), data)
+    assert restored.sample(data, elapsed=0) == "product_tip_or_drop"
+    assert restored.incidents[0] == monitor.incidents[0]
+
+
+def test_monitor_checkpoint_preserves_contact_loss_timer_and_original_positions(fixture):
+    model, data, scene = fixture
+    # Fixture construction only: put the actuator-controlled hand clear.
+    data.qpos[int(model.joint("drive").qposadr[0])] = 0.1
+    mujoco.mj_forward(model, data)
+    monitor = ContactMonitor(model, data, scene)
+    assert monitor.sample(data, elapsed=0.03) is None
+    restored = ContactMonitor(model, data, scene)
+    restored.restore_state(monitor.state_dict(), data)
+    assert restored.sample(data, elapsed=0.012) == "lost_push_contact"
+    assert monitor.sample(data, elapsed=0.012) == "lost_push_contact"
+    bad = restored.state_dict()
+    bad["scene"]["force_limit_N"] = 26
+    with pytest.raises(ValueError, match="guard contract"):
+        ContactMonitor(model, data, scene).restore_state(bad, data)
 
 
 def test_initial_external_force_cannot_receive_forecast_admission(fixture):

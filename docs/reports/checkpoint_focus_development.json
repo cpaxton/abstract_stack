@@ -1,0 +1,792 @@
+{
+  "kind": "checkpoint_focus_development",
+  "checkpoint_source": "outputs/checkpoints-v1/gdb-capture",
+  "checkpoint_verify": {
+    "kind": "strict_native_checkpoint_replay",
+    "verified": true,
+    "comparisons": {
+      "controls": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      },
+      "integration": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      },
+      "body_positions": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      },
+      "body_rotations": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      },
+      "accelerations": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      },
+      "constraint_forces": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      },
+      "contact_records": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      },
+      "contact_offsets": {
+        "bit_equal": true,
+        "shape_equal": true,
+        "maximum_absolute_difference": 0.0
+      }
+    },
+    "replay_steps": 50,
+    "physics_timestep_s": 0.002,
+    "source_checkpoint": "/home/cpaxton/src/abstract_stack/outputs/checkpoints-v1/gdb-capture/checkpoint",
+    "checkpoint_model_sha256": "1c4a9a0cfaa2efcc8fdbc2e024bea9e9d18909a09b788adde72cf75efd2fc823",
+    "fresh_task_credit": 0,
+    "task_success": false,
+    "control_admission": false,
+    "runtime": {
+      "mujoco": "3.17.0",
+      "numpy": "1.26.4",
+      "python": "3.11.12",
+      "platform": "Linux-6.8.0-149-generic-x86_64-with-glibc2.35",
+      "machine": "x86_64",
+      "byteorder": "little",
+      "native_float_bytes": 8
+    }
+  },
+  "bank": {
+    "kind": "development_compliance_focus_bank",
+    "scheduled_frames": 5,
+    "frames": [
+      {
+        "name": "stalled_before_backstop",
+        "source_trajectory": "outputs/compliant-lookahead-v1/continued-v3",
+        "source_step": 0,
+        "simulation_time_s": 145.87999999996845,
+        "nominal_back_plane_gap_m": 0.009714789433096338,
+        "yaw_degrees": 3.6541178102986684,
+        "forces": {
+          "sim_time": 145.87999999996845,
+          "hand_N": 1.3268459099564138,
+          "support_N": 1.8601599298398281,
+          "active_force_world_N": [
+            -1.333417383194348,
+            0.06539752693257365,
+            -0.09668836510081091
+          ],
+          "robot_product_N": 1.3268459099564138,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "checkpoint": "frames/stalled_before_backstop/checkpoint",
+        "cameras": {
+          "stocking_third_person": "frames/stalled_before_backstop/stocking_third_person.png",
+          "zed_left": "frames/stalled_before_backstop/zed_left.png",
+          "dense_front": "frames/stalled_before_backstop/dense_front.png",
+          "debug_overhead_not_student": "frames/stalled_before_backstop/focus_overhead.png"
+        },
+        "replay_verified": true,
+        "debug_camera": {
+          "lookat": [
+            -0.7203872359994555,
+            -0.08146293687459832,
+            0.9173906228524142
+          ],
+          "distance": 0.18613222108422825,
+          "azimuth": 90,
+          "elevation": -89,
+          "render_frustum_scale": 2,
+          "role": "debug_only_not_student_observation"
+        },
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      {
+        "name": "approaching_backstop",
+        "source_trajectory": "outputs/compliant-lookahead-v1/continued-v3",
+        "source_step": 1000,
+        "simulation_time_s": 147.879999999978,
+        "nominal_back_plane_gap_m": 2.1421599374571443e-05,
+        "yaw_degrees": 4.854190235308397,
+        "forces": {
+          "sim_time": 147.879999999978,
+          "hand_N": 1.5207946738586176,
+          "support_N": 1.882557748687628,
+          "active_force_world_N": [
+            -1.523972657163913,
+            -0.02523081947965906,
+            -0.12400455121973356
+          ],
+          "robot_product_N": 1.5207946738586176,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "checkpoint": "frames/approaching_backstop/checkpoint",
+        "cameras": {
+          "stocking_third_person": "frames/approaching_backstop/stocking_third_person.png",
+          "zed_left": "frames/approaching_backstop/zed_left.png",
+          "dense_front": "frames/approaching_backstop/dense_front.png",
+          "debug_overhead_not_student": "frames/approaching_backstop/focus_overhead.png"
+        },
+        "replay_verified": true,
+        "debug_camera": {
+          "lookat": [
+            -0.7298643292504875,
+            -0.08012646670733603,
+            0.9174804955200525
+          ],
+          "distance": 0.18613222108422825,
+          "azimuth": 90,
+          "elevation": -89,
+          "render_frustum_scale": 2,
+          "role": "debug_only_not_student_observation"
+        },
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      {
+        "name": "first_back_contact",
+        "source_trajectory": "outputs/compliant-lookahead-v1/continued-v3",
+        "source_step": 1050,
+        "simulation_time_s": 147.97999999997847,
+        "nominal_back_plane_gap_m": -5.2481371626611484e-05,
+        "yaw_degrees": 4.707600652557596,
+        "forces": {
+          "sim_time": 147.97999999997847,
+          "hand_N": 2.331400062163282,
+          "support_N": 2.158303528183128,
+          "active_force_world_N": [
+            -2.351271143455792,
+            0.14562846637933333,
+            -0.46576852986310124
+          ],
+          "robot_product_N": 2.331400062163282,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.7076671365758455
+        },
+        "incidents": [],
+        "checkpoint": "frames/first_back_contact/checkpoint",
+        "cameras": {
+          "stocking_third_person": "frames/first_back_contact/stocking_third_person.png",
+          "zed_left": "frames/first_back_contact/zed_left.png",
+          "dense_front": "frames/first_back_contact/dense_front.png",
+          "debug_overhead_not_student": "frames/first_back_contact/focus_overhead.png"
+        },
+        "replay_verified": true,
+        "debug_camera": {
+          "lookat": [
+            -0.7301357053492783,
+            -0.08018530413429616,
+            0.917429418990164
+          ],
+          "distance": 0.18613222108422825,
+          "azimuth": 90,
+          "elevation": -89,
+          "render_frustum_scale": 2,
+          "role": "debug_only_not_student_observation"
+        },
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      {
+        "name": "yawed_back_contact",
+        "source_trajectory": "outputs/compliant-lookahead-v2/dwell-v1",
+        "source_step": 2000,
+        "simulation_time_s": 149.87999999998755,
+        "nominal_back_plane_gap_m": -0.00013566923610641712,
+        "yaw_degrees": 4.425811418210771,
+        "forces": {
+          "sim_time": 149.87999999998755,
+          "hand_N": 2.099756392920623,
+          "support_N": 2.0642622729233375,
+          "active_force_world_N": [
+            -2.1168014740232324,
+            0.13795477266442419,
+            -0.33839129519384337
+          ],
+          "robot_product_N": 2.099756392920623,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.9905986771896087
+        },
+        "incidents": [],
+        "checkpoint": "frames/yawed_back_contact/checkpoint",
+        "cameras": {
+          "stocking_third_person": "frames/yawed_back_contact/stocking_third_person.png",
+          "zed_left": "frames/yawed_back_contact/zed_left.png",
+          "dense_front": "frames/yawed_back_contact/dense_front.png",
+          "debug_overhead_not_student": "frames/yawed_back_contact/focus_overhead.png"
+        },
+        "replay_verified": true,
+        "debug_camera": {
+          "lookat": [
+            -0.7303044803544939,
+            -0.08037083944741161,
+            0.9174172183197707
+          ],
+          "distance": 0.18613222108422825,
+          "azimuth": 90,
+          "elevation": -89,
+          "render_frustum_scale": 2,
+          "role": "debug_only_not_student_observation"
+        },
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      {
+        "name": "bound_limited_squaring",
+        "source_trajectory": "outputs/compliant-lookahead-v2/square-v2-integral",
+        "source_step": 4000,
+        "simulation_time_s": 153.88000000000665,
+        "nominal_back_plane_gap_m": -0.0004018469969870875,
+        "yaw_degrees": 2.7475827758625395,
+        "forces": {
+          "sim_time": 153.88000000000665,
+          "hand_N": 1.6605761023962615,
+          "support_N": 2.1155101692752627,
+          "active_force_world_N": [
+            -1.668955743634904,
+            0.13004552357378174,
+            -0.16735659073785245
+          ],
+          "robot_product_N": 1.6605761023962615,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.083346074579177
+        },
+        "incidents": [],
+        "checkpoint": "frames/bound_limited_squaring/checkpoint",
+        "cameras": {
+          "stocking_third_person": "frames/bound_limited_squaring/stocking_third_person.png",
+          "zed_left": "frames/bound_limited_squaring/zed_left.png",
+          "dense_front": "frames/bound_limited_squaring/dense_front.png",
+          "debug_overhead_not_student": "frames/bound_limited_squaring/focus_overhead.png"
+        },
+        "replay_verified": true,
+        "debug_camera": {
+          "lookat": [
+            -0.7310682197878183,
+            -0.08144799234260006,
+            0.9173699611625655
+          ],
+          "distance": 0.18613222108422825,
+          "azimuth": 90,
+          "elevation": -89,
+          "render_frustum_scale": 2,
+          "role": "debug_only_not_student_observation"
+        },
+        "fresh_task_credit": 0,
+        "task_success": false
+      }
+    ],
+    "failures": [],
+    "wall_seconds": 16.840518847002386,
+    "fresh_task_credit": 0,
+    "task_success": false
+  },
+  "bank_source_manifest": {
+    "source_revision": "087b8aeed9e5f55808d445c394861cf3407bb947",
+    "hashes": {
+      "inputs/checkpoint/scene.json": "f242e89c9ff4ccdc67a97de490136c7a4c6ef752e87015779a63216f9f5709c0",
+      "inputs/checkpoint/manifest.json": "dd481de5c64f0522015b153f4f76b1452fb5d0f8029f685b37bc1d5b0f24200a",
+      "inputs/checkpoint/context.json": "ea9ad0cd8786f060c2cec519057d32a809326e471ae948b74ea72ddc97d4743a",
+      "inputs/checkpoint/state.npz": "86c619cab40dfe8c28178f0723c09f4306f8cad923c04557240de23444ca2420",
+      "inputs/checkpoint/controller.json": "e95f3c9953e31781953551eccc2e78f90432a0448e718f7ab96e3d212667e533",
+      "inputs/checkpoint/model.mjb": "1c4a9a0cfaa2efcc8fdbc2e024bea9e9d18909a09b788adde72cf75efd2fc823",
+      "inputs/checkpoint/random.json": "1092280d408293b6c5606cf838da79935716b38615ca948c95fb2beba269ccbd",
+      "inputs/checkpoint/scene.xml": "1db61d37f7df8b871d5ec068ab48b8e48815ef6dcf4052ef14c93e1d7d0b5631",
+      "inputs/checkpoint/witness.npz": "c1d08ddcb06bbafcfafaf6f194be11d49ae2dfab41031e8132430c194be3e321",
+      "inputs/checkpoint/source_snapshot/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+      "inputs/checkpoint/source_snapshot/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+      "inputs/checkpoint/source_snapshot/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+      "inputs/checkpoint/source_snapshot/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+      "inputs/checkpoint/source_snapshot/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+      "inputs/checkpoint/source_snapshot/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+      "inputs/checkpoint/source_snapshot/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+      "inputs/checkpoint/source_snapshot/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+      "inputs/checkpoint/source_snapshot/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+      "inputs/checkpoint/source_snapshot/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+      "inputs/checkpoint/source_snapshot/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+      "inputs/checkpoint/source_snapshot/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+      "inputs/checkpoint/source_snapshot/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+      "inputs/checkpoint/source_snapshot/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+      "inputs/checkpoint/source_snapshot/abstract_stack/cli.py": "cb9c0bd8734dcfff347547bcf31dc89e453682568639977b1f42591978d4bec5",
+      "inputs/checkpoint/source_snapshot/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+      "inputs/checkpoint/source_snapshot/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+      "inputs/checkpoint/source_snapshot/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+      "inputs/checkpoint/source_snapshot/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+      "inputs/checkpoint/source_snapshot/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+      "inputs/checkpoint/source_snapshot/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+      "inputs/checkpoint/source_snapshot/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+      "inputs/checkpoint/source_snapshot/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+      "inputs/checkpoint/source_snapshot/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+      "inputs/checkpoint/source_snapshot/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+      "inputs/checkpoint/source_snapshot/abstract_stack/checkpoints.py": "a56243a7ed80a2f7b63d8255502d4e656a178778379f511043fc1f59f8eb148f",
+      "inputs/checkpoint/source_snapshot/abstract_stack/sim_sensors.py": "3d0cdb670a077493363a50fe6afe2fe3180b92839d2f8fab603ed8480213b245",
+      "inputs/checkpoint/source_snapshot/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+      "inputs/checkpoint/source_snapshot/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+      "inputs/checkpoint/source_snapshot/abstract_stack/contact_rollout.py": "7724ea37322db6b6deff5b0cdead415bbe2150db2147c3f84a92569d8766b369",
+      "inputs/checkpoint/source_snapshot/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+      "inputs/checkpoint/source_snapshot/abstract_stack/compliant_lookahead.py": "8e302d0aa19d893c66c5948f486892cefd633f460fd7cb4b6c21f07097f898fe",
+      "inputs/checkpoint/source_snapshot/abstract_stack/checkpoint_cli.py": "adf38cf936648bcd808616653afed309249c6b2313958848db16d582b3ead244",
+      "inputs/checkpoint/source_snapshot/abstract_stack/contact_finish.py": "8e57e08fecb0dc175749917ddc38592ed39a926b858c8669eba2a69401b522b8",
+      "inputs/checkpoint/source_snapshot/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+      "inputs/checkpoint/source_snapshot/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+      "inputs/checkpoint/source_snapshot/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+      "inputs/checkpoint/source_snapshot/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+      "inputs/checkpoint/source_snapshot/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+      "inputs/checkpoint/source_snapshot/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+      "inputs/checkpoint/source_snapshot/abstract_stack/lfd/lerobot.py": "05eebecd5ff5fb7c6036669069b20cd5be0b4d4e91625fb5c1d438dfe03d67af",
+      "inputs/checkpoint/source_snapshot/abstract_stack/lfd/episode.py": "9c7cfdb149bd226c638e59c50e7eec38e42cdd3ccd7b4569bf92f7cc53f2b920",
+      "inputs/checkpoint/source_snapshot/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+      "inputs/checkpoint/source_snapshot/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+      "inputs/checkpoint/source_snapshot/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+      "inputs/checkpoint/source_snapshot/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+      "inputs/checkpoint/source_snapshot/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+      "inputs/checkpoint/source_snapshot/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+      "inputs/checkpoint/source_snapshot/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+      "inputs/checkpoint/source_snapshot/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+      "inputs/checkpoint/source_snapshot/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+      "inputs/checkpoint/source_snapshot/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+      "inputs/checkpoint/source_snapshot/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63",
+      "inputs/squaring/continuation.npz": "3c39fdc21a204243fc544a65574ca94c6f58d62b4f67d38bb5205b3a922eb031",
+      "inputs/squaring/manifest.json": "81ee504a9566992c0784ddb97e235d4f302f0665bbbb8dce592d1cfe90e8cb41",
+      "inputs/squaring/candidates.npz": "8a5ba18814f564f65193198d7d9915194b1b474c0e69d64e91ba180daf92189a",
+      "inputs/squaring/summary.json": "c0af46019c5ce5f452c26567835c9896f77e1adc64a9352d0fffa8daa1b920a5",
+      "inputs/squaring/process.json": "81eeabfc8c4c43367409f53ba5adb46593e65619a2347e37110a94c6e3016911",
+      "inputs/insertion/continuation.npz": "3f70e1cfbf82234124b26079c332d4de1be72bb07d54c31ce40d05a3d8f0762e",
+      "inputs/insertion/manifest.json": "e4ae9c0f8649fad8d4bad0e2c5c2361577256ebd39130417f47854c627c07821",
+      "inputs/insertion/candidates.npz": "8a5ba18814f564f65193198d7d9915194b1b474c0e69d64e91ba180daf92189a",
+      "inputs/insertion/summary.json": "9cb01c2def8fd87613a80f26c55b874110fbf2e3c55002cfc27c1b6920cdcdbc",
+      "inputs/insertion/process.json": "f845774641bcc90aef2e0421cfec97479e70f55d2adf9535be22bf968eaa2c65",
+      "inputs/yaw_stall/continuation.npz": "2f38e4ffcd7453675a1ec3e3c259193f5452e43d6fccb4891db0ffbe83725c11",
+      "inputs/yaw_stall/manifest.json": "00e6659578f2ceaf86c5c0439f03b280add6efe8e31a83c6ad50738185b120c1",
+      "inputs/yaw_stall/candidates.npz": "8a5ba18814f564f65193198d7d9915194b1b474c0e69d64e91ba180daf92189a",
+      "inputs/yaw_stall/summary.json": "517f4a6118520626e5a72d7206dabed7b40c111a81a78edee94bae0f6ac909af",
+      "inputs/yaw_stall/process.json": "cf5faf3394d49f51a04c5c855011486045446f502a07711f5c401f25736c303d",
+      "source_snapshot/supervisor.py": "da83737b5c71adcdd8eba41de23a373361731d118b287c6359f0a1c2cb515071",
+      "source_snapshot/build.py": "19b3170e9a8b36e20c6270a5ece2b8acdd8c81bae608a19066c127f0460d88fe",
+      "source_snapshot/src/abstract_stack/front_tangential.py": "6f1c7c1f9927d2a2579c9f28153ac8b17ac8a3f0912c400c1560700c7c26f372",
+      "source_snapshot/src/abstract_stack/config.py": "12ab55c8bbc1a154917806bd51884dc075f568b4effc4ae3c261dd78418bbb14",
+      "source_snapshot/src/abstract_stack/evaluation.py": "9a0d3655133920af4689f561bfec779993be1ed3e4104fe1208873b7b37042f6",
+      "source_snapshot/src/abstract_stack/packing.py": "cd031f4abb3b20df19b18760a7ba2b033c9afc0ad421058df87628f2a0c2411e",
+      "source_snapshot/src/abstract_stack/provenance.py": "d4eca2a6663d2eecfd3c50b6b7352ce8f97204e3b8b1ceb8a5f111c69fa23e0e",
+      "source_snapshot/src/abstract_stack/env.py": "e7887ab36562c6d14e7a5245076b87e0fc443d9a9fb1d63f205bab86d4fc1218",
+      "source_snapshot/src/abstract_stack/benchmark_report.py": "2b930f4c487201aca43f6562dd73f3e7c88b85e3cf01c6d3a24fd335e8058da0",
+      "source_snapshot/src/abstract_stack/contact_set.py": "02928b27eeffe0450fef21606e18130afe0cacf60135bab7fdeda1abf261bd10",
+      "source_snapshot/src/abstract_stack/loaded_route.py": "ebec5176627480d1f6ab9facbdc96683e4fac0730506669b0375141b96cd7d0a",
+      "source_snapshot/src/abstract_stack/tuning.py": "844b9db4250d08d812795f2243337d3ba4386022420085c5de0a741a2275a682",
+      "source_snapshot/src/abstract_stack/receding_stocking.py": "4a6d9279e54b9abbee309f59f95c6c811f4f09b82beeeb16656d511a2236a438",
+      "source_snapshot/src/abstract_stack/dense_interactions.py": "544ce4052da8d2ae4df8258b102a4a097b8fe86e1c2a8e93e8c7ada5c72ae9ac",
+      "source_snapshot/src/abstract_stack/ik.py": "2884d92bfd5f4a8e6f4730abb07d8e66ce688b20012cf1b856d9f3f1621cf8f5",
+      "source_snapshot/src/abstract_stack/house.py": "afa011668f92e2b307b11a521ea069a3fab5a7b4d1eb0c6fe499edba74f5048c",
+      "source_snapshot/src/abstract_stack/cli.py": "cb9c0bd8734dcfff347547bcf31dc89e453682568639977b1f42591978d4bec5",
+      "source_snapshot/src/abstract_stack/replanning.py": "c0a68a8a74c21cce17a71b0ed14f685d4e4775f69353376419997573827891e6",
+      "source_snapshot/src/abstract_stack/assets.py": "b49790239986aaf1d3058ea38e432d555beb790ff6e49f13a4b3c548eed51119",
+      "source_snapshot/src/abstract_stack/control_profiles.py": "1eba796a736f7cc4c6177fce1308ca58c2e03b440903d0c312da9e572783782f",
+      "source_snapshot/src/abstract_stack/recording.py": "8b3cd083be9aaa0eed97a337d22b7d8bc57bad4bfa6247acf59325437618f5da",
+      "source_snapshot/src/abstract_stack/random_scenes.py": "cb6be342406c8678632461b12cbc9de85735e47c56074ec8d22c09eadee93c83",
+      "source_snapshot/src/abstract_stack/cartesian_feedback.py": "5029052eaf060bc87114bf47044923c641e463700ce3cfef15ded1e7e753cac2",
+      "source_snapshot/src/abstract_stack/base_motion.py": "8e30f396ae71e229ff099760bb4245574fccd8eebc847cdbc87b20fb6efd96ca",
+      "source_snapshot/src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+      "source_snapshot/src/abstract_stack/campaign.py": "c270bb9564e55ab048629cd160d84d5a65fdf65ecd2129cfd14ba48d7627bf56",
+      "source_snapshot/src/abstract_stack/__init__.py": "0324f9ed5addccab5afa7855d4ff3982cc9357c19ecf48aa144b4abf92945554",
+      "source_snapshot/src/abstract_stack/checkpoints.py": "5f7f88cace23b9ea13c255fa02c32633047e788304d3f35a9ebbbad2ceb984b8",
+      "source_snapshot/src/abstract_stack/sim_sensors.py": "3d0cdb670a077493363a50fe6afe2fe3180b92839d2f8fab603ed8480213b245",
+      "source_snapshot/src/abstract_stack/bundle.py": "8f5ffe60dccd55daff3549a34757483006e273ba39ca1b6b6c9187a52217e16b",
+      "source_snapshot/src/abstract_stack/finger_load_control.py": "2734d39e751848d93482fea244a964788aa3852aa02e35931890c921d09567bf",
+      "source_snapshot/src/abstract_stack/contact_rollout.py": "11d159a580549241718e98cf8a6247cd990a180c05bce61a55202a8104ebd833",
+      "source_snapshot/src/abstract_stack/lateral_contact.py": "5a132c592a9968346c82bcde0d3391ecee2f8cab14a678a03c28dc5ded8ee001",
+      "source_snapshot/src/abstract_stack/compliant_lookahead.py": "8e302d0aa19d893c66c5948f486892cefd633f460fd7cb4b6c21f07097f898fe",
+      "source_snapshot/src/abstract_stack/checkpoint_cli.py": "130d7a71c73b13ad9def5c808f58273f9d4f72bb1e9a5ea72ca49a15bd6691aa",
+      "source_snapshot/src/abstract_stack/contact_finish.py": "34c07f3f80636281cd19b52c6954a0914e50a05d24e73c1116fb4c4efd3543c2",
+      "source_snapshot/src/abstract_stack/load_aware_pusher.py": "1c93e412fce130c217393d2b03759378fe8883f9a622bc8919fd1fa369d24091",
+      "source_snapshot/src/abstract_stack/scene.py": "6732c3656334224e65eaf884538e82f0ae4f5e12cb09b0499ea67ece86bea97f",
+      "source_snapshot/src/abstract_stack/control.py": "a299f452a8f5a6361bce9cd27b36609b4c2ef8b9826473d89351c44d2a59bdfc",
+      "source_snapshot/src/abstract_stack/interactions.py": "60801be95732a5cba770244586cfef3a39335cdc14a8c8106da2ad29b3171777",
+      "source_snapshot/src/abstract_stack/native_views.py": "eb9f4fc57217dcb8bb5661355f07ead3571833f101f06ee57930864896f1963f",
+      "source_snapshot/src/abstract_stack/whole_body_control.py": "9173531f9c6247eba66d730ecf090a0910aef79128c5d5ba3a02b3667368e76f",
+      "source_snapshot/src/abstract_stack/lfd/lerobot.py": "05eebecd5ff5fb7c6036669069b20cd5be0b4d4e91625fb5c1d438dfe03d67af",
+      "source_snapshot/src/abstract_stack/lfd/episode.py": "9c7cfdb149bd226c638e59c50e7eec38e42cdd3ccd7b4569bf92f7cc53f2b920",
+      "source_snapshot/src/abstract_stack/lfd/__init__.py": "54a383d42e2e4aecaf605f73e5c1e1d44f3dd8ba63e2273c7d6627a3e8d3ea8d",
+      "source_snapshot/src/abstract_stack/lfd/legacy.py": "223cb2ac5c14af42ce4a9380bacab8d8f6cfadb35e430a1458784f5a888d4208",
+      "source_snapshot/src/abstract_stack/lfd/native.py": "32b9401cfdc51d7818767865193d94d57df6a15da91fecf768cba195021bd915",
+      "source_snapshot/src/abstract_stack/configs/house.json": "dc17a7873cafa16041ab0fc1e7dcf88bd5a17b06923660df671a985c1e137196",
+      "source_snapshot/src/abstract_stack/configs/house_tight.json": "bb805ccf6a352a9adfd4bb85cf102cec79a51c87b82ea3c0a57c661c669eb47c",
+      "source_snapshot/src/abstract_stack/configs/tight.json": "5a2b7c745702f3fceadfaf1c7272f245401c104acca0a4de3d095cfe0b964c24",
+      "source_snapshot/src/abstract_stack/configs/stocking.json": "6679c2150e2ae1b6d88fcb4009c04d6becc65093809f4d01e2ef7b7fb3c02c27",
+      "source_snapshot/src/abstract_stack/configs/pick_place.json": "a13ee1f7e2750b9787066c617c614fce5c9bd3ecb1742fe8f92ebe685924d350",
+      "source_snapshot/src/abstract_stack/configs/empty.json": "51ab78660624b647e03785cf4e8acb74380b7a21227277cf21fc6ac7fa9cf670",
+      "source_snapshot/src/abstract_stack/robots/__init__.py": "c9bd924cab06536591bb3aa35e935871cf7578bf978f4c6c6e533251d0841cd5",
+      "source_snapshot/src/abstract_stack/robots/mabel.py": "ce5b7a127258452b60570e2e301f365277aaaab61d30af5c85ebfe92532dbc63"
+    },
+    "wall_budget_seconds": 120.0
+  },
+  "individual_fresh_process_verification": {
+    "scheduled": 5,
+    "results": [
+      {
+        "frame": "stalled_before_backstop",
+        "returncode": 0,
+        "verified": true,
+        "report": "/home/cpaxton/src/abstract_stack/outputs/compliance-focus-v2-fresh-verification/stalled_before_backstop/result.json"
+      },
+      {
+        "frame": "approaching_backstop",
+        "returncode": 0,
+        "verified": true,
+        "report": "/home/cpaxton/src/abstract_stack/outputs/compliance-focus-v2-fresh-verification/approaching_backstop/result.json"
+      },
+      {
+        "frame": "first_back_contact",
+        "returncode": 0,
+        "verified": true,
+        "report": "/home/cpaxton/src/abstract_stack/outputs/compliance-focus-v2-fresh-verification/first_back_contact/result.json"
+      },
+      {
+        "frame": "yawed_back_contact",
+        "returncode": 2,
+        "verified": false,
+        "report": "/home/cpaxton/src/abstract_stack/outputs/compliance-focus-v2-fresh-verification/yawed_back_contact/result.json"
+      },
+      {
+        "frame": "bound_limited_squaring",
+        "returncode": 0,
+        "verified": true,
+        "report": "/home/cpaxton/src/abstract_stack/outputs/compliance-focus-v2-fresh-verification/bound_limited_squaring/result.json"
+      }
+    ],
+    "fresh_task_credit": 0
+  },
+  "comparison": {
+    "kind": "fixed_development_checkpoint_comparison",
+    "scheduled_cases": 10,
+    "results": [
+      {
+        "frame": "stalled_before_backstop",
+        "mode": "held",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.8681948000012198,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 1.5990442335800381e-06,
+        "final_yaw_degrees": 3.6542024258921155,
+        "absolute_yaw_reduction_degrees": -8.461559344707936e-05,
+        "peak_forces_N": {
+          "robot_product_N": 1.3470771455055184,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "stalled_before_backstop",
+        "mode": "compliant",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 4.676429560997349,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 0.000894521974581397,
+        "final_yaw_degrees": 3.748664538113629,
+        "absolute_yaw_reduction_degrees": -0.09454672781496054,
+        "peak_forces_N": {
+          "robot_product_N": 1.6359654727264126,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.0
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "approaching_backstop",
+        "mode": "held",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.817948656000226,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 0.00016401058358028742,
+        "final_yaw_degrees": 4.739991545389867,
+        "absolute_yaw_reduction_degrees": 0.11419868991852944,
+        "peak_forces_N": {
+          "robot_product_N": 1.6359654727264126,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.1650531338756836
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "approaching_backstop",
+        "mode": "compliant",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 4.976819867999438,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 0.0003056831747464406,
+        "final_yaw_degrees": 4.679403235739746,
+        "absolute_yaw_reduction_degrees": 0.17478699956865107,
+        "peak_forces_N": {
+          "robot_product_N": 2.6894384944550818,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.8566426417925247
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "first_back_contact",
+        "mode": "held",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.9185389899976144,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 4.757788319142975e-05,
+        "final_yaw_degrees": 4.66811807014774,
+        "absolute_yaw_reduction_degrees": 0.039482582409855915,
+        "peak_forces_N": {
+          "robot_product_N": 2.331400062163282,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.814826209072848
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "first_back_contact",
+        "mode": "compliant",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 4.923628238000674,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 0.00011791100050495551,
+        "final_yaw_degrees": 4.592508630279714,
+        "absolute_yaw_reduction_degrees": 0.11509202227788151,
+        "peak_forces_N": {
+          "robot_product_N": 3.925468517739739,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 1.7468502761077143
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "yawed_back_contact",
+        "mode": "held",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.8681145629998355,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 9.550282007109168e-06,
+        "final_yaw_degrees": 4.400654191137462,
+        "absolute_yaw_reduction_degrees": 0.025157227073309585,
+        "peak_forces_N": {
+          "robot_product_N": 2.331400062163282,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 1.0050560855634458
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "yawed_back_contact",
+        "mode": "compliant",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 4.776788890998432,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 1.3515738467306804e-05,
+        "final_yaw_degrees": 4.386193880257041,
+        "absolute_yaw_reduction_degrees": 0.03961753795373024,
+        "peak_forces_N": {
+          "robot_product_N": 2.331400062163282,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 1.0050560855634458
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "bound_limited_squaring",
+        "mode": "held",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.866853136998543,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 5.2550770217596465e-06,
+        "final_yaw_degrees": 2.7193068301594017,
+        "absolute_yaw_reduction_degrees": 0.02827594570313785,
+        "peak_forces_N": {
+          "robot_product_N": 4.700820047934542,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.9608677147012634
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      },
+      {
+        "frame": "bound_limited_squaring",
+        "mode": "compliant",
+        "outcome": "completed_continuation",
+        "process": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 4.173144713000511,
+          "wall_budget_seconds": 35.0
+        },
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 0.2,
+        "advance_m": 5.2550770217596465e-06,
+        "final_yaw_degrees": 2.7193068301594017,
+        "absolute_yaw_reduction_degrees": 0.02827594570313785,
+        "peak_forces_N": {
+          "robot_product_N": 4.700820047934542,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.9608677147012634
+        },
+        "incidents": [],
+        "controller_failure": "backstop_dwell_decision_budget_exhausted",
+        "squared_dwell_verified": false
+      }
+    ],
+    "fresh_task_credit": 0,
+    "task_success": false
+  },
+  "comparison_force_peak_scope": "cumulative source-checkpoint history plus executed prefix; not prefix-only peaks",
+  "resumed_last_mm_process": {
+    "returncode": 0,
+    "timeout": false,
+    "wall_seconds": 3.3194809109991184,
+    "wall_budget_seconds": 30.0,
+    "verification_status": "completed_forecast",
+    "command": [
+      "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+      "/home/cpaxton/src/abstract_stack/outputs/checkpoints-v1/resumed-last-mm/source_snapshot/probe.py",
+      "--worker",
+      "--output",
+      "/home/cpaxton/src/abstract_stack/outputs/checkpoints-v1/resumed-last-mm",
+      "--horizon",
+      "0.4",
+      "--candidates",
+      "8",
+      "--shortlist",
+      "4",
+      "--generation-seconds",
+      "10.0",
+      "--execute-prefix",
+      "0.1",
+      "--replans",
+      "1",
+      "--checkpoint",
+      "/home/cpaxton/src/abstract_stack/outputs/checkpoints-v1/resumed-last-mm/inputs/checkpoint",
+      "--save-checkpoint"
+    ],
+    "fresh_task_credit": 0,
+    "task_success": false
+  },
+  "fresh_task_credit": 0,
+  "task_success": false
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "purpose": "Development checkpoint bank; zero new task credit",
+  "trajectories": [
+    {
+      "name": "insertion",
+      "directory": "outputs/compliant-lookahead-v1/continued-v3",
+      "frames": [
+        {"name": "stalled_before_backstop", "step": 0},
+        {"name": "approaching_backstop", "step": 1000},
+        {"name": "first_back_contact", "step": 1050}
+      ]
+    },
+    {
+      "name": "yaw_stall",
+      "directory": "outputs/compliant-lookahead-v2/dwell-v1",
+      "frames": [{"name": "yawed_back_contact", "step": 2000}]
+    },
+    {
+      "name": "squaring",
+      "directory": "outputs/compliant-lookahead-v2/square-v2-integral",
+      "frames": [{"name": "bound_limited_squaring", "step": 4000}]
+    }
+  ]
+}

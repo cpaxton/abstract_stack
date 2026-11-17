@@ -5,9 +5,11 @@ Model arrays are shared read-only. Forces and every product are checked at each
 physics step, rather than inferred from sparsely saved trajectory endpoints.
 """
 
+import copy
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import mujoco
 import numpy as np
@@ -136,6 +138,71 @@ class ContactMonitor:
         )
         self.last = {}
         self.incidents = []
+
+    def state_dict(self):
+        """Explicit continuation memory; incidents and timers must not reset."""
+        return copy.deepcopy(
+            dict(
+                schema_version=1,
+                scene=json.loads(json.dumps(asdict(self.scene))),
+                initial_positions={
+                    name: self.initial[body].tolist() for body, name in self.products.items()
+                },
+                initial_yaw=self.initial_yaw,
+                contact_seen=self.contact_seen,
+                contact_loss=self.contact_loss,
+                support_loss=self.support_loss,
+                max_displacement=self.max_displacement,
+                peaks=self.peaks,
+                last=self.last,
+                incidents=self.incidents,
+            )
+        )
+
+    def restore_state(self, state, data):
+        """Restore only a matching native scene and clock; never change physics."""
+        state = copy.deepcopy(state)
+        if state.get("schema_version") != 1 or state.get("scene") != json.loads(
+            json.dumps(asdict(self.scene))
+        ):
+            raise ValueError("Contact monitor checkpoint has a different scene/guard contract")
+        positions = {
+            name: np.asarray(value, float) for name, value in state["initial_positions"].items()
+        }
+        if set(positions) != set(self.products.values()) or any(
+            value.shape != (3,) or not np.isfinite(value).all() for value in positions.values()
+        ):
+            raise ValueError("Contact monitor checkpoint product history is invalid")
+        for name, keys in (("peaks", self.peaks), ("max_displacement", self.max_displacement)):
+            values = state[name]
+            if values.keys() != keys.keys() or any(
+                not np.isfinite(v) or v < 0 for v in values.values()
+            ):
+                raise ValueError("Contact monitor checkpoint history is invalid")
+        if (
+            type(state["contact_seen"]) is not bool
+            or not np.isfinite(state["initial_yaw"])
+            or any(
+                not np.isfinite(state[n]) or state[n] < 0 for n in ("contact_loss", "support_loss")
+            )
+            or not isinstance(state["incidents"], list)
+            or state["last"]
+            and abs(state["last"]["sim_time"] - data.time) > 1e-8
+        ):
+            raise ValueError("Contact monitor checkpoint clock/timers are invalid")
+        json.dumps(state, allow_nan=False)
+        self.initial = {body: positions[name] for body, name in self.products.items()}
+        for name in (
+            "initial_yaw",
+            "contact_seen",
+            "contact_loss",
+            "support_loss",
+            "max_displacement",
+            "peaks",
+            "last",
+            "incidents",
+        ):
+            setattr(self, name, state[name])
 
     def sample(self, data, *, elapsed):
         model, scene = self.model, self.scene

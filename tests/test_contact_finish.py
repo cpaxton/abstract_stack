@@ -53,3 +53,20 @@ def test_skipped_repeated_or_reversed_physics_samples_fail_closed(next_time):
     dwell.update(0, forces, np.eye(3))
     with pytest.raises(ValueError, match="every physics step"):
         dwell.update(next_time, forces, np.eye(3))
+
+
+def test_checkpoint_preserves_partial_dwell_and_rejects_changed_threshold():
+    original = gate()
+    forces = dict(back_N=0.5, hand_N=1.0, support_N=2.0)
+    for step in range(31):
+        original.update(step * 0.002, forces, np.eye(3))
+    restored = gate()
+    restored.restore_state(original.report(), 0.06)
+    for step in range(31, 61):
+        assert restored.update(step * 0.002, forces, np.eye(3)) == original.update(
+            step * 0.002, forces, np.eye(3)
+        )
+    assert restored.verified and restored.held_seconds == pytest.approx(0.12)
+    changed = {**original.report(), "force_threshold_N": 0.3}
+    with pytest.raises(ValueError, match="acceptance threshold"):
+        gate().restore_state(changed, 0.12)
