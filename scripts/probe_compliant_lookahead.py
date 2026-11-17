@@ -24,6 +24,7 @@ def worker(args):
     import mujoco
     import numpy as np
 
+    from abstract_stack.checkpoints import load_checkpoint, save_checkpoint
     from abstract_stack.compliant_lookahead import PushAdmittance, generate_push_candidates
     from abstract_stack.contact_finish import BackstopDwell
     from abstract_stack.contact_rollout import (
@@ -39,29 +40,55 @@ def worker(args):
 
     started = time.monotonic()
     source = args.output / "inputs"
-    original = json.loads((source / "summary.json").read_text())
-    manifest = json.loads((source / "manifest.json").read_text())
-    model = mujoco.MjModel.from_xml_path(str(source / "scene.xml"))
-    data = mujoco.MjData(model)
+    restored = load_checkpoint(source / "checkpoint") if args.checkpoint else None
+    if restored is not None:
+        if restored.controller.get("kind") != "retained_finger_push":
+            raise ValueError("Checkpoint lacks the explicit finger-push controller contract")
+        original, manifest = restored.context["source_summary"], restored.scene
+        model, data = restored.model, restored.data
+    else:
+        original = json.loads((source / "summary.json").read_text())
+        manifest = json.loads((source / "manifest.json").read_text())
+        model = mujoco.MjModel.from_xml_path(str(source / "scene.xml"))
+        data = mujoco.MjData(model)
+        with np.load(source / "rollout_terminal.npz") as state:
+            if int(state["state_spec"]) != int(mujoco.mjtState.mjSTATE_INTEGRATION):
+                raise ValueError("Expected complete native integration state")
+            mujoco.mj_setState(model, data, state["state"], int(state["state_spec"]))
+        mujoco.mj_forward(model, data)
     views = retain_model_views(model), retain_data_views(model, data)
-    with np.load(source / "rollout_terminal.npz") as state:
-        if int(state["state_spec"]) != int(mujoco.mjtState.mjSTATE_INTEGRATION):
-            raise ValueError("Expected complete native integration state")
-        mujoco.mj_setState(model, data, state["state"], int(state["state_spec"]))
-    mujoco.mj_forward(model, data)
     initial = integration_state(model, data)
     active = original["events"][-1]["product"]
     product = next(p for p in manifest["products"] if p["name"] == active)
-    choices = next(
-        e["selected"] for e in reversed(original["events"]) if e["phase"] == "pusher_plan"
+    choices = (
+        restored.controller["pusher_settings"]
+        if restored
+        else next(
+            e["selected"] for e in reversed(original["events"]) if e["phase"] == "pusher_plan"
+        )
     )
     hand = LoadAwareFingerPusher(
         SimpleNamespace(model=model, data=data, dt=0.02),
         ScriptConfig(**original["controller"]),
         **choices,
     )
-    nominal = np.array([original["last_nominal_targets"][n] for n in [*hand.names, "Lift"]])
+    nominal_targets = (
+        restored.controller["nominal_subset"] if restored else original["last_nominal_targets"]
+    )
+    nominal = np.array([nominal_targets[n] for n in [*hand.names, "Lift"]])
     hand.command = nominal.copy()
+    if restored and "tool_offset_m" in restored.controller:
+        offset = np.asarray(restored.controller["tool_offset_m"], float)
+        if (
+            offset.shape != (3,)
+            or not np.isfinite(offset).all()
+            or not np.allclose(offset, hand.OFFSET, rtol=0, atol=1e-9)
+        ):
+            raise ValueError("Checkpoint tool calibration does not match native finger geometry")
+        hand.OFFSET = offset.copy()
+        hand.ik.offset = offset.copy()
+    if restored and "active_rotation_world" in restored.controller:
+        hand.active_rotation = np.asarray(restored.controller["active_rotation_world"], float)
     suite = ContactSensorSuite.mabel(model)
     reading = suite.sample(data)
     rotation = data.xmat[hand.palm].reshape(3, 3)
@@ -72,6 +99,9 @@ def worker(args):
     level = manifest["config"]["levels"][product["level"]]
     lower = np.array([origin[0] - 0.03, product["target"][1] - 0.02, level + 0.023])
     upper = np.array([origin[0] + 0.03, product["target"][1] + 0.02, level + 0.053])
+    if restored and "motion_bounds" in restored.controller:
+        lower = np.asarray(restored.controller["motion_bounds"]["lower_m"], float)
+        upper = np.asarray(restored.controller["motion_bounds"]["upper_m"], float)
     configuration = PushAdmittance(normal_target_N=original["controller"]["push_force_target"])
     candidates, generation, rates = generate_push_candidates(
         hand,
@@ -132,6 +162,7 @@ def worker(args):
         selected=selected,
         worker_wall_seconds=time.monotonic() - started,
         source_state_unchanged=True,
+        restored_checkpoint=None if restored is None else str(restored.directory),
     )
     if args.execute_prefix > 0:
         prefix_steps = int(round(args.execute_prefix / model.opt.timestep))
@@ -145,6 +176,8 @@ def worker(args):
         ):
             raise ValueError("Prefix must contain whole control intervals within the horizon")
         monitor = ContactMonitor(model, data, scene)
+        if restored and restored.context.get("contact_monitor"):
+            monitor.restore_state(restored.context["contact_monitor"], data)
         yaw_limit = next(
             (
                 event["requested_backstop_yaw_tolerance_deg"]
@@ -168,16 +201,20 @@ def worker(args):
             else None
         )
         records = []
+        if dwell is not None and restored and restored.context.get("backstop_dwell"):
+            dwell.restore_state(restored.context["backstop_dwell"], float(data.time))
         executed = []
         tracking_samples = []
         actor_failure = None
         active_body = model.body(active).id
         start_x = float(data.xpos[active_body, 0])
-        yaw_integral_lever = 0.0
+        yaw_integral_lever = (
+            float(restored.controller.get("yaw_integral_lever_m", 0)) if restored else 0.0
+        )
         for cycle in range(args.replans):
             lateral_goal = lateral_measured = None
             objective = "advance"
-            if cycle:
+            if cycle or restored is not None and args.square_feedback:
                 expected = integration_state(model, data)
                 reading = suite.sample(data)
                 rotation = data.xmat[hand.palm].reshape(3, 3)
@@ -289,11 +326,18 @@ def worker(args):
                 break
             if dwell is not None and dwell.last_time_s is None:
                 dwell.update(data.time, monitor.last, data.xmat[active_body].reshape(3, 3))
+            latest_nominal = nominal.copy()
             for step_index, control in enumerate(chosen["controls"][:prefix_steps]):
                 data.ctrl[:] = control
                 mujoco.mj_step(model, data)
                 mujoco.mj_forward(model, data)
                 executed.append(control.copy())
+                trace = chosen["metadata"].get("nominal_references")
+                if trace:
+                    tick = step_index // control_steps
+                    previous = nominal if tick == 0 else np.asarray(trace[tick - 1])
+                    fraction = (step_index % control_steps + 1) / control_steps
+                    latest_nominal = previous + (np.asarray(trace[tick]) - previous) * fraction
                 if (
                     not np.isfinite(data.qpos).all()
                     or not np.isfinite(data.qvel).all()
@@ -306,13 +350,8 @@ def worker(args):
                 actor_failure = monitor.sample(data, elapsed=model.opt.timestep)
                 if actor_failure:
                     break
-                trace = chosen["metadata"].get("nominal_references")
                 if trace:
-                    tick = step_index // control_steps
-                    previous = nominal if tick == 0 else np.asarray(trace[tick - 1])
-                    fraction = (step_index % control_steps + 1) / control_steps
-                    reference = previous + (np.asarray(trace[tick]) - previous) * fraction
-                    predicted, _ = hand.ik.forward(reference, data.qpos.copy())
+                    predicted, _ = hand.ik.forward(latest_nominal, data.qpos.copy())
                     tracking_samples.append(
                         [float(data.time), float(np.linalg.norm(hand.position() - predicted))]
                     )
@@ -328,6 +367,8 @@ def worker(args):
                 after_x_m=float(data.xpos[active_body, 0]),
                 last_sample=monitor.last.copy(),
             )
+            nominal = latest_nominal.copy()
+            hand.command = nominal.copy()
             contact_finished = (
                 dwell.verified
                 if dwell is not None
@@ -335,11 +376,6 @@ def worker(args):
             )
             if actor_failure or contact_finished:
                 break
-            if chosen["metadata"].get("nominal_references"):
-                nominal = np.array(
-                    chosen["metadata"]["nominal_references"][prefix_steps // control_steps - 1]
-                )
-                hand.command = nominal.copy()
         if dwell is not None and not dwell.verified and actor_failure is None:
             actor_failure = "backstop_dwell_decision_budget_exhausted"
         report["continuation"] = dict(
@@ -364,6 +400,7 @@ def worker(args):
             tracking_scope="actual tool versus nominal FK at measured base; separate from IK error",
             full_stocking_success=False,
             fresh_task_credit=0,
+            terminal_nominal_subset=dict(zip([*hand.names, "Lift"], nominal.tolist(), strict=True)),
         )
         np.savez_compressed(
             args.output / "continuation.npz",
@@ -377,6 +414,49 @@ def worker(args):
             np.array_equal(initial, integration_state(model, data))
         )
         report["source_checkpoint_file_unchanged"] = True
+        if args.save_checkpoint:
+            write(args.output / "summary.json", report)
+            checkpoint_path = args.output / "terminal-checkpoint"
+            controller_state = dict(
+                kind="retained_finger_push",
+                settings=original["controller"],
+                pusher_settings=choices,
+                nominal_subset=report["continuation"]["terminal_nominal_subset"],
+                active_rotation_world=hand.active_rotation.tolist(),
+                tool_offset_m=hand.OFFSET.tolist(),
+                motion_bounds=dict(lower_m=lower.tolist(), upper_m=upper.tolist()),
+                yaw_integral_lever_m=yaw_integral_lever,
+                control_dt_s=hand.env.dt,
+                applied_controls=data.ctrl.tolist(),
+                mode_flags=dict(
+                    require_dwell=args.require_dwell, square_feedback=args.square_feedback
+                ),
+            )
+            xml_path = (restored.directory if restored else source) / "scene.xml"
+            try:
+                save_checkpoint(
+                    checkpoint_path,
+                    model,
+                    data,
+                    scene=manifest,
+                    controller=controller_state,
+                    context=dict(
+                        source_summary=original,
+                        source_continuation=str(args.output),
+                        parent_checkpoint=None
+                        if restored is None
+                        else restored.manifest["hashes"]["state.npz"],
+                        original_outcome=original.get("failure"),
+                        contact_monitor=monitor.state_dict(),
+                        backstop_dwell=None if dwell is None else dwell.report(),
+                        control_phase_step=len(executed) % control_steps,
+                    ),
+                    scene_xml=xml_path.read_text() if xml_path.exists() else None,
+                    validation_controls=np.tile(data.ctrl, (20, 1)),
+                )
+                report["checkpoint"] = str(checkpoint_path)
+            except (OSError, ValueError, RuntimeError) as error:
+                report["checkpoint_error"] = str(error)
     write(args.output / "summary.json", report)
     print(
         json.dumps(
@@ -394,7 +474,10 @@ def worker(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--episode", type=Path)
+    inputs = parser.add_mutually_exclusive_group()
+    inputs.add_argument("--episode", type=Path)
+    inputs.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--save-checkpoint", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--horizon", type=float, default=0.4)
     parser.add_argument("--candidates", type=int, default=8)
@@ -416,25 +499,32 @@ def main():
         and 1 <= args.replans <= 80
         and (not args.require_dwell or args.execute_prefix > 0)
         and (not args.square_feedback or args.require_dwell)
+        and (not args.save_checkpoint or args.execute_prefix > 0)
     ):
         parser.error("Keep candidate, shortlist and compute budgets bounded")
     args.output = args.output.resolve()
     if args.worker:
         worker(args)
         return 0
-    if args.episode is None:
-        parser.error("--episode is required")
+    if args.episode is None and args.checkpoint is None:
+        parser.error("--episode or --checkpoint is required")
     root = Path(__file__).resolve().parents[1]
     args.output.mkdir(parents=True, exist_ok=False)
     inputs = args.output / "inputs"
     inputs.mkdir()
-    for src, name in (
-        (args.episode / "summary.json", "summary.json"),
-        (args.episode / "initial-scene/manifest.json", "manifest.json"),
-        (args.episode / "initial-scene/scene.xml", "scene.xml"),
-        (args.episode / "rollout_terminal.npz", "rollout_terminal.npz"),
-    ):
-        shutil.copy2(src, inputs / name)
+    if args.checkpoint:
+        from abstract_stack.checkpoint_manifest import inspect_checkpoint
+
+        checkpoint_directory, _ = inspect_checkpoint(args.checkpoint)
+        shutil.copytree(checkpoint_directory, inputs / "checkpoint")
+    else:
+        for src, name in (
+            (args.episode / "summary.json", "summary.json"),
+            (args.episode / "initial-scene/manifest.json", "manifest.json"),
+            (args.episode / "initial-scene/scene.xml", "scene.xml"),
+            (args.episode / "rollout_terminal.npz", "rollout_terminal.npz"),
+        ):
+            shutil.copy2(src, inputs / name)
     snapshot = args.output / "source_snapshot"
     snapshot.mkdir()
     shutil.copytree(
@@ -487,6 +577,10 @@ def main():
         command.append("--require-dwell")
     if args.square_feedback:
         command.append("--square-feedback")
+    if args.checkpoint:
+        command += ["--checkpoint", str(inputs / "checkpoint")]
+    if args.save_checkpoint:
+        command.append("--save-checkpoint")
     write(
         args.output / "process.json",
         dict(returncode=None, verification_status="unknown", fresh_task_credit=0),

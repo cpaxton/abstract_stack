@@ -64,6 +64,16 @@ project names, task descriptions, repository links, or private context.
 
 ## SIM-001 — Intermittent native MuJoCo signal during MABEL control
 
+- **Import-only failures during checkpoint work:** separate capture and replay
+  children segfaulted while importing the native `_specs` module, before any
+  checkpoint model was loaded. Logs remain in
+  `outputs/checkpoints-v1/carton8-stalled/` and
+  `outputs/compliance-focus-v2-fresh-verification/yawed_back_contact/`.
+  A bounded GDB capture and other ordinary MJB replay processes completed, but
+  do not replace these unknown outcomes or identify their cause. MJB avoids XML
+  recompilation on restore; it is not a fix for native import/process stability.
+  Nothing has been filed or sent upstream.
+
 - **Additional construction abort, 2026-11-17:** a required publication hook at
   `3a0dcab` collected 310 tests, passed seven and aborted with signal 6 while
   compiling a fresh MABEL model in `MjModel.from_xml_string`. The Python frame
