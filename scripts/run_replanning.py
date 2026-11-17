@@ -24,6 +24,11 @@ def main():
     parser.add_argument("--alignment-seconds", type=float, default=6.0)
     parser.add_argument("--control-config", type=Path)
     parser.add_argument("--guarded-approach", action="store_true")
+    parser.add_argument("--base-reposition", action="store_true")
+    parser.add_argument("--finger-load-compensation", action="store_true")
+    parser.add_argument("--bounded-contact-ik", action="store_true")
+    parser.add_argument("--square-backstop", action="store_true")
+    parser.add_argument("--contact-recovery", action="store_true")
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--admit-loaded-route", action="store_true")
     parser.add_argument(
@@ -55,6 +60,11 @@ def main():
             loaded_route=args.loaded_route,
             route_admission=args.admit_loaded_route,
             table_front=args.table_front,
+            base_reposition=args.base_reposition,
+            finger_load_compensation=args.finger_load_compensation,
+            bounded_contact_ik=args.bounded_contact_ik,
+            square_backstop=args.square_backstop,
+            contact_recovery=args.contact_recovery,
         )
         if args.plan_only:
             # The regular episode runner owns settling and the StageObserver.

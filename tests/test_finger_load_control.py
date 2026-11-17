@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from abstract_stack.finger_load_control import FingerLoadCompensator
-from abstract_stack.front_tangential import FrontTangentialStockingScript
+from abstract_stack.front_tangential import FrontTangentialStockingScript, TangentialFingerPusher
 from abstract_stack.interactions import ScriptConfig
 
 
@@ -70,3 +70,76 @@ def test_out_of_range_nominal_is_rejected_before_reference_compensation():
     with pytest.raises(ValueError, match="Nominal finger reference"):
         control.targets({"finger": 1.01}, dt=0.02)
     np.testing.assert_array_equal(data.ctrl, before)
+
+
+@pytest.mark.mabel
+def test_tangential_abduction_reference_matches_native_command_and_ik_geometry(monkeypatch):
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.packing import dense_shelf_config
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0, product_count=10, initially_stocked=9))
+    try:
+        hand = TangentialFingerPusher(
+            env,
+            ScriptConfig(),
+            finger="Middle",
+            tilt_degrees=10,
+            wrist_posture=0.4,
+            abduction_posture=0.0,
+        )
+        before_qpos, before_ctrl = env.data.qpos.copy(), env.data.ctrl.copy()
+        captured = []
+
+        def prediction(*args, **kwargs):
+            captured.append(kwargs["finger_positions"])
+            return None
+
+        monkeypatch.setattr(hand.ik, "predict", prediction)
+        hand.predict(hand.position(), alternatives=False, carrying=False)
+        nominal = hand.finger_targets(0)
+        adr = int(env.model.joint("Left Middle Abd").qposadr[0])
+        assert nominal["Left Middle Abd"] == captured[-1][adr] == 0.0
+        command = hand.joint_targets(hand.command, 0)
+        assert command["Left Middle Abd"] == 0.0
+        np.testing.assert_array_equal(env.data.qpos, before_qpos)
+        np.testing.assert_array_equal(env.data.ctrl, before_ctrl)
+    finally:
+        env.close()
+
+
+@pytest.mark.mabel
+def test_front_contact_offset_is_bounded_before_any_native_command(tmp_path):
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.packing import dense_shelf_config
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0, product_count=10, initially_stocked=9))
+    try:
+        script = FrontTangentialStockingScript(env, tmp_path)
+        before_qpos, before_ctrl, before_time = (
+            env.data.qpos.copy(),
+            env.data.ctrl.copy(),
+            env.data.time,
+        )
+        with pytest.raises(ValueError, match="bounded active face"):
+            script.push_front_tangentially(
+                direction=1,
+                distance_m=0.0015,
+                normal_force_N=3,
+                force_guided=True,
+                contact_offset_m=0.1,
+            )
+        np.testing.assert_array_equal(env.data.qpos, before_qpos)
+        np.testing.assert_array_equal(env.data.ctrl, before_ctrl)
+        assert env.data.time == before_time
+    finally:
+        env.close()

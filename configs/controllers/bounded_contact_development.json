@@ -1,0 +1,5 @@
+{
+  "alignment_timeout_seconds": 10.0,
+  "insertion_lateral_position_gain": 2.0,
+  "insertion_tangent_admittance": 0.02
+}

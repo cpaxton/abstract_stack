@@ -30,6 +30,8 @@ def main():
         "--mode", choices=("exposed-side", "front-tangential"), default="exposed-side"
     )
     parser.add_argument("--normal-force", type=float, default=8.0)
+    parser.add_argument("--force-guided-lateral", action="store_true")
+    parser.add_argument("--front-contact-offset", type=float, default=0.0)
     parser.add_argument("--base-x", type=float, help="Explicit reset fixture base X; no live move")
     parser.add_argument("--base-y", type=float, help="Explicit reset fixture base Y; no live move")
     parser.add_argument("--tolerance", type=float)
@@ -132,6 +134,8 @@ def main():
                 distance_m=args.distance,
                 normal_force_N=args.normal_force,
                 settings=settings,
+                force_guided=args.force_guided_lateral,
+                contact_offset_m=args.front_contact_offset,
             )
         else:
             script.push_laterally(
@@ -145,6 +149,15 @@ def main():
             result.update(
                 terminal_source=policy_provenance(),
                 events=script.events,
+                last_nominal_q=script.controller.command.tolist(),
+                nominal_q_names=script.controller.ik.names,
+                tracking_controller=script.tracker.last_report,
+                last_ik_prediction=(
+                    None
+                    if script.controller.last_prediction is None
+                    else script.controller.last_prediction.report()
+                ),
+                last_contact_forces=script.last_forces,
                 incidents=script.observer.incidents,
                 final_pose=script.observer.snapshot(),
                 row_geometry=row_geometry(env),

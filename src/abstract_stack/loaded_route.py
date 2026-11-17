@@ -151,6 +151,7 @@ def admit_loaded_route(
     *,
     front_offset=None,
     allow_lower_clearance=False,
+    home_displacement_xy=None,
 ):
     """Necessary geometric forecast before pickup; no grasp/contact guarantee.
 
@@ -161,6 +162,13 @@ def admit_loaded_route(
     hand = CartesianHand(env.clone_for_planning(), config)
     hand.command = controller.command.copy()
     stages = []
+    home_displacement = (
+        np.zeros(2)
+        if home_displacement_xy is None
+        else np.asarray(home_displacement_xy, dtype=float)
+    )
+    if home_displacement.shape != (2,) or not np.isfinite(home_displacement).all():
+        raise ValueError("Home waypoint displacement must be a finite XY vector")
     empty_goals = [
         ("clear_high", np.array([-0.30, -0.20, 1.35])),
         ("retract", np.array([-0.44, -0.20, 1.0])),
@@ -172,6 +180,9 @@ def admit_loaded_route(
         ("approach", np.asarray(grasp_target)),
     ]
     for name, target in empty_goals:
+        if name in ("clear_high", "retract", "raise"):
+            target = target.copy()
+            target[:2] += home_displacement
         if name == "approach":
             hand.active_rotation = grasp_prediction.requested_rotation.copy()
         alternatives = name != "approach"
@@ -180,6 +191,9 @@ def admit_loaded_route(
             if name == "clear_high" and allow_lower_clearance
             else [target]
         )
+        if name == "clear_high" and allow_lower_clearance:
+            for candidate in candidates:
+                candidate[:2] += home_displacement
         accepted = False
         for candidate in candidates:
             prediction = hand.predict(

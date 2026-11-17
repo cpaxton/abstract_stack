@@ -38,14 +38,26 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   Rear-row tangential-packing probes have not succeeded.
 - [x] Add opt-in bounded finger load compensation, with native torque-sign tests,
   separate nominal/applied references and coupled applied-finger geometry checks.
-- [ ] Validate native swerve-base repositioning as a checked action for contact
-  poses near arm workspace limits; reset-only base fixtures do not prove motion.
+- [x] Implement checked native swerve-base repositioning. Three isolated native
+  translations passed, including ten cartons on the table. Integrated empty-hand
+  repositioning reaches a previously rejected contact approach; a complete
+  base-plus-insertion sequence remains unvalidated. Negative-Y motion currently
+  rejects idle-right-hand/shelf clearance; add a checked empty-arm stow action.
+- [x] Diagnose and correct incompatible online IK followed by independent joint
+  rate clipping. Optimize inside the joint-rate box, report returned nominal FK,
+  and include the actual measured start in retained Cartesian paths. Native
+  contact tracking is now below 1 mm in development runs, with task failures
+  retained separately from tracking results.
 - [ ] Use bounded wrench feedback through native position-servo reference offsets;
   retain gravity/load feedforward. Specify world/tool frames and wrench signs.
 - [ ] Share normal-force, tangential/yaw compliance, anti-windup, reference bounds,
   force release and retreat between insertion and lateral compaction.
 - [ ] Detect jams by force plus lack of object progress; unload, back off and try
   a bounded alternative. Force aborts remain terminal until safe recovery exists.
+- [ ] Validate the opt-in released/supported contact-reacquisition mode end to
+  end. Its native tests preserve grasped/carry, support-loss, force and motion
+  guards. New finger-abduction load compensation exposed downward-load/tilt
+  failure; gate forward motion while unloading vertical force before promotion.
 - [ ] Measure contact duration, object displacement, residual gaps, force peaks,
   recovery attempts and all-product stability; no success from commanded motion.
 
@@ -85,3 +97,5 @@ open. New work is isolated on `feat/contact-rich-packing` based on `037c61e`.
 Design and references: [receding-horizon plan](docs/receding_horizon_stocking.md).
 Initial evidence: [planning probes](docs/reports/replanning_development.md) and
 [sideways contact probes](docs/reports/lateral_contact_development.md).
+Tracking diagnosis: [sent-reference error](docs/reports/mobile_contact_reference_diagnostic.md).
+Base evidence: [native wheel actions](docs/reports/native_base_motion_development.md).

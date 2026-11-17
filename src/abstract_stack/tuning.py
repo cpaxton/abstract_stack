@@ -31,6 +31,8 @@ CONTROL_BOUNDS = {
     "front_staging_depth": (0.01, 0.12),
     "insertion_yaw_lever_gain": (0.05, 0.6),
     "insertion_back_force_target": (0.3, 5.0),
+    "insertion_lateral_position_gain": (0.2, 3.0),
+    "insertion_tangent_admittance": (0.004, 0.04),
 }
 
 
