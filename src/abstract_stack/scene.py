@@ -37,6 +37,7 @@ class ShelfConfig:
     frame_skip: int = 10
     time_limit: float = 120.0
     stable_seconds: float = 0.5
+    terminate_on_success: bool = True
     target_tolerance: float = 0.055
     enable_sensors: bool = False
     environment: str = "studio"
@@ -91,6 +92,8 @@ class ShelfConfig:
             )
         if not isinstance(self.enable_sensors, bool):
             raise ValueError("enable_sensors must be true or false")
+        if not isinstance(self.terminate_on_success, bool):
+            raise ValueError("terminate_on_success must be true or false")
         if (
             not isinstance(self.product_count, int)
             or isinstance(self.product_count, bool)
@@ -235,7 +238,7 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
                 kind="bottle" if bottle else "carton",
                 half_size=half_size,
                 mass=0.25 if bottle else 0.18,
-                color=colors[(i // 2) % len(colors)],
+                color=colors[(i // 2 if config.product_kind == "mixed" else i) % len(colors)],
                 level=level,
                 target=target,
                 spawn=spawn,
@@ -474,6 +477,9 @@ def build_scene_xml(
         )
     center = (config.front_x - config.depth / 2, config.center_y, roof / 2)
     _camera(world, "overview", (1.7, config.center_y - 2.5, roof + 0.5), center)
+    _camera(
+        world, "stocking_third_person", (1.25, config.center_y - 1.8, 1.7), (-0.30, -0.18, 0.82)
+    )
     # An oblique front view keeps the shelf visible around MABEL's torso.
     _camera(
         world, "shelf_front", (config.front_x + 1.35, config.center_y + 1.10, roof * 0.8), center

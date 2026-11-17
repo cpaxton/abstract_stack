@@ -24,6 +24,12 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
+      - id: shell-syntax
+        name: shell syntax
+        entry: bash
+        args: [-c, 'for source_path in "$@"; do bash -n "$source_path" || exit; done', --]
+        language: system
+        types: [shell]
       - id: physics-tests
         name: physics tests
         entry: scripts/test.sh

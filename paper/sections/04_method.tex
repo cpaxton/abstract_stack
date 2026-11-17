@@ -1,0 +1,106 @@
+\section{Proposed Method}
+\subsection{Task program and physical skill interface}
+The proposed task program chooses an object, hand, shelf slot, approach, contact
+mode, and fallback. Skills return observations and explicit outcomes rather
+than assuming success after a waypoint. Outcomes should distinguish no
+acceptable IK solution found, sampled path obstruction, tracking failure,
+unverified grasp, lost load, jam, tipped object, and force or base-support abort.
+These are proposed skill outcomes; only a subset is currently instrumented.
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.88\linewidth}{\centering
+Development: probe simulator $\rightarrow$ revise program $\rightarrow$ freeze\par
+\medskip
+Evaluation: task program $\rightarrow$ feasibility check $\rightarrow$
+tracking/contact controller $\rightarrow$ native MuJoCo physics\par
+\medskip
+Measured state, contacts and failure reasons feed back to the frozen program.}}
+\caption{Proposed separation of program development and physical execution.
+The same execution contract should support conventional and learned controllers.}
+\end{figure}
+
+\subsection{Feasibility before motion}
+For each candidate hand pose, bounded multi-start IK tries a preferred rotation
+and a finite set of orientation alternatives. The prefilter separately measures
+translation and rotation residuals, reports active limits, and checks endpoints
+and sampled joint paths. Failure is a local-search outcome rather than proof of
+global unreachability. An empty-hand fallback may execute a checked short prefix,
+then must stop before closure and request a new plan. The current prefix has a
+10\,cm predicted excursion limit; it is not an accepted grasp.
+
+The next planner must regenerate grasp poses, route around shelf obstacles,
+consider the other hand or a new base pose. Current sampled carry checks move
+the measured product geometry with the hand under a rigid-grasp assumption;
+slip monitoring checks that assumption during execution. Continuous collision
+certificates remain open. Base movement must be executed physically and followed by fresh IK.
+
+\subsection{Conventional tracking foundation}
+The reusable tracker accepts named nominal references for both seven-joint
+arms, both wrists, and the shared tendon lift. Native position servos already
+provide measured position feedback. Our added layer estimates robot gravity
+from scratch data at the measured configuration with zero velocity. If $B(q)$
+maps selected actuator forces to driven generalized coordinates, we compute
+\begin{equation}
+ f_g = \underset{f}{\operatorname{argmin}}\,
+ \lVert B(q)f-g(q)\rVert_2^2.
+\end{equation}
+Only driven coordinates enter the fit. In particular, the common lift tendon
+must not count the supported mass twice. Reference offsets implement feedforward
+through the existing servos:
+\begin{equation}
+ u = \operatorname{limit}\!\left(r+
+ \operatorname{clip}\!\left(\frac{f_g+f_v}{k_p},-\Delta,\Delta\right)\right).
+\end{equation}
+Division is elementwise. $f_v$ adds measured wrist velocity feedback, because
+the imported wrists have no native velocity gain. Limits include native
+force bounds where defined, joint/control ranges, offset caps, and nominal and
+applied target rates. Limiting events are reported explicitly.
+
+This estimate compensates robot gravity, not unknown payload or contact loads.
+It does not replace Cartesian error correction, contact-mode control, whole-body
+stability monitoring, or collision planning. No model gain or inertial is edited.
+Fingers and base commands retain native semantics; verified grasp profiles and
+navigation remain separate work.
+
+\subsection{World-state contact feedback and recording}
+The current executor distinguishes free-space retention from bounded
+hand-supported insertion. It regulates a balanced normal-force estimate
+(gross hand normals minus the norm of their vector sum) separately from net
+push force. Measured object orientation and board clearance drive bounded
+hand-reference corrections. Back-contact acceptance requires an upright load;
+release follows a sampled opening/withdrawal path and final support checks.
+Cartesian insertion is checked using sequential IK along a Cartesian path,
+instead of assuming a straight joint segment has the same clearance.
+
+Seeded scene generation varies geometry and initial conditions within a local
+carton task family. Native robot-camera and third-person images are recorded
+at common simulation timestamps, with explicit final verdicts. Physical neck
+tracking is independent of recording. Serial campaigns preserve failed and
+unverified process outcomes. These implemented tools support development; they
+do not substitute for the frozen-policy evaluation proposed next.
+
+\subsection{Learned controller integration}
+An eventual RL controller should implement the same physical execution contract,
+with explicit model and controller fingerprints, joint order, units, frame
+definitions, control period, nominal references, and observation normalization.
+A MABEL profile must represent two arms, a shared lift, and multi-joint hands;
+it cannot reinterpret weights trained for another robot or a single-joint gripper.
+The existing upstream RL work is a prospective integration, not a demonstrated
+MABEL policy.
+
+We propose first comparing reference tracking, then guarded grasp retention and
+contact motion, and finally complete stocking. Learned residuals must remain
+bounded by the same physical limits and measured acceptance gates. Privileged
+training information, actor observations, and independent evaluation diagnostics
+must be disclosed separately. No hardware deployment or policy promotion is
+implied by simulator training.
+
+\subsection{Recovery policy development}
+After a rejected grasp, the program should change a discrete choice: regenerate
+the pose, choose a different product, switch hands, clear an obstruction, or
+reposition the base. It should not repeatedly issue the identical rejected pose.
+For a jam, the proposed controller stops advancement, unloads contact, retreats
+along a checked route, and replans. Tipped products require a separate verified
+reorientation skill. Development probes can estimate clearance and load response,
+but evaluation never rewrites the policy or resets a failed episode to hide it.

@@ -17,6 +17,17 @@ def rotation_error(actual, desired) -> np.ndarray:
     return vector
 
 
+def interpolate_rotation(start, goal, fraction):
+    vector = rotation_error(start, goal)
+    angle = float(np.linalg.norm(vector))
+    if angle < 1e-9:
+        return start.copy()
+    quat, matrix = np.empty(4), np.empty(9)
+    mujoco.mju_axisAngle2Quat(quat, vector / angle, angle * fraction)
+    mujoco.mju_quat2Mat(matrix, quat)
+    return matrix.reshape(3, 3) @ start
+
+
 def _descendants(model, root):
     result = set()
     for bid in range(model.nbody):
@@ -51,11 +62,14 @@ class IKPrediction:
     position_tolerance_m: float = 0.015
     angle_tolerance_degrees: float = 12.0
     allowed_contact_object: str | None = None
+    carried_object: str | None = None
+    path_mode: str = "joint"
+    path_ik_error: dict | None = None
     baseline_qpos: np.ndarray | None = field(default=None, repr=False)
 
     @property
     def safe(self):
-        return not self.collisions and not self.path_collisions
+        return not self.collisions and not self.path_collisions and self.path_ik_error is None
 
     def report(self):
         reasons = []
@@ -69,6 +83,8 @@ class IKPrediction:
             reasons.append("sampled_path_collision")
         if self.blocked_by:
             reasons.append("blocked_continuation")
+        if self.path_ik_error:
+            reasons.append("sampled_path_ik_error")
         return {
             "status": "accepted" if self.feasible else "no_acceptable_solution_found",
             "requested_position": self.target.tolist(),
@@ -83,12 +99,15 @@ class IKPrediction:
             "active_limits": self.active_limits,
             "collisions": self.collisions,
             "sampled_path_collisions": self.path_collisions,
+            "sampled_path_model": self.path_mode,
+            "sampled_path_ik_error": self.path_ik_error,
             "endpoint_within_collision_tolerance": not self.collisions,
             "sampled_path_checked": self.path_checked,
             "safe_sampled_path": self.path_checked and self.safe,
             "blocked_continuation": self.blocked_by,
             "rejection_reasons": reasons if not self.feasible else [],
             "allowed_target_hand_contact": self.allowed_contact_object,
+            "carried_object_swept_volume": self.carried_object,
             "collision_tolerance_m": 0.002,
             "existing_contact_allowance_m": 0.001,
             "candidate": self.candidate,
@@ -120,6 +139,7 @@ class PoseIK:
         self.hand = _descendants(model, self.palm)
         self.scratch = mujoco.MjData(model)
         self.jacp, self.jacr = np.zeros((3, model.nv)), np.zeros((3, model.nv))
+        self.carry = None
 
     def measured_q(self):
         return np.r_[
@@ -135,6 +155,16 @@ class PoseIK:
         mujoco.mj_comPos(self.model, self.scratch)
         rotation = self.scratch.xmat[self.palm].reshape(3, 3).copy()
         point = self.scratch.xpos[self.palm] + rotation @ self.offset
+        if self.carry is not None:
+            _, qadr, relative_position, relative_rotation = self.carry
+            self.scratch.qpos[qadr : qadr + 3] = (
+                self.scratch.xpos[self.palm] + rotation @ relative_position
+            )
+            mujoco.mju_mat2Quat(
+                self.scratch.qpos[qadr + 3 : qadr + 7], (rotation @ relative_rotation).ravel()
+            )
+            mujoco.mj_kinematics(self.model, self.scratch)
+            mujoco.mj_comPos(self.model, self.scratch)
         return point.copy(), rotation
 
     def solve(
@@ -175,7 +205,8 @@ class PoseIK:
         for contact in self.scratch.contact:
             g1, g2 = int(contact.geom1), int(contact.geom2)
             b1, b2 = int(self.model.geom_bodyid[g1]), int(self.model.geom_bodyid[g2])
-            if b1 not in self.robot and b2 not in self.robot:
+            carried = self.carry[0] if self.carry is not None else None
+            if b1 not in self.robot and b2 not in self.robot and carried not in (b1, b2):
                 continue
             names = [self.model.body(b).name for b in (b1, b2)]
             geoms = [
@@ -263,7 +294,11 @@ class PoseIK:
         check_path=True,
         alternatives=True,
         finger_positions=None,
+        carrying=False,
+        path_mode="joint",
     ):
+        if path_mode not in ("joint", "cartesian"):
+            raise ValueError("IK path_mode must be joint or cartesian")
         target = np.asarray(target, dtype=float)
         preferred = np.asarray(preferred, dtype=float)
         if target.shape != (3,) or not np.isfinite(target).all():
@@ -276,6 +311,19 @@ class PoseIK:
         ):
             raise ValueError("IK orientation must be a proper rotation matrix")
         baseline_reference = self.data.qpos.copy()
+        self.carry = None
+        if carrying:
+            if allowed_object is None:
+                raise ValueError("A carried product must be named")
+            bid = self.model.body(allowed_object).id
+            qadr = int(self.model.joint(f"{allowed_object}_joint").qposadr[0])
+            palm_rotation = self.data.xmat[self.palm].reshape(3, 3)
+            self.carry = (
+                bid,
+                qadr,
+                palm_rotation.T @ (self.data.xpos[bid] - self.data.xpos[self.palm]),
+                palm_rotation.T @ self.data.xmat[bid].reshape(3, 3),
+            )
         reference = baseline_reference.copy()
         for index, value in (finger_positions or {}).items():
             reference[index] = value
@@ -287,6 +335,8 @@ class PoseIK:
             seed = self.home.copy()
             seed[[0, 1, 2, 3]] += [sign * 0.6, 0.5, -sign * 0.4, 0.7]
             seeds.append(np.clip(seed, self.lower, self.upper))
+        if path_mode == "cartesian":
+            seeds = seeds[:1]
         rotations = (
             self.orientations(preferred, orientation_span_degrees)
             if alternatives
@@ -300,11 +350,36 @@ class PoseIK:
                 position_error = float(np.linalg.norm(point - target))
                 angular_error = float(np.linalg.norm(rotation_error(actual_rotation, rotation)))
                 collisions = self.collision_errors(q, reference, baseline, object_id)
-                path_collisions, prefix = [], None
+                path_collisions, prefix, path_ik_error = [], None, None
+                duration = float(1.875 * np.max(np.abs(q - start) / rates))
                 if check_path:
-                    samples = max(8, int(np.ceil(np.max(np.abs(q - start) / rates) / 0.08)))
+                    start_point, start_rotation = self.forward(start, reference)
+                    if path_mode == "cartesian":
+                        samples = max(
+                            8, int(np.ceil(np.linalg.norm(target - start_point) / 0.008)) + 1
+                        )
+                    else:
+                        samples = max(8, int(np.ceil(np.max(np.abs(q - start) / rates) / 0.08)))
+                    path_q, path = start.copy(), []
                     for t in np.linspace(0, 1, samples):
-                        path_q = start + t * (q - start)
+                        if path_mode == "cartesian":
+                            desired_point = start_point + t * (target - start_point)
+                            desired_rotation = interpolate_rotation(start_rotation, rotation, t)
+                            path_q, path_point, path_rotation = self.solve(
+                                desired_point, desired_rotation, path_q, reference=reference
+                            )
+                            pe = float(np.linalg.norm(path_point - desired_point))
+                            ae = float(
+                                np.linalg.norm(rotation_error(path_rotation, desired_rotation))
+                            )
+                            if pe > position_tolerance or ae > np.radians(angle_tolerance_degrees):
+                                path_ik_error = {
+                                    "position_error_m": pe,
+                                    "orientation_error_deg": float(np.degrees(ae)),
+                                }
+                                break
+                        else:
+                            path_q = start + t * (q - start)
                         path_collisions = self.collision_errors(
                             path_q,
                             reference,
@@ -313,6 +388,7 @@ class PoseIK:
                         )
                         if path_collisions:
                             break
+                        path.append(path_q.copy())
                         path_point, path_rotation = self.forward(path_q, reference)
                         path_error = float(np.linalg.norm(path_point - target))
                         if (
@@ -322,6 +398,17 @@ class PoseIK:
                             <= np.radians(orientation_span_degrees + angle_tolerance_degrees)
                         ):
                             prefix = (path_q.copy(), path_point, path_rotation, path_error)
+                    if path_mode == "cartesian" and not path_collisions and not path_ik_error:
+                        q = path_q.copy()
+                        point, actual_rotation = self.forward(q, reference)
+                        position_error = float(np.linalg.norm(point - target))
+                        angular_error = float(
+                            np.linalg.norm(rotation_error(actual_rotation, rotation))
+                        )
+                        collisions = self.collision_errors(q, reference, baseline, object_id)
+                        duration = float(
+                            1.875 * np.max(np.abs(np.diff(path, axis=0)).sum(axis=0) / rates)
+                        )
                 limits = [
                     name
                     for name, value, lo, hi in zip(
@@ -338,6 +425,7 @@ class PoseIK:
                     and angular_error <= np.radians(angle_tolerance_degrees)
                     and not collisions
                     and not path_collisions
+                    and not path_ik_error
                 )
                 prediction = IKPrediction(
                     q,
@@ -353,12 +441,15 @@ class PoseIK:
                     path_collisions,
                     feasible,
                     label,
-                    float(1.875 * np.max(np.abs(q - start) / rates)),
+                    duration,
                     reference.copy(),
                     path_checked=check_path,
                     position_tolerance_m=position_tolerance,
                     angle_tolerance_degrees=angle_tolerance_degrees,
                     allowed_contact_object=allowed_object,
+                    carried_object=allowed_object if carrying else None,
+                    path_mode=path_mode,
+                    path_ik_error=path_ik_error,
                     baseline_qpos=baseline_reference.copy(),
                 )
                 key = (position_error, angular_error)
@@ -378,7 +469,7 @@ class PoseIK:
                     best_safe = prediction
                 if feasible:
                     return prediction
-                if prefix is not None and (collisions or path_collisions):
+                if prefix is not None and (collisions or path_collisions or path_ik_error):
                     pq, pp, pr, pe = prefix
                     candidate = replace(
                         prediction,
@@ -392,6 +483,7 @@ class PoseIK:
                         ),
                         collisions=[],
                         path_collisions=[],
+                        path_ik_error=None,
                         feasible=False,
                         candidate=label + ":closest_safe_prefix",
                         minimum_seconds=float(1.875 * np.max(np.abs(pq - start) / rates)),
@@ -406,7 +498,7 @@ class PoseIK:
                             )
                             if min(value - lo, hi - value) < 0.002
                         ],
-                        blocked_by=path_collisions or collisions,
+                        blocked_by=path_collisions or collisions or [{"ik_error": path_ik_error}],
                     )
                     if best_safe is None or (pe, candidate.orientation_error_rad) < (
                         best_safe.position_error_m,

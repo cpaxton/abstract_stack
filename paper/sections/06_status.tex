@@ -1,0 +1,36 @@
+\section{Implementation Status and Evidence}
+The repository currently supplies deterministic shelf/house generation, the
+canonical MABEL model, native MuJoCo actuator stepping, stocking checks, per-step
+contact traces, IK prefiltering, and a conventional tracking module. The physical
+script currently uses the left arm and shared lift. A two-arm tracking interface
+does not establish coordinated bimanual manipulation.
+
+The first recorded approach failed with 17.4\,cm of requested-hand error and
+base tilt. After prefiltering, the diagnostic rejected the initial grasp and
+executed a bounded staging prefix instead of closing on an unacceptable pose.
+Before gravity compensation, that prefix had about 1.2\,cm of measured-versus-
+predicted hand error. These runs motivate separating IK residual, joint/load
+tracking, and base displacement. They are failure diagnostics on a single bench,
+not a success-rate experiment or evidence of generalization.
+
+Subsequent development trials completed both cartons on seeded local scenes.
+Each product passed measured lift, shelf-back contact dwell and release checks;
+both products then satisfied the environment's stable placement conditions.
+A recorded seed-0 two-carton episode took 87.36 simulated seconds with no
+interventions. Its peak hand, back-contact and arm/fixture normal forces were
+13.6, 5.4 and 6.1\,N. Both MP4 views contain 874 frames at 10\,fps, including a
+labeled final pause. These changing-controller, reused-seed development cases
+are not a frozen-policy benchmark or a generalization estimate.
+
+Selected actual outcomes and source paths are retained in
+\path{paper/evidence/development_runs.json}. One earlier parallel render process
+crashed natively without a terminal summary; it remains unverified. Subsequent
+video generation used a single rendering process, and the campaign driver
+retains process failures instead of dropping them.
+
+The conventional controller added in this draft is evaluated with dedicated
+native-physics tracking tests. Numerical summaries and commands belong in the
+controller runbook; a test pass establishes only its stated fixture and bounds.
+Broader stocking generalization, verified recovery, autonomous navigation, teleoperation quality,
+demonstration replay, and learned-controller superiority are not established.
+No benchmark result table is filled with hypothetical performance.

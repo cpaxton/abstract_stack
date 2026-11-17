@@ -1,0 +1,22 @@
+\section{Introduction}
+Shelf stocking couples ordering decisions with physical constraints. A placement
+can satisfy its immediate position target while blocking access to a later
+product. A reachable hand pose can still collide with another carton, and a
+gripper closure command does not establish load-bearing contact. As free space
+shrinks, a useful system must choose when to insert, slide, rearrange, switch
+hands, reposition the base, or abandon an unsuccessful attempt.
+
+Our target is continuous completion: cartons and bottles start on a nearby
+table, the robot stocks the complete shelf, and earlier placements remain part
+of the physical state. The eventual setting is a small house with an
+omnidirectional bimanual platform. We start with the existing MABEL hands;
+two- versus three-finger alternatives require measured comparisons. VR
+teleoperation, recording, and replay will provide demonstrations and diagnostic
+tools, but these components are not yet validated here.
+
+The central research question is whether reusable task programs can choose
+effective contact and recovery strategies across shelf instances when paired
+with a controller whose feasibility estimates and execution outcomes are
+explicit. Proposed contributions are a continuous stocking task family, an
+auditable manipulation interface, and an evaluation of program synthesis and
+controller choices. None is presented as an established performance advantage.

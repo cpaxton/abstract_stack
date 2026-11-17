@@ -16,9 +16,19 @@
   alternatives and check endpoint/path collisions. A closest candidate may be
   used only for bounded staging followed by replanning; it cannot pass a grasp
   gate. A failed local search does not prove global unreachability.
+- Keep nominal references separate from applied compensated servo targets.
+  Controller changes need native-physics tracking evidence and explicit limit
+  diagnostics. Learned-controller integration must validate model, action and
+  observation contracts; never reinterpret another robot's policy weights.
 - Record the scene configuration, seed, model revision, controller settings and
   simulation timing with interaction artifacts. Keep full recordings in ignored
   `outputs/`; commit only small, reproducible documentation previews.
+- Evaluate scripted changes on fixed scene suites. Report all scheduled objects
+  for pick, shelf support, final positioning and retreat; retain unreached stages
+  and process failures. Monitor every product at each physics step so a transient
+  knock-over cannot disappear from the report when an object settles upright.
+  Tune compliance on separate development seeds with bounded compute. Never tune
+  success tolerances, force abort limits or collision acceptance to improve scores.
 - Run pre-commit, relevant physics tests, and package checks before opening a PR.
   Do not skip hooks or weaken success criteria to make a demo pass. Report skips
   and failures accurately. Mark a PR draft when required acceptance remains open.

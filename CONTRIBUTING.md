@@ -62,6 +62,19 @@ uses the active checkout's environment without synchronizing it again.
 
 ## Pull requests
 
+For scripted stocking changes, run `./scripts/benchmark_stocking.sh` in a fresh
+output directory. It evaluates ten two-carton scenes, hill-climbs compliant
+control on separate development seeds, repeats the ten scenes, and writes a
+paired Markdown/JSON report. Preserve failed and unverified runs. Physical-only
+campaigns have a 180-second wall budget per episode; video campaigns default to
+900 seconds. Use `batch --episode-timeout` to declare a different budget.
+An unknown process outcome earns no successful stages. Report per-stage counts
+against all scheduled objects and complete-scene success separately. Continuous
+all-product tip/drop monitoring is required for a no-knock-over claim; final
+upright poses alone are insufficient. Keep task criteria and abort limits fixed
+while searching controller parameters, and disclose development seeds, search
+budget, rejected candidates and validation failures.
+
 Work on a feature branch. Describe the concrete behavior, reproduction command,
 tests actually run, and unresolved acceptance gates. Include a small rendered
 preview for scene changes and numeric/trace evidence for control changes. Use a
@@ -75,5 +88,19 @@ squash commit, dropping the old parent commits, then update its PR base and
 rerun required checks. Check that its diff contains only the remaining child
 changes. Review or stack maintenance alone does not authorize merging.
 
+Before rewriting a stack, preserve source revisions cited by experiment reports
+under a durable archive ref. The original reviewed stack is available on
+`archive/pre-squash-stack-20261117`, and the independent Mac setup history is on
+`archive/pre-squash-macos-20261117`. Historical commands still require their
+recorded source commit and settings; rebasing must not rewrite measured results.
+
 Potential Emet fixes belong in `home_robot_issues.md` first. Upstream drafts must
 use upstream-only reproductions without naming this repository or task.
+
+## Paper changes
+
+Build with `./paper/build.sh` and check final references and layout. Keep verified
+literature findings, observed diagnostics and proposed methods/experiments
+explicitly separate. Cite primary sources and pin reviewed versions. Do not
+commit generated TeX/PDF files or expose private test seeds in the draft. The
+paper toolchain is optional and independent of the simulator installation.

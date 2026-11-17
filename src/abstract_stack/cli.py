@@ -7,7 +7,7 @@ import json
 import os
 import subprocess
 import time
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from abstract_stack.config import SCENES
@@ -25,17 +25,44 @@ def _parser():
     commands = parser.add_subparsers(dest="command", required=True)
     fetch = commands.add_parser("fetch-mabel", help="Download the pinned MABEL model and meshes")
     fetch.add_argument("--destination", type=Path)
-    for command in ("sim", "export", "inspect", "serve", "build-scene", "script"):
+    random_scene = commands.add_parser(
+        "random-scene", help="Generate a seeded carton scene configuration"
+    )
+    random_scene.add_argument("--seed", type=int, default=0)
+    random_scene.add_argument("--objects", type=_positive_int, default=2)
+    random_scene.add_argument("--output", type=Path, default=Path("outputs/random-scene.json"))
+    batch = commands.add_parser(
+        "batch", help="Generate and solve scene seeds serially, preserving every outcome"
+    )
+    batch.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
+    batch.add_argument("--objects", type=_positive_int, default=2)
+    batch.add_argument("--video", action="store_true")
+    batch.add_argument("--fps", type=_positive_int, default=15)
+    batch.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
+    batch.add_argument(
+        "--episode-timeout",
+        type=float,
+        help="Wall seconds per episode (default 180; 900 with video)",
+    )
+    batch.add_argument("--output-dir", type=Path, default=Path("outputs/stocking-campaign"))
+    tune = commands.add_parser("tune", help="Hill-climb compliant control on development scenes")
+    tune.add_argument("--seeds", type=int, nargs="+", default=[100, 101])
+    tune.add_argument("--objects", type=_positive_int, default=2)
+    tune.add_argument("--rounds", type=_positive_int, default=1)
+    tune.add_argument("--output-dir", type=Path, default=Path("outputs/compliance-search"))
+    for command in ("sim", "export", "inspect", "serve", "build-scene", "script", "solve"):
         sub = commands.add_parser(command)
         sub.add_argument("--mabel-root", type=Path, help="Existing open_mabel checkout")
         sub.add_argument("--seed", type=int, default=0)
         selection = sub.add_mutually_exclusive_group()
         selection.add_argument(
-            "--scene", choices=SCENES, default="pick_place" if command == "script" else "stocking"
+            "--scene",
+            choices=SCENES,
+            default="pick_place" if command in ("script", "solve") else "stocking",
         )
         selection.add_argument("--config", type=Path, help="Custom JSON scene configuration")
         sub.add_argument("--fetch-mabel", action="store_true", help="Fetch MABEL if missing")
-        if command not in ("serve", "script"):
+        if command not in ("serve", "script", "solve"):
             sub.add_argument("--robot", choices=("mabel", "none"), default="mabel")
         sub.add_argument(
             "--enable-sensors", action="store_true", help="Enable onboard sensors/LiDAR"
@@ -45,9 +72,30 @@ def _parser():
         if command == "build-scene":
             sub.add_argument("--output-dir", type=Path, default=Path("outputs/scene"))
             sub.add_argument("--render", action="store_true", help="Render scene preview images")
-        if command == "script":
+        if command in ("script", "solve"):
+            sub.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
+            selection.add_argument(
+                "--random-scene", action="store_true", help="Generate the scene from --seed"
+            )
+            sub.add_argument(
+                "--objects", type=_positive_int, help="Product count for a random scene (default 2)"
+            )
             sub.add_argument("--output-dir", type=Path, default=Path("outputs/scripted-stocking"))
             sub.add_argument("--render", action="store_true", help="Save phase previews")
+            sub.add_argument(
+                "--video", action="store_true", help="Record synchronized third/first-person MP4s"
+            )
+            sub.add_argument("--fps", type=_positive_int, default=15)
+            sub.add_argument("--video-width", type=_positive_int, default=640)
+            sub.add_argument("--video-height", type=_positive_int, default=480)
+            sub.add_argument(
+                "--no-head-tracking", action="store_true", help="Hold the head for ablations"
+            )
+            sub.add_argument(
+                "--first-person-camera",
+                default="zed_left",
+                choices=("zed_left", "zed_right", "l_wrist_cam", "body_cam"),
+            )
             sub.add_argument(
                 "--max-force", type=float, default=25.0, help="Contact abort limit in N"
             )
@@ -58,6 +106,16 @@ def _parser():
                 "--no-best-effort",
                 action="store_true",
                 help="Hold instead of taking a bounded safe staging step",
+            )
+            sub.add_argument(
+                "--fixed-grasps",
+                action="store_true",
+                help="Use the original product order and centre grasp for ablations",
+            )
+            sub.add_argument(
+                "--no-gravity-compensation",
+                action="store_true",
+                help="Disable robot-gravity feedforward for controller ablations",
             )
             sub.add_argument(
                 "--ik-orientation-span",
@@ -142,6 +200,58 @@ def _simulate(env, args):
 def main(argv=None):
     parser = _parser()
     args = parser.parse_args(argv)
+    if args.command == "solve":
+        args.command = "script"
+    if args.command == "tune":
+        from abstract_stack.tuning import hill_climb
+
+        try:
+            print(
+                json.dumps(
+                    hill_climb(
+                        args.output_dir, args.seeds, rounds=args.rounds, objects=args.objects
+                    ),
+                    indent=2,
+                )
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(1, f"Hill-climb failed: {error}\n")
+        return
+    if args.command == "batch":
+        from abstract_stack.campaign import run_campaign
+
+        try:
+            report = run_campaign(
+                args.output_dir,
+                args.seeds,
+                objects=args.objects,
+                video=args.video,
+                fps=args.fps,
+                control_config=args.control_config,
+                episode_timeout=args.episode_timeout,
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(1, f"Campaign failed: {error}\n")
+        if report["successful_runs"] != len(report["runs"]):
+            parser.exit(
+                2,
+                "Campaign retained failed/unverified episodes; inspect its JSON manifest.\n",
+            )
+        return
+    if args.command == "random-scene":
+        from abstract_stack.random_scenes import random_shelf_config, scene_manifest
+
+        try:
+            config = random_shelf_config(args.seed, product_count=args.objects)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(asdict(config), indent=2) + "\n")
+            args.output.with_suffix(".manifest.json").write_text(
+                json.dumps(scene_manifest(config, args.seed), indent=2) + "\n"
+            )
+            print(args.output)
+        except (OSError, ValueError) as error:
+            parser.exit(1, f"Scene generation failed: {error}\n")
+        return
     if args.command == "fetch-mabel":
         from abstract_stack.assets import fetch_mabel
 
@@ -158,7 +268,23 @@ def main(argv=None):
     from abstract_stack.env import ShelfStockingEnv
 
     try:
-        config = load_scene_config(args.config, scene=args.scene)
+        if getattr(args, "random_scene", False):
+            from abstract_stack.random_scenes import random_shelf_config, scene_manifest
+
+            config = random_shelf_config(args.seed, product_count=args.objects or 2)
+            args.output_dir.mkdir(parents=True, exist_ok=True)
+            (args.output_dir / "scene.json").write_text(json.dumps(asdict(config), indent=2) + "\n")
+            (args.output_dir / "scene-manifest.json").write_text(
+                json.dumps(scene_manifest(config, args.seed), indent=2) + "\n"
+            )
+        else:
+            if getattr(args, "objects", None) is not None:
+                raise ValueError("--objects requires --random-scene")
+            config = load_scene_config(args.config, scene=args.scene)
+        if args.command == "script":
+            # Keep checking geometric success while the physical protocol
+            # verifies final contact/release and retreat; retain the time cap.
+            config = replace(config, terminate_on_success=False)
         if args.enable_sensors:
             config = replace(config, enable_sensors=True)
         if args.fetch_mabel and getattr(args, "robot", "mabel") == "mabel":
@@ -177,6 +303,7 @@ def main(argv=None):
         try:
             if args.command == "script":
                 from abstract_stack.interactions import ScriptConfig, StockingScript
+                from abstract_stack.tuning import load_control_config
 
                 result = StockingScript(
                     env,
@@ -186,10 +313,21 @@ def main(argv=None):
                         grip=args.grip,
                         best_effort_staging=not args.no_best_effort,
                         ik_orientation_span_deg=args.ik_orientation_span,
+                        gravity_compensation=not args.no_gravity_compensation,
+                        adaptive_grasps=not args.fixed_grasps,
+                        head_tracking=not args.no_head_tracking,
+                        **load_control_config(args.control_config),
                     ),
                     render=args.render,
+                    video=args.video,
+                    video_fps=args.fps,
+                    video_width=args.video_width,
+                    video_height=args.video_height,
+                    first_person=args.first_person_camera,
                 ).run()
                 print(json.dumps(result, indent=2))
+                if result.get("video_error"):
+                    parser.exit(1, f"Recording failed: {result['video_error']}\n")
                 if not result["physical_success"]:
                     parser.exit(2, f"Interaction stopped: {result['failure']}\n")
             elif args.command == "build-scene":

@@ -1,17 +1,18 @@
 # Scripted stocking: first physical prototype
 
 The first-pass controller starts two boxes on a small table beside MABEL and
-attempts approach, grasp closure, lift, transfer, release and push-to-contact.
+attempts approach, grasp closure, lift, transfer, supported push and release.
 It uses native robot actuators and MuJoCo contacts. There are no live pose
 writes, object attachment constraints, external object forces or disabled
 contacts in the rollout.
 
-**Acceptance is still open:** the current controller rejects the initial grasp
-in preflight, takes a bounded staging step, and stops for replanning before
-closing the hand. It has not demonstrated a verified pickup, placement
-or shelf-back push. The tests validate physics instrumentation, safeguards and
-artifact integrity; they do not assert full task success. Keep the control PR
-in draft until the task has measured end-to-end evidence.
+**Initial physical cycles now pass:** seeded two-carton development scenes
+complete pickup, lift, shelf-back contact, release and final stable stocking.
+The test suite includes an unassisted two-carton regression. Wider object-count
+and geometry generalization, bimanual coordination and recovery remain open.
+See the [random-scene/video runbook](stocking_solver.md) for current commands.
+
+![Completed two-carton development episode](images/stocking_completed.png)
 
 ![Measured forces and tracking error in the first physical trial](images/scripted_force_trace.png)
 
@@ -25,7 +26,7 @@ behavior.
 
 ![Final state of the failed physical approach](images/scripted_first_pass.png)
 
-With the prefilter, the seed-0 initial grasp search finds a best endpoint
+In the earlier fixed-order, uncompensated run, the seed-0 grasp search found a best endpoint
 candidate within collision tolerance with a 4.0 cm positional miss and 18.3 degrees
 of orientation error, exceeding the 1.5 cm/12 degree limits. Accurate geometric solutions can
 instead intersect the neighboring box with the wrist. The direct joint path
@@ -43,7 +44,7 @@ substitution attributes 8.1 mm vertically to measured arm/wrist offsets and
 Holding the same actuator targets for another two seconds leaves about 1.2 cm
 of error, so extra settling does not fix it. The native lift position servo has
 stiffness 80,000 N/m; its measured load of about 284 N requires a 3.55 mm position
-offset to generate that force. This controller has no load feedforward. The
+offset to generate that force. That controller had no load feedforward. The
 arm uses finite position gains too; its offsets can reflect gravity and contact
 loads. The native wrist's position gain is just 1. These facts motivate load
 compensation and measured Cartesian feedback in subsequent controller work,
@@ -51,7 +52,26 @@ independently of rejecting an invalid IK request. Native gains remain unchanged.
 `execution_diagnostics` records the ordered FK displacement components; this
 decomposition alone does not isolate which forces caused each joint offset.
 
-![Current bounded staging stops with both boxes upright](images/ik_prefilter_staging.png)
+![Earlier bounded staging stops with both boxes upright](images/ik_prefilter_staging.png)
+
+The current [reusable tracker](mabel_controller.md) adds robot-gravity
+feedforward and measured wrist damping. Object selection prefers a reachable
+nearer carton, screens several grasp heights, and tries orientation alternatives
+before grasping. Carrying has an explicit upright product goal; arbitrary IK
+orientation relaxation is disabled once holding the product. A measured rigid-grasp model
+checks the box against scene geometry along sampled carry paths. Object slip
+over 3 cm aborts execution. Clearance waypoints raise the load above the supply
+table and align it in front of the shelf before insertion.
+
+Development runs have measured about 1.5 mm approach error and a 6 cm lift with
+hand contact and zero table support. They have also exposed unstable release
+and unsuccessful open-hand pushing. The latest solver instead keeps the grasp
+during insertion, checks its Cartesian path, regulates balanced squeeze and
+net push force separately, and uses world-state orientation/height feedback.
+It releases through a checked coupled opening/retreat after the contact dwell.
+The recorded seed-0 two-carton run completed in 87.36 simulated seconds with
+zero interventions. Maximum hand/back/arm-fixture normal forces were 13.6/5.4/6.1 N.
+These are development diagnostics, not a general success-rate estimate.
 
 ## Run it
 
@@ -60,6 +80,8 @@ source .venv/bin/activate
 abstract-stack fetch-mabel
 abstract-stack sim --scene pick_place
 abstract-stack script --render --output-dir outputs/scripted-stocking
+# Equivalent reproducible solver entry point:
+./scripts/solve_shelf.sh --render --output-dir outputs/scripted-stocking
 ```
 
 The script is headless and runs at simulation speed. `--render` adds phase
@@ -115,15 +137,17 @@ excursion. This staging motion allows no target-hand contact exemption, retains
 the remaining miss, and **always stops for replanning before grasp closure**.
 If no such prefix exists, or `--no-best-effort` is set, the controller holds.
 Carrying phases hold on rejection. This is a conservative local fallback;
-automatic base repositioning, obstacle-routing and grasp regeneration remain
-future work.
+automatic base repositioning, general obstacle routing and grasp recovery remain
+future work. Current regeneration screens object, height and bounded rotation candidates.
 
 Predictions hold the base and other uncommanded coordinates at their measured
 poses. They are kinematic estimates, not dynamic forecasts. Reports separate
 the predicted remaining target miss, actual target miss, and
 `prediction_execution_gap_m` (measured hand versus predicted hand position).
-The sampled straight joint paths are not continuous collision certificates;
-they do not model a carried object's swept volume. Force/tilt guards and actual
+The sampled straight joint paths are not continuous collision certificates.
+Carry predictions transform the measured product shape with the hand at each
+sample, assuming a rigid, non-slipping grasp; live physics uses no attachment.
+Force/tilt guards and actual
 tracking/physical grasp checks remain required during execution.
 
 ## Bench and controller
@@ -140,8 +164,14 @@ The controller performs bounded damped pose IK using scratch `MjData`. It
 commands the seven arm joints, the hand wrist and the tendon-driven lift,
 respecting both joint and actuator limits. It limits arm/wrist targets to
 1 rad/s and lift targets to 0.08 m/s. Finger MCP/PIP targets close gradually.
-The final push is a slow displacement command that stops on measured sustained
-box/back and hand/box contact, with a hard contact-force abort.
+The final insertion retains the physical grasp, regulates object uprightness
+and board clearance, and permits a bounded hand-supported interval when
+straightening briefly lifts the object. Net push force scales displacement;
+back contact with an upright product switches to a hold for the dwell.
+Every feedback step is prefiltered; the hard contact-force abort stays active. The CLI sets
+`terminate_on_success=false`: geometric success is still checked continuously,
+but the physical protocol can finish contact, release and retreat before ending.
+Time limits, success tolerances and force guards remain active.
 
 | Stage | Required evidence before proceeding |
 | --- | --- |
@@ -149,12 +179,13 @@ box/back and hand/box contact, with a hard contact-force abort.
 | Retract, raise, pregrasp, approach | Accepted IK and sampled path; measured hand tracking within 3.5 cm at the waypoint; finite physics and bounded contact forces. |
 | Close | Loaded opposing contact normals on the box from the hand. |
 | Lift | Box rises with the hand, retains hand contact, and loses table support. |
-| Transfer/place/release | Actual object motion and shelf-board support; hand force falls after opening. |
+| Transfer/place | Sampled carried-object geometry, monitored grasp retention, and measured shelf-board support. |
 | Push | Box/back normal force at least 0.4 N plus hand contact for at least 0.12 s. |
+| Release | Measured shelf support, hand force falls after opening, and the product is upright within 15 degrees. |
 | Finish | Both boxes meet the environment's assigned placement and stability conditions. |
 
-The approach/grasp geometry and pose tracking need further tuning. A waypoint
-plan being present in code does not show those stages succeeded in physics.
+The approach/grasp geometry and control need broader validation. A waypoint
+plan being present in code does not show a new instance succeeded in physics.
 The native hand has 17 joints; a single closure fraction is a starting grasp
 profile and will not reliably handle every box shape or pose.
 
@@ -170,7 +201,8 @@ profile and will not reliably handle every box shape or pose.
 
 Trace columns are listed in `summary.json`: simulation time, box XYZ, hand XYZ,
 summed hand/support/back/arm-fixture normal forces in N, and Cartesian tracking
-error in m. The support category includes the table and shelf boards; release
+error in m, followed by the object's quaternion, balanced normal-force estimate
+and net push force. The support category includes the table and shelf boards; release
 verification specifically requires shelf-board support. Force vectors come from
 `mujoco.mj_contactForce`, not actuator commands or guessed spring forces.
 The trace's control rows align with the physics-step samples; use the event
@@ -178,7 +210,8 @@ timestamps to identify each phase/product. The file contains commanded inputs,
 not an independently validated replay or demonstration dataset.
 
 During a checked joint-path move, the trace's tracking reference is forward
-kinematics of the applied joint targets at the preflight base pose. The event's
+kinematics of nominal joint references at the preflight base pose. Applied servo
+targets include compensation and are recorded separately. The event's
 `requested_position_error_m` is distance to the original waypoint, which may be
 large after intentional staging. `last_ik_residual` is retained only as a legacy
 mixed objective for online IK; use the structured `ik_prediction` fields for
