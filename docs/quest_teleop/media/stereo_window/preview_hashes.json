@@ -1,0 +1,44 @@
+[
+  {
+    "original_capture": "stream-check.png",
+    "original_size": [
+      4128,
+      2208
+    ],
+    "original_sha256": "64ef6c548fa272093d94973e3f229564a9db6bf0848603f423b85e9852c16de3",
+    "preview": "streamed-pattern.png",
+    "preview_size": [
+      1309,
+      700
+    ],
+    "preview_sha256": "6b1eaaec99d2a25f3a5e8f5d37d4e2b2987f39dbb902667bbae6b3ee8ce32683"
+  },
+  {
+    "original_capture": "mujoco-check.png",
+    "original_size": [
+      4128,
+      2208
+    ],
+    "original_sha256": "6339992f94b3e504af45d2997b45e6a28cfa85977a503847b1eae6f42945b7bb",
+    "preview": "mujoco-live.png",
+    "preview_size": [
+      1309,
+      700
+    ],
+    "preview_sha256": "7333e0da9913246ef95d61167e73de8d26182892f2c9eac312400d776222dec3"
+  },
+  {
+    "original_capture": "stale-check.png",
+    "original_size": [
+      4128,
+      2208
+    ],
+    "original_sha256": "3ec2928e4dd433045e5bec804fbc1ea697152d65726bb5b514a9bdfcfbf72284",
+    "preview": "disconnected.png",
+    "preview_size": [
+      1309,
+      700
+    ],
+    "preview_sha256": "524a1ddb7561cea88d1e798727f746e0d8bbb2e097a8f2f7557d6f98ee4e49bc"
+  }
+]
