@@ -99,3 +99,64 @@ This standard two-carton benchmark does not exercise the opt-in order search,
 loaded corridor or contact fixtures, and is not ten-carton validation. Its
 Markdown/JSON report and complete logs are under
 `outputs/contact-rich-replanning-v1/standard-regression/benchmark/`.
+
+## Native base and contact-controller development
+
+The subsequent mobile attempts retain ten table-start cartons and zero prefills.
+Each has its own frozen package/configuration under its attempt directory. These
+are changing-policy development results, not ten-scene validation. A failed or
+unknown attempt remains in the [outcome ledger](replanning_development.json).
+
+| Attempt | Pick / shelf place / final / retreat, each out of 10 | Terminal result |
+| --- | --- | --- |
+| table-front v4 | 1 / 0 / 0 / 0 | Revised pickup admission selects a pose with rejected pusher approach |
+| mobile-table v1 | 1 / 0 / 0 / 0 | Native base shift clears approach; hand contact later lost |
+| mobile-table v2 | 1 / 0 / 0 / 0 | MCP/PIP compensation alone does not fix loss |
+| mobile-table v3 | 1 / 1 / 0 / 0 | Coordinated bounded IK holds contact; lateral reference bound reached |
+| mobile-table v4 | 1 / 1 / 0 / 0 | Lateral feedback bounded; insufficient backstop force before timeout |
+| mobile-table v5 | 1 / 1 / 0 / 0 | Back force reached; stricter controller squaring gate times out at 2.06° yaw |
+| mobile-table v6 | 1 / 1 / 0 / 0 | Backstop yaw priority improves residual to 0.46°; still times out |
+| mobile-table v7 | 1 / 1 / 0 / 0 | Yaw correction loses hand contact while carton remains supported |
+| mobile-table v8 | 0 / 0 / 0 / 0 | Native SIGSEGV during base action; unknown, no terminal stage credit |
+| mobile-table v9 | 1 / 1 / 0 / 0 | Separate diagnostic with matching package; active-carton tilt abort |
+| mobile-table v10 | 2 / 1 / 1 / 1 | Forward/downforce gating completes first stock; second empty withdrawal hits torso/path rejection |
+
+The nominal-reference defect is documented in the
+[bit-exact replay diagnosis](mobile_contact_reference_diagnostic.md). Coordinated
+IK optimizes within the joint-rate box and reports FK of the returned nominal
+command. Retained Cartesian paths now start at the actual measured joint vector
+and include any checked initial posture transition in their duration. New native
+runs measure roughly submillimetre to 1.4 mm tool tracking during contact; these
+are execution observations, separate from task success.
+
+Three isolated [native swerve actions](native_base_motion_development.md) passed,
+including a full table. The integrated action retains the original task observer,
+checks whole-robot geometry and restricts base motion to released loads. A
+negative-Y development forecast rejected idle-right-thumb/shelf-side clearance;
+it did not send drive commands. Empty right-arm stowing remains future work.
+
+The optional load-aware pusher commands and predicts selected-finger abduction
+as well as MCP/PIP posture. Holding these joints exposed a downward-load/tilt
+failure in v9. V10 pauses forward advance as downward wrench on the carton
+approaches 0.6 N, while vertical admittance unloads it; backoff remains available.
+It then completed the first insertion and unloaded retreat without a tip/drop.
+The next carton was physically picked and table-staged; table support earns no
+shelf-place credit. Its first empty withdrawal ran into a torso/tower path
+collision and stopped, preserving the first carton.
+
+Released-contact reacquisition is a separate opt-in mode: at most three attempts,
+each at most 1.5 s and 15 mm advance, within the original Cartesian envelope.
+The main push has 45 s active control, with at most 4.5 s additional recovery.
+Both phases use the same downward-load advance gate, vertical admittance and
+15° active-carton tilt guard. Per-step surface support, all-product incident and
+25 N combined contact/carton-pair checks remain active. Grasped carry/slide loss
+contracts remain in force outside this released mode. Native guard tests and
+input-boundary unit tests do not establish successful physical reacquisition;
+that end-to-end gate is still open.
+
+The first fully stocked carton in v10 ended about 8.4 mm from its nominal row Y.
+Its ordinary placement gate passed, but this bias is material relative to the
+**10 mm whole-row** free-space budget. Completing a carton alone cannot certify
+that nine more will fit. Wall/neighbor registration, packing direction and
+accepted lateral compaction remain necessary. Rear-row tangential probes are
+[reported separately](tangential_contact_development.md); none passed all gates.

@@ -242,6 +242,238 @@
       "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
       "tip_drop_incidents": 0,
       "exact_source_snapshot": "outputs/contact-rich-replanning-v1/tree-ten-seed0/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v1",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "push: lost shelf support or hand contact",
+      "sim_seconds": 78.67399999999805,
+      "wall_seconds": 61.352532264078036,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v1/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v2",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "push: lost shelf support or hand contact",
+      "sim_seconds": 78.66399999999807,
+      "wall_seconds": 62.059329943032935,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v2/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v3",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "finger_push: corrected target outside bounded motion",
+      "sim_seconds": 112.13999999992005,
+      "wall_seconds": 94.07090197806247,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v3/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v4",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "finger_push: contact dwell timeout",
+      "sim_seconds": 124.69999999989078,
+      "wall_seconds": 105.30803233804181,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v4/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v5",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "finger_push: contact dwell timeout",
+      "sim_seconds": 124.69999999989078,
+      "wall_seconds": 105.01086619100533,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v5/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v6",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "finger_push: contact dwell timeout",
+      "sim_seconds": 124.69999999989078,
+      "wall_seconds": 107.56846891902387,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v6/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v7",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "push: lost shelf support or hand contact",
+      "sim_seconds": 109.40799999992642,
+      "wall_seconds": 90.45315525704063,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v7/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v8",
+      "returncode": -11,
+      "verification_status": "unknown",
+      "task_success": false,
+      "stages": {
+        "pick": 0,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "No terminal summary; retained process failure",
+      "sim_seconds": null,
+      "wall_seconds": 50.49228435289115,
+      "protocol": null,
+      "tip_drop_incidents": null,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v8/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v9",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "finger_push: carton tilting; replan required",
+      "sim_seconds": 84.59999999998423,
+      "wall_seconds": 66.04343925695866,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v9/source_snapshot"
+    },
+    {
+      "attempt": "table-front-ten-v4",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "pusher_plan: no acceptable posture/path in bounded search",
+      "sim_seconds": 61.140000000028756,
+      "wall_seconds": 49.427348951110616,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/table-front-ten-v4/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v10",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 2,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "staging_clear: bounded staging complete; predicted remaining miss 0.003 m; replan required before grasping",
+      "sim_seconds": 160.86000000003997,
+      "wall_seconds": 135.7766179451719,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v10/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v11",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 2,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "loaded_route_2: carried object slipped from measured grasp",
+      "sim_seconds": 143.9219999999591,
+      "wall_seconds": 118.58679157192819,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v11/source_snapshot"
     }
   ],
   "standard_regression": {

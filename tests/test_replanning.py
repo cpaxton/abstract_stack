@@ -153,3 +153,85 @@ def test_native_replan_does_not_move_live_world_or_reuse_predictions(tmp_path):
         assert not np.any(env.data.xfrc_applied)
     finally:
         env.close()
+
+
+@pytest.mark.mabel
+def test_empty_base_action_preserves_task_observer_and_native_force_contract(tmp_path):
+    import numpy as np
+
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.evaluation import StageObserver
+    from abstract_stack.mabel_controller import MabelController
+    from abstract_stack.packing import dense_shelf_config
+    from abstract_stack.receding_stocking import RecedingStockingScript
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0, initially_stocked=9), seed=0)
+    try:
+        for _ in range(50):
+            env.step()
+        script = RecedingStockingScript(env, tmp_path, loaded_route=True, base_reposition=True)
+        script.tracker = MabelController(env.model, env.data)
+        script.observer = StageObserver(env)
+        observer = script.observer
+        before = env.data.body("mabel_chassis").xpos.copy()
+        nominal = script.tracker.nominal.copy()
+        script._move_base([0, 0.1], reason="reset_fixture_contract_test_no_stocking_credit")
+        assert script.observer is observer
+        assert not observer.incidents
+        assert not env.interventions
+        assert script.base_repositions[-1]["verified_base_reposition"]
+        assert (
+            np.linalg.norm(env.data.body("mabel_chassis").xpos[:2] - before[:2] - [0, 0.1]) < 0.002
+        )
+        np.testing.assert_array_equal(script.tracker.nominal, nominal)
+        assert not np.any(env.data.qfrc_applied)
+        assert not np.any(env.data.xfrc_applied)
+        assert script._base_guard is None
+    finally:
+        env.close()
+
+
+@pytest.mark.mabel
+def test_contact_feedback_returns_the_rate_bounded_nominal_fk_without_live_changes(tmp_path):
+    import numpy as np
+
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.packing import dense_shelf_config
+    from abstract_stack.receding_stocking import RecedingStockingScript
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0, product_count=3, initially_stocked=2))
+    try:
+        script = RecedingStockingScript(env, tmp_path, bounded_contact_ik=True)
+        hand = script.controller
+        hand.active_rotation = env.data.xmat[hand.palm].reshape(3, 3).copy()
+        script._stage("bounded_feedback_contract")
+        before = env.data.qpos.copy(), env.data.ctrl.copy(), hand.command.copy()
+        prediction = script._contact_prediction(
+            hand.position() + [0.0005, 0, 0],
+            alternatives=False,
+            carrying=False,
+        )
+        rates = np.r_[np.ones(len(hand.names)), 0.08]
+        assert np.all(np.abs(prediction.q - before[2]) <= rates * env.dt + 1e-10)
+        np.testing.assert_allclose(
+            hand.ik.forward(prediction.q, prediction.reference_qpos)[0],
+            prediction.position,
+            atol=1e-12,
+        )
+        assert hand.last_prediction is prediction
+        assert prediction.bounded_feedback["solver"]["projected_gradient_inf"] < 1e-6
+        np.testing.assert_array_equal(env.data.qpos, before[0])
+        np.testing.assert_array_equal(env.data.ctrl, before[1])
+        np.testing.assert_array_equal(hand.command, before[2])
+    finally:
+        env.close()

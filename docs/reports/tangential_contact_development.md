@@ -68,6 +68,74 @@ surface, improved wrist compensation or a second arm are next alternatives to
 investigate; none is claimed to solve the task. Base-position variants above are
 explicit different reset fixtures, not live base actions or matched episodes.
 
+
+## Bounded-contact and abduction tranche
+
+No complete rear-row tangential skill passed in this tranche. Original task,
+force and 0.2 mm overlap criteria remain unchanged.
+
+- **v9:** an orchestration error copied the detached checkpoint after the root
+  workspace moved. It repeated the earlier reference-bound failure. Its sources,
+  outcome and `orchestration_note.json` are retained; it is not evidence for the
+  new bounded-contact implementation.
+- **v10:** shared rate-bounded Cartesian QP, nominal-FK projection anti-windup,
+  and complete retained approach/unload paths. Nominal FK residual fell to about
+  **1.3e-7 m**, but actual tracking error remained **11.9 mm** under 8 N preload;
+  wrist compensation hit its unchanged 0.3 Nm cap 423 times. Only +0.030 mm
+  lateral displacement occurred before the reference bound. Failed.
+- **v11:** 19 mm nominal contact height admitted a 10 degree pusher tilt;
+  normal/tangent setpoints were reduced to 2.5 N. Actual tracking improved to
+  **0.277 mm**, without wrist-load clipping, but the 1.5 mm request timed out
+  (-0.280 mm lateral displacement). Selected-finger abduction deflected
+  **-0.0398 rad** against a zero reference while MCP/PIP were compensated.
+- **v12:** include centered abduction in nominal commands, predicted geometry,
+  and measured finger-load compensation. This process segfaulted in native
+  `model.body(product_name)` access inside `contact_forces`. Full faulthandler
+  output, copied sources, initial state and the unknown process record are kept.
+  No terminal verdict exists; it earns **zero successful stages**.
+- **v13:** one diagnostic using exactly the same copied source as v12 completed
+  with a displacement timeout. It does not replace or repair the native crash.
+  Abduction stayed within **1.2 mrad** of nominal, actual tool tracking was
+  **0.390 mm**, and active lateral motion reached **+0.173 mm**. Hand-normal peak
+  2.435 N; no fixture contact, incidents or final envelope overlaps.
+- **v14:** an opt-in force-guided tangential sweep raised its reference-speed
+  cap to 20 mm/s with 3 N normal/tangent setpoints and measured body-velocity
+  braking. Tangential force reached **1.165 N**, then the coupled applied-finger
+  geometry check rejected a proposed contact with the next carton (about
+  **2.15 mm** penetration). Active displacement was -0.272 mm. Failed; no force
+  guard, tolerance or collision permission was relaxed.
+- **v15:** a new contact-offset runner keyword did not match its implementation
+  signature. The retained TypeError happened before the push action; the process
+  is unknown with zero credited stages. The invocation was fixed and checked in
+  a new directory; historical files were not overwritten.
+- **v16:** start the front-face contact **12 mm toward the opposite edge** to
+  reduce yaw torque and retain room for the compensated finger posture. The
+  active carton moved **+1.054 mm** and its neighbor moved **+0.189 mm**. Peak
+  tangential/hand-normal/carton-pair forces were **2.097 / 2.302 / 0.777 N**;
+  fixture load was zero and no product incidents occurred. The applied-finger
+  geometry guard again rejected proposed neighbor contact (2.068 mm). The
+  1.5 mm displacement goal was not met, no retreat was credited, and projected
+  row overlap was **0.340 mm**, above the original **0.200 mm** limit. Failed.
+
+This establishes actual coupled carton motion and better finger/nominal tracking,
+but not an accepted rearrangement. The current primitive permits hand contact
+with the active carton only. A planned multi-carton contact mode or supported
+regrasp is a separate future action; silently allowing the rejected neighbor
+contact is not a fix for this single-target primitive.
+
+`bounded_contact_prediction(hand, proposal, target, dt, rates)` is shared with the
+main controller. It respects the proposal's explicit contact permission (including
+`None`), tolerances, fresh baseline and carry/slide context. It returns a newly
+checked `IKPrediction` without changing live state, nominal commands or caller
+bookkeeping. Callers retain force guards, coupled applied-finger checks and final
+bounds after nominal projection.
+
+`load_aware_pusher.LoadAwareFingerPusher` puts selected-finger nominal abduction
+in both commands and IK before geometry calibration. The front prototype keeps
+its earlier `TangentialFingerPusher` import as an alias. The original
+`FingerPusher` remains unchanged. This opt-in tool can be reused by the task
+controller without importing this experimental stage machine.
+
 ## Finger-load compensation
 
 `FingerLoadCompensator` aggregates measured carton/finger contact wrenches about
@@ -100,6 +168,11 @@ PYTHONPATH=src MABEL_ROOT=/path/to/open_mabel \
 ```
 
 The side-push and front-tangential controllers are opt-in; baseline stocking is
-unchanged by these modules. Six finger-compensation tests and ten lateral tests
-pass with native MABEL assets. Ruff formatting and lint pass. No direct packing
+unchanged by these modules. The current focused suite covers eight Cartesian-feedback tests, eight finger
+compensation/tool tests and ten lateral tests with native MABEL assets. Ruff formatting and lint pass. No direct packing
 success, full-ten stocking success or general success rate is inferred.
+
+To reproduce the last declared front-face variant, add
+`--force-guided-lateral --front-contact-offset -0.012`, use 19 mm contact height,
+3 N normal/tangential setpoints and 20 mm/s reference-speed cap. That command is
+expected development work, not a published successful controller.

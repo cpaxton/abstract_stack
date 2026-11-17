@@ -95,3 +95,10 @@ project names, task descriptions, repository links, or private context.
   `outputs/contact-rich-replanning-v1/standard-regression/benchmark/tuned/seed-2/`.
   The other nine selected-controller episodes completed; no retry replaces the
   unknown outcome. The native cause remains open and no upstream issue was filed.
+- **Further direct-simulator observations:** separate frozen development
+  processes exited with signal 11 at named model-body access and at an observer
+  displacement calculation. Both were headless; their initial state, source
+  hashes and faulthandler logs remain under ignored local artifacts. A later
+  diagnostic with matching controller source returned an ordinary guarded
+  failure. That does not replace either unknown outcome or identify a cause.
+  No upstream issue or message was sent.

@@ -1,0 +1,7 @@
+{
+  "alignment_timeout_seconds": 10.0,
+  "push_force_target": 2.5,
+  "insertion_back_force_target": 1.875,
+  "insertion_lateral_position_gain": 2.0,
+  "insertion_tangent_admittance": 0.02
+}

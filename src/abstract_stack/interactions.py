@@ -72,6 +72,8 @@ class ScriptConfig:
     insertion_yaw_lever_gain: float = 0.12
     insertion_back_force_target: float = 0.6
     front_staging_depth: float = 0.07
+    insertion_lateral_position_gain: float = 0.2
+    insertion_tangent_admittance: float = 0.004
 
     def __post_init__(self):
         values = asdict(self)

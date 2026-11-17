@@ -1,12 +1,24 @@
 """Opt-in object-level replanning around the existing guarded dense controller."""
 
+import json
 import time
+from types import SimpleNamespace
 
+import mujoco
 import numpy as np
 
+from abstract_stack.base_motion import (
+    BaseContactGuard,
+    BaseMotionConfig,
+    NativeSwerve,
+    screen_base_translation,
+)
+from abstract_stack.cartesian_feedback import bounded_contact_prediction
 from abstract_stack.dense_interactions import DenseStockingScript, FingerPusher
+from abstract_stack.finger_load_control import FingerLoadCompensator
 from abstract_stack.ik import PoseIK
 from abstract_stack.interactions import CartesianHand, InteractionFailure
+from abstract_stack.load_aware_pusher import LoadAwareFingerPusher
 from abstract_stack.loaded_route import admit_loaded_route, object_tool_goal, plan_loaded_route
 from abstract_stack.replanning import (
     ActionCheck,
@@ -41,7 +53,8 @@ class RecedingStockingScript(DenseStockingScript):
 
     Optional admission forecasts the empty approach and nominal loaded corridor.
     Execution refines loaded segments from measured state. Primitive-level
-    recovery, stochastic MCTS and full belief-space planning remain future work.
+    jam recovery, stochastic MCTS and full belief-space planning remain future
+    work. Released-contact reacquisition is a separately bounded opt-in mode.
     """
 
     def __init__(
@@ -51,6 +64,11 @@ class RecedingStockingScript(DenseStockingScript):
         loaded_route=False,
         route_admission=False,
         table_front=False,
+        base_reposition=False,
+        finger_load_compensation=False,
+        bounded_contact_ik=False,
+        square_backstop=False,
+        contact_recovery=False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -60,6 +78,23 @@ class RecedingStockingScript(DenseStockingScript):
         self.order_plans = []
         self.loaded_route_enabled = loaded_route
         self.table_front = table_front
+        self.base_reposition_enabled = base_reposition
+        self.base_repositions = []
+        self._base_guard = None
+        self._base_translation_origin = None
+        self.finger_load_compensation = finger_load_compensation
+        self._finger_load = None
+        self.peak_finger_load_offset = 0.0
+        self.bounded_contact_ik = bounded_contact_ik
+        self.square_backstop = square_backstop
+        self.contact_recovery = contact_recovery
+        if contact_recovery and not bounded_contact_ik:
+            raise ValueError("Contact recovery requires bounded Cartesian feedback")
+        self.PUSHER_CLASS = LoadAwareFingerPusher if finger_load_compensation else FingerPusher
+        self._start_free_push()
+        self._last_progress_heartbeat = float("-inf")
+        if base_reposition and not loaded_route:
+            raise ValueError("Base repositioning requires the loaded-route executor")
         if table_front and not loaded_route:
             raise ValueError("Table-front staging requires the loaded-route executor")
         if table_front:
@@ -75,7 +110,82 @@ class RecedingStockingScript(DenseStockingScript):
             return self.env.config.front_x + 0.06
         return super()._front_center_x(extent)
 
+    def _change_hand(self, kind, **kwargs):
+        if kind is FingerPusher:
+            kind = self.PUSHER_CLASS
+        super()._change_hand(kind, **kwargs)
+        self._finger_load = None
+        if self.finger_load_compensation and isinstance(self.controller, FingerPusher):
+            finger = self.controller.finger
+            self._finger_load = FingerLoadCompensator(
+                self.env.model,
+                self.env.data,
+                [f"Left {finger} Abd", f"Left {finger} MCP", f"Left {finger} PIP"],
+                product_name=self.product.name,
+            )
+
+    def _apply_tick(self, action):
+        compensation = self._finger_load
+        if compensation is not None and self.active_grip is None:
+            applied = compensation.targets(action, dt=self.env.dt)
+            future = {
+                name: applied.get(name, value)
+                for name, value in self.controller.finger_targets(0).items()
+            }
+            collisions = self.controller.check_hand_step(
+                SimpleNamespace(q=self.controller.command), 0, self.product.name, targets=future
+            )
+            if collisions:
+                self.events[-1]["finger_load_collision_rejection"] = collisions
+                raise InteractionFailure("finger_load: coupled applied-reference geometry rejected")
+            self.events[-1].setdefault("finger_load_compensation_samples", []).append(
+                {"sim_time": float(self.env.data.time), "joints": compensation.last_report}
+            )
+            self.peak_finger_load_offset = max(
+                self.peak_finger_load_offset, compensation.peak_offset
+            )
+            action = applied
+        ended = super()._apply_tick(action)
+        now = float(self.env.data.time)
+        if now - self._last_progress_heartbeat >= 1.0:
+            self._last_progress_heartbeat = now
+            progress = {
+                "phase": self.phase,
+                "product": self.product.name,
+                "sim_time": now,
+                "completed_products": sorted(self.observer.completed) if self.observer else [],
+                "active_product_xyz_m": self.env.data.body(self.product.name).xpos.tolist(),
+                "hand_reference_error_m": float(
+                    np.linalg.norm(self.controller.position() - self.controller.last_target)
+                ),
+                "contact_normal_N": {
+                    name: self.last_forces.get(name, 0.0)
+                    for name in ("hand", "table", "shelf", "back", "robot_product", "arm_fixture")
+                },
+            }
+            temporary = self.directory / "physics-progress.tmp"
+            temporary.write_text(json.dumps(progress, indent=2) + "\n")
+            temporary.replace(self.directory / "physics-progress.json")
+        return ended
+
     def _move(self, name, target, grip=0.0, seconds=None, **kwargs):
+        if self.loaded_route_enabled and name == "staging_clear" and grip == 0:
+            # The carton has been released onto its support. Search checked,
+            # bounded orientation alternatives for empty withdrawal rather than
+            # preserving a grasp rotation that can run into the torso.
+            if self.active_grip is not None or self.carry_reference is not None:
+                raise InteractionFailure("staging_clear: empty-hand withdrawal contract violated")
+            kwargs["orientation_alternatives"] = True
+        if self._base_translation_origin is not None and name in (
+            "clear_high",
+            "pusher_high_clear",
+            "retract",
+            "raise",
+        ):
+            target = np.asarray(target, dtype=float).copy()
+            target[:2] += (
+                self.env.data.body("mabel_chassis").xpos[:2] - self._base_translation_origin
+            )
         if (
             self.loaded_route_enabled
             and name == "clear_high"
@@ -86,7 +196,8 @@ class RecedingStockingScript(DenseStockingScript):
             event = self.events[-1]
             event["candidates"] = []
             for height in (1.35, 1.25, 1.20):
-                goal = np.array([-0.30, -0.20, height])
+                goal = np.asarray(target, dtype=float).copy()
+                goal[2] = height
                 prediction = self.controller.predict(
                     goal, alternatives=True, carrying=False, path_mode="cartesian"
                 )
@@ -149,9 +260,250 @@ class RecedingStockingScript(DenseStockingScript):
         )
 
     def _plan_pusher(self, precontact, end):
-        if self.loaded_route_enabled:
-            self._move("pusher_high_clear", [-0.30, -0.20, 1.35])
-        return super()._plan_pusher(precontact, end)
+        for attempt in range(3):
+            if self.loaded_route_enabled:
+                self._move("pusher_high_clear", [-0.30, -0.20, 1.35])
+            try:
+                return super()._plan_pusher(precontact, end)
+            except InteractionFailure as error:
+                if (
+                    not self.base_reposition_enabled
+                    or attempt >= 2
+                    or not str(error).startswith("pusher_plan:")
+                ):
+                    raise
+                base_y = float(self.env.data.body("mabel_chassis").xpos[1])
+                delta = float(np.clip(self.product.target[1] + 0.22 - base_y, -0.12, 0.12))
+                if abs(delta) < 0.01:
+                    raise
+                self._move_base([0.0, delta], reason="empty_hand_pusher_workspace_replan")
+        raise InteractionFailure("pusher_plan: bounded base alternatives exhausted")
+
+    def _sample(self, env):
+        free_push = (
+            self.contact_recovery
+            and isinstance(self.controller, FingerPusher)
+            and self.phase in ("finger_push", "reacquire_push_contact")
+            and self.active_grip is None
+            and self.carry_reference is None
+        )
+        if free_push:
+            # The object is released and surface-supported. Its hand contact
+            # may be deliberately reacquired; the grasped-slide contract is
+            # still used unchanged for all other contact modes.
+            self.supported_slide = False
+        super()._sample(env)
+        if free_push:
+            body = env.data.body(self.product.name)
+            if body.xmat.reshape(3, 3)[2, 2] < np.cos(np.radians(15)):
+                raise InteractionFailure("free_push: carton tilting; replan required")
+            extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(self.product.half_size)
+            gap = body.xpos[2] - extent[2] - env.config.levels[self.product.level]
+            supported = (
+                self.last_forces["table"] + self.last_forces["shelf"] > 0.2
+                and -0.003 <= gap <= self.config.insertion_clearance
+            )
+            self._free_push_support_loss = (
+                0.0 if supported else self._free_push_support_loss + env.config.timestep
+            )
+            if self._free_push_support_loss > 0.10:
+                raise InteractionFailure("free_push: lost physical surface support")
+            if self.last_forces["hand"] >= 0.2:
+                self._free_push_contact_seen = True
+                self._free_push_loss_seconds = 0.0
+            elif self._free_push_contact_seen:
+                self._free_push_loss_seconds += env.config.timestep
+        if self._base_guard is not None:
+            self._base_guard.step(env)
+
+    def _start_free_push(self):
+        self._free_push_contact_seen = False
+        self._free_push_loss_seconds = 0.0
+        self._free_push_support_loss = 0.0
+        self._free_push_recoveries = 0
+
+    def _reacquire_push_contact(self, reference, push_origin, height, push_event):
+        if self._free_push_recoveries >= 3:
+            raise InteractionFailure("free_push: bounded contact recovery count exhausted")
+        self._free_push_recoveries += 1
+        self._stage("reacquire_push_contact")
+        event = self.events[-1]
+        push_event.setdefault("contact_recoveries", []).append(event)
+        target = np.asarray(reference, dtype=float).copy()
+        initial_x, held = float(target[0]), 0.0
+        hand = self.controller
+        recovery_force = min(2.5, self.config.push_force_target)
+        event.update(
+            maximum_seconds=1.5,
+            maximum_advance_m=0.015,
+            forward_unload_downforce_N=self.FORWARD_UNLOAD_DOWNFORCE_N,
+            vertical_control="same bounded vertical-force admittance as free insertion",
+        )
+        for _ in range(int(1.5 / self.env.dt)):
+            body = self.env.data.body(self.product.name)
+            target[1] += float(
+                np.clip(body.xpos[1] - target[1], -0.01 * self.env.dt, 0.01 * self.env.dt)
+            )
+            force = self.last_forces.get("hand", 0.0)
+            scale = float(np.clip((recovery_force - force) / recovery_force, -1, 1))
+            if scale > 0:
+                scale *= self._ungrasped_forward_fraction()
+            target[0] -= 0.01 * self.env.dt * scale
+            contact = self.last_forces.get("hand_contact_position_world_m")
+            measured_height = contact[2] if contact is not None else hand.position()[2]
+            force_z = self.last_forces.get("hand_force_world_N", [0, 0, 0])[2]
+            vertical_speed = -0.012 * force_z + 0.2 * (height - measured_height)
+            target[2] = float(
+                np.clip(
+                    target[2] + np.clip(vertical_speed, -0.015, 0.015) * self.env.dt,
+                    height - 0.005 + 1e-6,
+                    height + 0.025 - 1e-6,
+                )
+            )
+            if (
+                abs(target[0] - initial_x) > 0.015
+                or not push_origin[0] - self.env.config.depth - 0.15
+                <= target[0]
+                <= push_origin[0] + 0.03
+                or abs(target[1] - self.product.target[1]) > 0.02
+                or not height - 0.005 <= target[2] <= height + 0.025
+            ):
+                raise InteractionFailure("free_push: reacquisition reference bound")
+            prediction = self._contact_prediction(
+                target,
+                allowed_object=self.product.name,
+                alternatives=False,
+                carrying=False,
+                sliding=True,
+            )
+            if not prediction.feasible:
+                event["rejection"] = prediction.report()
+                raise InteractionFailure("free_push: reacquisition IK/path rejected")
+            target = prediction.position.copy()
+            if (
+                abs(target[0] - initial_x) > 0.015
+                or not push_origin[0] - self.env.config.depth - 0.15
+                <= target[0]
+                <= push_origin[0] + 0.03
+                or abs(target[1] - self.product.target[1]) > 0.02
+                or not height - 0.005 <= target[2] <= height + 0.025
+            ):
+                raise InteractionFailure("free_push: projected reacquisition reference bound")
+            hand.last_target = target.copy()
+            action = hand.joint_targets(prediction.q, 0)
+            if not np.allclose(hand.command, prediction.q, atol=1e-9, rtol=0):
+                raise InteractionFailure("free_push: unexpected second nominal rate projection")
+            self._apply_tick(action)
+            tracked_nominal = np.array(
+                [self.tracker.last_report["nominal"][name] for name in [*hand.names, "Lift"]]
+            )
+            if not np.allclose(tracked_nominal, hand.command, atol=1e-9, rtol=0):
+                raise InteractionFailure("free_push: hand and tracker nominal references diverged")
+            good = self.last_forces["hand"] >= self.config.contact_threshold and (
+                self.last_forces["table"] + self.last_forces["shelf"] > 0.2
+            )
+            held = held + self.env.dt if good else 0.0
+            if held >= 0.04:
+                event.update(
+                    verified_contact_reacquisition=True, end_time=float(self.env.data.time)
+                )
+                self._free_push_loss_seconds = 0.0
+                self._stage("finger_push")
+                return target
+        raise InteractionFailure("free_push: contact reacquisition timeout")
+
+    def _contact_prediction(self, target, **kwargs):
+        proposal = super()._contact_prediction(target, **kwargs)
+        if not self.bounded_contact_ik:
+            return proposal
+        hand = self.controller
+        rates = np.r_[np.full(len(hand.names), self.config.max_joint_speed), 0.08]
+        result = bounded_contact_prediction(hand, proposal, target, dt=self.env.dt, rates=rates)
+        hand.last_prediction = result
+        hand.last_ik_error = float(
+            np.linalg.norm([result.position_error_m, 0.15 * result.orientation_error_rad])
+        )
+        self.events[-1].setdefault("bounded_feedback_samples", []).append(
+            {
+                "sim_time": float(self.env.data.time),
+                "feasible": bool(result.feasible),
+                **result.bounded_feedback,
+            }
+        )
+        return result
+
+    def _move_base(self, displacement, *, reason):
+        """Move with native wheels while the load is released; no pose writes."""
+        if self.active_grip is not None or self.carry_reference is not None:
+            raise InteractionFailure("base_reposition: loaded base motion is not admitted")
+        env = self.env
+        settings = BaseMotionConfig(fixture_force_limit_N=min(25.0, self.config.max_force))
+        self._stage("base_reposition_plan")
+        screen = screen_base_translation(env, displacement, config=settings)
+        self.events[-1].update(reason=reason, path_screening=screen)
+        if not screen["accepted"]:
+            raise InteractionFailure("base_reposition: whole-robot path rejected")
+        body = env.model.body("mabel_chassis").id
+        start = env.data.xpos[body].copy()
+        if self._base_translation_origin is None:
+            self._base_translation_origin = start[:2].copy()
+        goal = start[:2] + np.asarray(displacement)
+        rotation = env.data.xmat[body].reshape(3, 3)
+        reference_yaw = float(np.arctan2(rotation[1, 0], rotation[0, 0]))
+        guard = BaseContactGuard(
+            env,
+            config=settings,
+            reference_yaw=reference_yaw,
+            max_product_displacement_m=0.002,
+        )
+        swerve = NativeSwerve(env.model, env.data, settings)
+        self._stage("base_reposition")
+        event = self.events[-1]
+        self.base_repositions.append(event)
+        event.update(reason=reason, start_xy_m=start[:2].tolist(), goal_xy_m=goal.tolist())
+        self._base_guard = guard
+        velocity, held = np.zeros(6), 0.0
+        try:
+            for _ in range(int(settings.motion_timeout_s / env.dt)):
+                rotation = env.data.xmat[body].reshape(3, 3)
+                yaw = float(np.arctan2(rotation[1, 0], rotation[0, 0]))
+                yaw_error = float(
+                    np.arctan2(np.sin(reference_yaw - yaw), np.cos(reference_yaw - yaw))
+                )
+                error = goal - env.data.xpos[body, :2]
+                mujoco.mj_objectVelocity(
+                    env.model, env.data, mujoco.mjtObj.mjOBJ_BODY, body, velocity, 0
+                )
+                arrived = (
+                    np.linalg.norm(error) <= settings.position_tolerance_m
+                    and abs(yaw_error) <= settings.yaw_tolerance_rad
+                )
+                twist = np.r_[1.2 * error - 0.3 * velocity[3:5], 2 * yaw_error - 0.4 * velocity[2]]
+                if arrived:
+                    twist[:] = 0
+                if self._apply_tick(swerve.targets(twist, dt=env.dt)):
+                    raise InteractionFailure(
+                        "base_reposition: task ended before stocking validation"
+                    )
+                mujoco.mj_objectVelocity(
+                    env.model, env.data, mujoco.mjtObj.mjOBJ_BODY, body, velocity, 0
+                )
+                stopped = np.linalg.norm(velocity[3:5]) < 0.003 and abs(velocity[2]) < 0.01
+                held = held + env.dt if arrived and stopped else 0.0
+                if held >= 0.3:
+                    break
+            else:
+                raise InteractionFailure("base_reposition: measured pose/stop dwell timeout")
+            for _ in range(int(0.5 / env.dt)):
+                self._apply_tick(swerve.targets([0, 0, 0], dt=env.dt))
+            final_error = float(np.linalg.norm(goal - env.data.xpos[body, :2]))
+            if final_error > settings.position_tolerance_m:
+                raise InteractionFailure("base_reposition: final position guard")
+            event.update(verified_base_reposition=True, final_position_error_m=final_error)
+            self.controller.last_target = self.controller.position().copy()
+        finally:
+            event.update(end_time=float(env.data.time), guard=guard.report())
+            self._base_guard = None
 
     def _checked_cartesian_move(self, name, target, rotation, grip, *, carrying, object_goal=None):
         self._stage(name)
@@ -269,6 +621,12 @@ class RecedingStockingScript(DenseStockingScript):
                             allow_lower_clearance=bool(
                                 self.observer is not None and self.observer.completed
                             ),
+                            home_displacement_xy=(
+                                None
+                                if self._base_translation_origin is None
+                                else self.env.data.body("mabel_chassis").xpos[:2]
+                                - self._base_translation_origin
+                            ),
                         )
                         self.events[-1]["loaded_route_admission"] = route_check
                         self.events[-1]["admission_scope"] = "grasp_plus_nominal_loaded_corridor"
@@ -317,5 +675,12 @@ class RecedingStockingScript(DenseStockingScript):
                 "loaded_corridor_enabled": self.loaded_route_enabled,
                 "loaded_route_admission_enabled": self.route_admission_enabled,
                 "staging_support": self.FRONT_SUPPORT,
+                "base_reposition_enabled": self.base_reposition_enabled,
+                "base_repositions": self.base_repositions,
+                "finger_load_compensation_enabled": self.finger_load_compensation,
+                "peak_finger_load_offset_rad": self.peak_finger_load_offset,
+                "bounded_contact_ik_enabled": self.bounded_contact_ik,
+                "contact_recovery_enabled": self.contact_recovery,
+                "pusher_class": self.PUSHER_CLASS.__name__,
             },
         }
