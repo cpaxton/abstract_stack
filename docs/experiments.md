@@ -1,5 +1,13 @@
 # Stocking workflows and experiment index
 
+## Technical feasibility roadmap
+
+The [feasibility plan](technical_feasibility.md) defines proposed gates for dense
+contact, recovery, teleoperation/replay, human pace, observation realism, learning,
+custom tooling and bimanual mobile execution. The [proof-of-concept critique](poc_critique.md)
+separates existing evidence from those unproven capabilities. These are planning
+documents; their acceptance targets are not measured results.
+
 ## Supported starting point
 
 Install with `./install.sh`, fetch native MABEL with `abstract-stack fetch-mabel`,
