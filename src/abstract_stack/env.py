@@ -6,6 +6,7 @@ import math
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 import mujoco
@@ -13,6 +14,19 @@ import numpy as np
 
 from abstract_stack.control import stationary_targets, validate_targets
 from abstract_stack.scene import ShelfConfig, build_scene_xml, initial_positions, products_for
+
+
+@dataclass(frozen=True)
+class PlanningState:
+    """Independent scratch data and timing, sharing the model read-only.
+
+    Deliberately omits episode bookkeeping, reset, stepping and rendering.
+    Planners may modify ``data``; they must not modify the shared ``model``.
+    """
+
+    model: mujoco.MjModel
+    data: mujoco.MjData
+    dt: float
 
 
 class ShelfStockingEnv:
@@ -69,6 +83,17 @@ class ShelfStockingEnv:
     @property
     def actuator_names(self) -> tuple[str, ...]:
         return tuple(self.model.actuator(i).name for i in range(self.model.nu))
+
+    def clone_for_planning(self) -> PlanningState:
+        """Snapshot MuJoCo state without aliasing mutable episode state.
+
+        The native model is shared under the planner's read-only contract.
+        Controller candidates operate on an independent MjData; this snapshot
+        cannot be used as a second task environment or claim rollout success.
+        """
+        data = mujoco.MjData(self.model)
+        mujoco.mj_copyData(data, self.model, self.data)
+        return PlanningState(self.model, data, self.dt)
 
     def reset(self, *, seed: int | None = None) -> tuple[dict, dict]:
         if seed is not None:
