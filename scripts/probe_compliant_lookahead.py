@@ -37,6 +37,7 @@ def worker(args):
     from abstract_stack.load_aware_pusher import LoadAwareFingerPusher
     from abstract_stack.native_views import retain_data_views, retain_model_views
     from abstract_stack.sim_sensors import ContactSensorSuite
+    from abstract_stack.squaring_fixture import neighbor_reset
 
     started = time.monotonic()
     source = args.output / "inputs"
@@ -56,9 +57,15 @@ def worker(args):
                 raise ValueError("Expected complete native integration state")
             mujoco.mj_setState(model, data, state["state"], int(state["state_spec"]))
         mujoco.mj_forward(model, data)
+    active = original["events"][-1]["product"]
+    reset_created = bool(args.reset_neighbor)
+    fixture = manifest.get("reset_fixture")
+    if args.reset_neighbor:
+        if restored is None:
+            raise ValueError("Neighbor fixtures require a verified compiled checkpoint")
+        data, manifest, fixture = neighbor_reset(model, data, manifest, active, args.reset_neighbor)
     views = retain_model_views(model), retain_data_views(model, data)
     initial = integration_state(model, data)
-    active = original["events"][-1]["product"]
     product = next(p for p in manifest["products"] if p["name"] == active)
     choices = (
         restored.controller["pusher_settings"]
@@ -77,6 +84,19 @@ def worker(args):
     )
     nominal = np.array([nominal_targets[n] for n in [*hand.names, "Lift"]])
     hand.command = nominal.copy()
+    wrist_range = restored.controller.get("planning_wrist_range") if restored else None
+    if args.wrist_freedom_deg:
+        index = hand.ik.names.index("Left Wrist")
+        radius = np.radians(args.wrist_freedom_deg)
+        wrist_range = [
+            float(max(hand.ik.original_lower[index], nominal[index] - radius)),
+            float(min(hand.ik.original_upper[index], nominal[index] + radius)),
+        ]
+    if wrist_range is not None:
+        # Release only this explicit planning posture. Native bounds and all
+        # proposed arm/finger, wrist/board and path checks remain in force.
+        hand.ik.posture_constraints.pop(hand.ik.names.index("Left Wrist"))
+        hand.ik.constrain_reference_range("Left Wrist", *wrist_range)
     if restored and "tool_offset_m" in restored.controller:
         offset = np.asarray(restored.controller["tool_offset_m"], float)
         if (
@@ -102,7 +122,41 @@ def worker(args):
     if restored and "motion_bounds" in restored.controller:
         lower = np.asarray(restored.controller["motion_bounds"]["lower_m"], float)
         upper = np.asarray(restored.controller["motion_bounds"]["upper_m"], float)
-    configuration = PushAdmittance(normal_target_N=original["controller"]["push_force_target"])
+    bounds_reason = "captured insertion motion corridor"
+    if args.front_face_sweep:
+        # A separate, opt-in supported recovery workspace. Restrict the lateral
+        # sweep to the measured carton Y envelope with 6 mm edge margins. Every nominal
+        # and compensated proposal still needs the original geometry/path gates;
+        # this box alone never certifies collision clearance or manipulation.
+        active_body = model.body(active).id
+        extent = np.abs(data.xmat[active_body].reshape(3, 3)) @ product["half_size"]
+        lower[1] = data.xpos[active_body, 1] - extent[1] + 0.006
+        upper[1] = data.xpos[active_body, 1] + extent[1] - 0.006
+        bounds_reason = "supported front-face recovery; measured carton Y span minus 6 mm edges"
+    policy_settings = dict(restored.controller.get("push_admittance", {})) if restored else {}
+    policy_settings.setdefault("normal_target_N", original["controller"]["push_force_target"])
+    if args.normal_target is not None:
+        policy_settings["normal_target_N"] = args.normal_target
+    configuration = PushAdmittance(**policy_settings)
+    if reset_created:
+        save_checkpoint(
+            args.output / "fixture-checkpoint",
+            model,
+            data,
+            scene=manifest,
+            controller=dict(
+                restored.controller,
+                planning_wrist_range=wrist_range,
+                push_admittance=asdict(configuration),
+                motion_bounds=dict(lower_m=lower.tolist(), upper_m=upper.tolist()),
+                mode_flags=dict(sweep_side=args.sweep_side, front_face_sweep=args.front_face_sweep),
+            ),
+            context=dict(
+                source_summary=original,
+                fixture=fixture,
+                parent_checkpoint=restored.manifest["hashes"]["state.npz"],
+            ),
+        )
     candidates, generation, rates = generate_push_candidates(
         hand,
         active,
@@ -163,6 +217,10 @@ def worker(args):
         worker_wall_seconds=time.monotonic() - started,
         source_state_unchanged=True,
         restored_checkpoint=None if restored is None else str(restored.directory),
+        reset_fixture=fixture,
+        reset_created=reset_created,
+        planning_wrist_range=wrist_range,
+        motion_bounds=dict(lower_m=lower.tolist(), upper_m=upper.tolist(), reason=bounds_reason),
     )
     if args.execute_prefix > 0:
         prefix_steps = int(round(args.execute_prefix / model.opt.timestep))
@@ -176,7 +234,7 @@ def worker(args):
         ):
             raise ValueError("Prefix must contain whole control intervals within the horizon")
         monitor = ContactMonitor(model, data, scene)
-        if restored and restored.context.get("contact_monitor"):
+        if restored and not reset_created and restored.context.get("contact_monitor"):
             monitor.restore_state(restored.context["contact_monitor"], data)
         yaw_limit = next(
             (
@@ -201,20 +259,27 @@ def worker(args):
             else None
         )
         records = []
-        if dwell is not None and restored and restored.context.get("backstop_dwell"):
+        if (
+            dwell is not None
+            and restored
+            and not reset_created
+            and restored.context.get("backstop_dwell")
+        ):
             dwell.restore_state(restored.context["backstop_dwell"], float(data.time))
         executed = []
         tracking_samples = []
         actor_failure = None
         active_body = model.body(active).id
         start_x = float(data.xpos[active_body, 0])
+        start_position = data.xpos[active_body].copy()
+        contact_trace = []
         yaw_integral_lever = (
             float(restored.controller.get("yaw_integral_lever_m", 0)) if restored else 0.0
         )
         for cycle in range(args.replans):
             lateral_goal = lateral_measured = None
             objective = "advance"
-            if cycle or restored is not None and args.square_feedback:
+            if cycle or restored is not None and (args.square_feedback or args.sweep_side):
                 expected = integration_state(model, data)
                 reading = suite.sample(data)
                 rotation = data.xmat[hand.palm].reshape(3, 3)
@@ -222,7 +287,16 @@ def worker(args):
                     rotation @ reading["contact_wrench"][0, :3],
                     rotation @ reading["contact_wrench"][0, 3:],
                 ]
-                if (
+                if args.sweep_side:
+                    sign = -1 if args.sweep_side == "left" else 1
+                    lateral_goal = float(np.clip(origin[1] + sign * 0.012, lower[1], upper[1]))
+                    lateral_measured = float(hand.position()[1])
+                    objective = (
+                        "square_backstop"
+                        if monitor.last.get("carton_pair_N", 0) >= 0.4
+                        else f"lateral_{args.sweep_side}"
+                    )
+                elif (
                     args.square_feedback
                     and monitor.last.get("back_N", 0) >= hand.config.contact_threshold
                 ):
@@ -348,6 +422,18 @@ def worker(args):
                     actor_failure = "native_state_or_warning"
                     break
                 actor_failure = monitor.sample(data, elapsed=model.opt.timestep)
+                active_rotation = data.xmat[active_body].reshape(3, 3)
+                contact_trace.append(
+                    [
+                        float(data.time),
+                        *data.xpos[active_body].tolist(),
+                        float(np.degrees(np.arctan2(active_rotation[1, 0], active_rotation[0, 0]))),
+                        monitor.last.get("hand_N", 0),
+                        monitor.last.get("back_N", 0),
+                        monitor.last.get("carton_pair_N", 0),
+                        monitor.last.get("support_N", 0),
+                    ]
+                )
                 if actor_failure:
                     break
                 if trace:
@@ -379,13 +465,16 @@ def worker(args):
         if dwell is not None and not dwell.verified and actor_failure is None:
             actor_failure = "backstop_dwell_decision_budget_exhausted"
         report["continuation"] = dict(
-            kind="retained_checkpoint_continuation_not_new_episode",
+            kind="declared_reset_fixture_probe"
+            if reset_created
+            else "retained_checkpoint_continuation_not_new_episode",
             replans=records,
             scheduled_replans=args.replans,
             executed_physics_steps=len(executed),
             continuation_execution_admitted=bool(executed),
             simulated_seconds=len(executed) * model.opt.timestep,
             progress_minus_x_m=start_x - float(data.xpos[active_body, 0]),
+            displacement_xyz_m=(data.xpos[active_body] - start_position).tolist(),
             failure=actor_failure,
             measured_back_contact_N=monitor.last.get("back_N", 0),
             backstop_dwell=None if dwell is None else dwell.report(),
@@ -407,6 +496,20 @@ def worker(args):
             controls=np.asarray(executed),
             terminal_state=integration_state(model, data),
             tracking_samples=np.asarray(tracking_samples),
+            contact_trace=np.asarray(contact_trace),
+            contact_trace_columns=np.array(
+                [
+                    "time_s",
+                    "x_m",
+                    "y_m",
+                    "z_m",
+                    "yaw_deg",
+                    "hand_N",
+                    "back_N",
+                    "max_carton_pair_N",
+                    "support_N",
+                ]
+            ),
         )
         report["worker_wall_seconds"] = time.monotonic() - started
         report["forecast_generation_source_state_unchanged"] = True
@@ -429,8 +532,13 @@ def worker(args):
                 control_dt_s=hand.env.dt,
                 applied_controls=data.ctrl.tolist(),
                 mode_flags=dict(
-                    require_dwell=args.require_dwell, square_feedback=args.square_feedback
+                    require_dwell=args.require_dwell,
+                    square_feedback=args.square_feedback,
+                    sweep_side=args.sweep_side,
+                    front_face_sweep=args.front_face_sweep,
                 ),
+                planning_wrist_range=wrist_range,
+                push_admittance=asdict(configuration),
             )
             xml_path = (restored.directory if restored else source) / "scene.xml"
             try:
@@ -447,6 +555,7 @@ def worker(args):
                         if restored is None
                         else restored.manifest["hashes"]["state.npz"],
                         original_outcome=original.get("failure"),
+                        fixture=fixture,
                         contact_monitor=monitor.state_dict(),
                         backstop_dwell=None if dwell is None else dwell.report(),
                         control_phase_step=len(executed) % control_steps,
@@ -487,6 +596,11 @@ def main():
     parser.add_argument("--execute-prefix", type=float, default=0)
     parser.add_argument("--require-dwell", action="store_true")
     parser.add_argument("--square-feedback", action="store_true")
+    parser.add_argument("--reset-neighbor", choices=("left", "right"))
+    parser.add_argument("--sweep-side", choices=("left", "right"))
+    parser.add_argument("--normal-target", type=float)
+    parser.add_argument("--wrist-freedom-deg", type=float, default=0)
+    parser.add_argument("--front-face-sweep", action="store_true")
     parser.add_argument("--replans", type=int, default=1)
     parser.add_argument("--worker", action="store_true")
     args = parser.parse_args()
@@ -500,6 +614,11 @@ def main():
         and (not args.require_dwell or args.execute_prefix > 0)
         and (not args.square_feedback or args.require_dwell)
         and (not args.save_checkpoint or args.execute_prefix > 0)
+        and (not args.reset_neighbor or args.checkpoint)
+        and (not args.sweep_side or args.require_dwell)
+        and (args.normal_target is None or 0 < args.normal_target < 25)
+        and 0 <= args.wrist_freedom_deg <= 20
+        and (not args.front_face_sweep or args.sweep_side and args.require_dwell)
     ):
         parser.error("Keep candidate, shortlist and compute budgets bounded")
     args.output = args.output.resolve()
@@ -577,6 +696,16 @@ def main():
         command.append("--require-dwell")
     if args.square_feedback:
         command.append("--square-feedback")
+    if args.front_face_sweep:
+        command.append("--front-face-sweep")
+    for flag, value in (
+        ("--reset-neighbor", args.reset_neighbor),
+        ("--sweep-side", args.sweep_side),
+        ("--normal-target", args.normal_target),
+        ("--wrist-freedom-deg", args.wrist_freedom_deg),
+    ):
+        if value is not None:
+            command += [flag, str(value)]
     if args.checkpoint:
         command += ["--checkpoint", str(inputs / "checkpoint")]
     if args.save_checkpoint:

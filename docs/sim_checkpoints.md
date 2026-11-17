@@ -1,5 +1,11 @@
 # Simulation checkpoints and last-millimeter tests
 
+For declared dynamic-neighbor fixtures, left/right held-control comparisons and
+the supported front-face squaring recovery, see
+[focused environmental squaring](reports/environmental_squaring_development.md).
+Reset fixtures are separate experiments; checkpoint continuations preserve their
+fixture lineage and earn no new pick or stocking credit.
+
 Use a native checkpoint to repeat a difficult insertion state without repeating
 the pickup. Checkpoints contain the **compiled model and complete integration
 state**, not just poses. Restores create new model/data objects; they never

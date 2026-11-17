@@ -200,14 +200,20 @@ def test_initial_external_force_cannot_receive_forecast_admission(fixture):
 
 
 @pytest.mark.parametrize("yaw", [-0.1, 0.1])
-def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(fixture, yaw):
+@pytest.mark.parametrize("objective", ["square_backstop", "lateral_left", "lateral_right"])
+def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(
+    fixture, yaw, objective
+):
     model, data, scene = fixture
     # Reset-only orientation fixture: compare screened free-joint quaternion
     # yaw against independently guarded native forward kinematics.
     address = int(model.jnt_qposadr[model.body_jntadr[model.body("active").id]])
     data.qpos[address + 3 : address + 7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
     mujoco.mj_forward(model, data)
-    candidates = [dict(name=n, controls=np.zeros((10, 1))) for n in ("a", "b")]
+    candidates = [
+        dict(name=name, controls=np.full((10, 1), value))
+        for name, value in (("a", -0.001), ("b", 0.001))
+    ]
     result = evaluate_screened_batch(
         model,
         integration_state(model, data),
@@ -215,14 +221,28 @@ def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(fixt
         scene,
         rates=np.ones(1),
         shortlist=1,
-        objective="square_backstop",
+        objective=objective,
     )
     admitted = [r for r in result["candidates"] if r["eligible"]]
     assert len(admitted) == 1 and result["guarded_count"] == 1
     assert admitted[0]["active_yaw_rad"] == pytest.approx(
         admitted[0]["screen_active_yaw_rad"], abs=1e-10
     )
+    assert admitted[0]["displacement_xyz_m"][1] == pytest.approx(
+        admitted[0]["screen_displacement_y_m"], abs=1e-10
+    )
     assert result["selected_name"] == admitted[0]["name"]
+    if objective.startswith("lateral_"):
+        direction = -1 if objective == "lateral_left" else 1
+        assert (
+            abs(
+                result["candidates"][0]["screen_displacement_y_m"]
+                - result["candidates"][1]["screen_displacement_y_m"]
+            )
+            > 1e-10
+        )
+        expected = max(result["candidates"], key=lambda r: direction * r["screen_displacement_y_m"])
+        assert result["selected_name"] == expected["name"]
     unchecked = next(r for r in result["candidates"] if not r["eligible"])
     assert unchecked["verification_status"] == "not_force_checked"
     with pytest.raises(ValueError, match="objective"):

@@ -66,6 +66,13 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   reduce yaw from 4.43 to 2.75 degrees, still above the unchanged 0.15-degree
   criterion. No release/retreat or fresh-stock credit; see the
   [sustained-contact report](docs/reports/sustained_contact_development.md).
+- [x] Add dynamic-neighbor reset fixtures, fixed left/right held comparisons and
+  checkpoint continuations. A supported front-face recovery passed the unchanged
+  0.15-degree/0.12-second backstop gate in one fixture (2.748 to 0.143 degrees;
+  2.655 N robot/product peak). Zero fresh task credit; the original task above
+  stays open. See [squaring evidence](docs/reports/environmental_squaring_development.md).
+- [ ] Establish measured left/right neighbor bracing; current carton-pair forces
+  are zero. Test both yaw signs, unloading and retreat, then consecutive stocks.
 - [x] Prototype measured wrist-load compensation for grasp/carry; reserve nominal
   wrist and lift headroom without changing native ranges, gains or force limits.
   Test native torque sign and applied geometry before actuation. Not promoted.
