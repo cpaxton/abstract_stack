@@ -41,8 +41,8 @@ class ScriptConfig:
     max_motion_seconds: float = 12.0
     gravity_compensation: bool = True
     adaptive_grasps: bool = True
-    grasp_force_target: float = 6.0
-    push_force_target: float = 2.0
+    grasp_force_target: float = 4.5
+    push_force_target: float = 1.875
     grip_force_gain: float = 0.04
     grip_max_rate: float = 0.25
     carry_clearance: float = 0.10
@@ -67,6 +67,7 @@ class ScriptConfig:
     fixture_unload_speed: float = 0.015
     fixture_unload_distance: float = 0.025
     fixture_clearance: float = 0.004
+    thumb_preshape: bool = True
 
     def __post_init__(self):
         values = asdict(self)
@@ -76,6 +77,7 @@ class ScriptConfig:
         values.pop("head_tracking")
         values.pop("contact_aware")
         values.pop("guarded_approach")
+        values.pop("thumb_preshape")
         values.pop("fixture_avoidance")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
@@ -97,6 +99,8 @@ class ScriptConfig:
             raise ValueError("gravity_compensation must be true or false")
         if not isinstance(self.adaptive_grasps, bool):
             raise ValueError("adaptive_grasps must be true or false")
+        if not isinstance(self.thumb_preshape, bool):
+            raise ValueError("thumb_preshape must be boolean")
         if not isinstance(self.head_tracking, bool):
             raise ValueError("head_tracking must be true or false")
         if not isinstance(self.contact_aware, bool):
@@ -292,11 +296,8 @@ class CartesianHand:
         baseline = self.ik._contacts(start, reference, object_id)
         for alpha in (0.0, 0.5, 1.0):
             fingers = reference.copy()
-            for suffix in self.FLEXION:
-                name = f"Left {suffix}"
+            for name, goal in self.finger_targets(grip).items():
                 adr = int(self.model.joint(name).qposadr[0])
-                lo, hi = self.model.actuator(name).ctrlrange
-                goal = lo + grip * (hi - lo)
                 fingers[adr] = reference[adr] + alpha * (goal - reference[adr])
             errors = self.ik.collision_errors(
                 start + alpha * (prediction.q - start), fingers, baseline, object_id
@@ -332,6 +333,27 @@ class CartesianHand:
             )
         return self.joint_targets(q, grip)
 
+    def finger_targets(self, grip):
+        """Native finger references, including clearance at the thumb base."""
+        action = {}
+        for suffix in self.FLEXION:
+            name = f"Left {suffix}"
+            lo, hi = self.model.actuator(name).ctrlrange
+            action[name] = float(lo + grip * (hi - lo))
+        if self.config.thumb_preshape:
+            # The neutral thumb metacarpal catches the carton's top edge during
+            # descent. Abduct it before approach and retain that grasp posture
+            # during carry/opening; this changes references, never the model.
+            name = "Left Thumb MCP"
+            if (
+                not self.model.actuator(name).ctrlrange[0]
+                <= 0.4
+                <= self.model.actuator(name).ctrlrange[1]
+            ):
+                raise ValueError("MABEL thumb preshape exceeds native actuator limits")
+            action[name] = 0.4
+        return action
+
     def joint_targets(self, q, grip):
         q = np.asarray(q, dtype=float)
         if q.shape != self.command.shape or not np.isfinite(q).all():
@@ -353,10 +375,7 @@ class CartesianHand:
         )
         action = dict(zip(self.names, self.command[:-1].tolist(), strict=True))
         action["Lift"] = float(self.command[-1])
-        for suffix in self.FLEXION:
-            name = f"Left {suffix}"
-            lo, hi = self.model.actuator_ctrlrange[self.model.actuator(name).id]
-            action[name] = float(lo + grip * (hi - lo))
+        action.update(self.finger_targets(grip))
         return action
 
     def predict(
@@ -372,11 +391,12 @@ class CartesianHand:
     ):
         fingers = {}
         if grip == 0:
-            for suffix in self.FLEXION:
-                name = f"Left {suffix}"
-                fingers[int(self.model.joint(name).qposadr[0])] = self.model.actuator_ctrlrange[
-                    self.model.actuator(name).id, 0
-                ]
+            fingers = {
+                int(self.model.joint(name).qposadr[0]): value
+                for name, value in self.finger_targets(0).items()
+            }
+        elif self.config.thumb_preshape:
+            fingers[int(self.model.joint("Left Thumb MCP").qposadr[0])] = 0.4
         prediction = self.ik.predict(
             target,
             self.ROTATION if alternatives else self.active_rotation,
@@ -485,12 +505,14 @@ class StockingScript:
         video_width=640,
         video_height=480,
         first_person="zed_left",
+        force_profile=None,
     ):
         if not env.robot or not env.products or any(p.kind != "carton" for p in env.products):
             raise ValueError("The script requires MABEL and a carton-only scene (pick_place)")
         if env.config.environment != "studio" or tuple(env.config.robot_xy) != (0.0, 0.0):
             raise ValueError("This first script supports the stationary pick_place bench only")
         self.env, self.config = env, config or ScriptConfig()
+        self.force_profile = force_profile
         self.directory, self.render = Path(directory), render
         self.directory.mkdir(parents=True, exist_ok=True)
         self.controller = CartesianHand(env, self.config)
@@ -1166,11 +1188,10 @@ class StockingScript:
         object_id = env.model.body(self.product.name).id
         baseline = controller.ik._contacts(start_q, reference, object_id)
         fingers = {}
-        for suffix in controller.FLEXION:
-            name = f"Left {suffix}"
+        for name, opened in controller.finger_targets(0).items():
             adr = int(env.model.joint(name).qposadr[0])
             lo, hi = env.model.actuator(name).ctrlrange
-            fingers[name] = (adr, float(np.clip(reference[adr], lo, hi)), float(lo))
+            fingers[name] = (adr, float(np.clip(reference[adr], lo, hi)), opened)
         displacements = [np.array([config.release_forward, 0, config.release_up])]
         if config.contact_aware:
             others = [p for p in env.products if p.name != self.product.name]
@@ -1314,6 +1335,7 @@ class StockingScript:
             "failure": None,
             "completed_products": [],
             "controller": asdict(self.config),
+            "force_profile": self.force_profile,
             "assistance": "none",
             "state_access": "privileged_mujoco_world_state",
             "policy_kind": "handwritten_feedback_program",

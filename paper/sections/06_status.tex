@@ -28,9 +28,39 @@ crashed natively without a terminal summary; it remains unverified. Subsequent
 video generation used a single rendering process, and the campaign driver
 retains process failures instead of dropping them.
 
+\paragraph{Frozen-policy carton pilot.}
+A subsequent controller opens the native left thumb MCP to 0.4\,rad, clearing
+the carton's top edge before closure. The posture is represented in both actuator
+references and predicted finger geometry, with unchanged native robot geometry,
+gains, collision masks and limits. The 25\,N force abort and all task gates remain
+fixed. At policy revision \texttt{95107d7}, this controller completes all ten
+two-carton scenes in each of two previously used regression suites, improving
+their earlier 8/10 and 7/10 results to 10/10 and 10/10. A separate ten-scene suite
+generated after policy freeze also completes 10/10 scenes. All 60 scheduled
+cartons in the selected-controller cohorts pass measured pick, shelf support,
+final positioning and clean retreat gates. A physics-step observer detects no
+tip/drop incident; episode logs record zero interventions.
+The fresh-suite Wilson 95\% interval is approximately 72.2--100\%.
+These small, stationary, left-arm, privileged-state carton pilots do not establish
+general shelf solvability or coordinated bimanual behavior. Full configurations,
+source fingerprints, stage evidence and rejected development probes are recorded
+in \path{docs/reports/thumb_preshape_followup.json} and its accompanying report.
+
+A bounded seven-configuration search on separate development scenes selects
+4.5\,N balanced grip and 1.875\,N push targets. The search retains thirteen
+verified episode outcomes and one unknown final orchestration outcome; the
+unknown candidate is rejected. With the selected settings frozen, a further
+ten-scene force-validation suite completes 10/10, versus 8/10 at the earlier
+force settings. The same selected settings retain 10/10 on each earlier suite,
+giving 40/40 complete scenes and all four stages for 80 scheduled cartons.
+Across these forty matched cases, the mean per-episode highest monitored force
+decreases from 10.159 to 8.032\,N. Full paired evidence and the unknown search
+outcome are retained in \path{docs/reports/compliance_followup.json}.
+These shelves have ample lateral room; this pilot does not measure insertion
+with only 5--10\,mm total unused width across an occupied shelf row.
+
 The conventional controller added in this draft is evaluated with dedicated
 native-physics tracking tests. Numerical summaries and commands belong in the
 controller runbook; a test pass establishes only its stated fixture and bounds.
 Broader stocking generalization, verified recovery, autonomous navigation, teleoperation quality,
 demonstration replay, and learned-controller superiority are not established.
-No benchmark result table is filled with hypothetical performance.

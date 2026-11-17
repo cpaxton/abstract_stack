@@ -11,6 +11,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from abstract_stack.config import SCENES
+from abstract_stack.control_profiles import FORCE_PROFILE_NAMES
 
 
 def _positive_int(value):
@@ -39,9 +40,11 @@ def _parser():
     batch.add_argument("--video", action="store_true")
     batch.add_argument("--fps", type=_positive_int, default=15)
     batch.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
+    batch.add_argument("--force-profile", choices=FORCE_PROFILE_NAMES, default="selected")
     batch.add_argument("--legacy-contact-control", action="store_true")
     batch.add_argument("--guarded-approach", action="store_true")
     batch.add_argument("--fixture-avoidance", action=argparse.BooleanOptionalAction, default=True)
+    batch.add_argument("--thumb-preshape", action=argparse.BooleanOptionalAction, default=True)
     batch.add_argument(
         "--episode-timeout",
         type=float,
@@ -77,6 +80,18 @@ def _parser():
             sub.add_argument("--render", action="store_true", help="Render scene preview images")
         if command in ("script", "solve"):
             sub.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
+            sub.add_argument(
+                "--force-profile",
+                choices=FORCE_PROFILE_NAMES,
+                default="selected",
+                help="Force setpoints only; explicit --control-config values take precedence",
+            )
+            sub.add_argument(
+                "--thumb-preshape",
+                action=argparse.BooleanOptionalAction,
+                default=True,
+                help="Open the thumb base before approach (--no-thumb-preshape for ablation)",
+            )
             sub.add_argument(
                 "--legacy-contact-control",
                 action="store_true",
@@ -247,10 +262,12 @@ def main(argv=None):
                 video=args.video,
                 fps=args.fps,
                 control_config=args.control_config,
+                force_profile=args.force_profile,
                 episode_timeout=args.episode_timeout,
                 legacy_contact_control=args.legacy_contact_control,
                 guarded_approach=args.guarded_approach,
                 fixture_avoidance=args.fixture_avoidance,
+                thumb_preshape=args.thumb_preshape,
             )
         except (OSError, ValueError) as error:
             parser.exit(1, f"Campaign failed: {error}\n")
@@ -324,8 +341,8 @@ def main(argv=None):
         )
         try:
             if args.command == "script":
+                from abstract_stack.control_profiles import resolve_control_settings
                 from abstract_stack.interactions import ScriptConfig, StockingScript
-                from abstract_stack.tuning import load_control_config
 
                 result = StockingScript(
                     env,
@@ -341,8 +358,10 @@ def main(argv=None):
                         contact_aware=not args.legacy_contact_control,
                         guarded_approach=args.guarded_approach,
                         fixture_avoidance=args.fixture_avoidance,
-                        **load_control_config(args.control_config),
+                        thumb_preshape=args.thumb_preshape,
+                        **resolve_control_settings(args.force_profile, args.control_config),
                     ),
+                    force_profile=args.force_profile,
                     render=args.render,
                     video=args.video,
                     video_fps=args.fps,

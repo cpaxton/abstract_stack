@@ -294,12 +294,13 @@ def test_collision_rejection_and_bounded_staging(robot):
 
 
 @pytest.mark.mabel
-def test_random_two_carton_scene_completes_all_physical_gates(tmp_path):
+@pytest.mark.parametrize("seed", [0, 112])
+def test_random_two_carton_scene_completes_all_physical_gates(tmp_path, seed):
     try:
         mabel_model_path()
     except FileNotFoundError:
         pytest.skip("MABEL assets not downloaded")
-    env = ShelfStockingEnv(random_shelf_config(0, product_count=2), seed=0)
+    env = ShelfStockingEnv(random_shelf_config(seed, product_count=2), seed=seed)
     try:
         result = StockingScript(env, tmp_path).run()
         assert result["physical_success"], result["failure"]

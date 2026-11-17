@@ -81,8 +81,16 @@ upright poses alone are insufficient. Keep task criteria and abort limits fixed
 while searching controller parameters, and disclose development seeds, search
 budget, rejected candidates and validation failures.
 
-The benchmark baseline uses `--legacy-contact-control`; the selected script
+The benchmark baseline uses `--force-profile legacy --legacy-contact-control`;
+the selected script
 enables checked alternate withdrawal paths and wrist/board clearance feedback.
+The baseline also uses `--no-thumb-preshape`. The selected script opens the
+native left thumb MCP to 0.4 rad before descent and retains that reference
+through carry and withdrawal. `--no-thumb-preshape` isolates this change while
+keeping the contact controller enabled. Check the intended thumb posture in
+empty/loaded IK and coupled opening plans; validate carry, placement and retreat,
+not just initial lift. Ordinary joint-path IK samples the future finger posture;
+it does not certify the transient opening sweep or predict contact forces.
 Use `--no-fixture-avoidance` to isolate the release-path change. The guarded
 approach prototype requires explicit `--guarded-approach` and is not promoted by
 a lift alone: verify carry retention and full-scene outcomes before changing its
@@ -94,6 +102,14 @@ when available. For an archived checkout, record its commit explicitly alongside
 the campaign. Compare settled integration-state hashes as well as scene/model
 inputs before claiming a matched experiment. Historical reports must name their
 historical checkout; the current benchmark command follows current defaults.
+
+`--force-profile selected` uses the current default grasp/push force setpoints
+(4.5 N / 1.875 N). `--force-profile legacy` selects 6 N / 2 N without changing
+contact-control or hand mode flags. Explicit `--control-config` values override
+either profile. Campaigns and terminal summaries record the profile and effective
+settings. `configs/controllers/low_force.json` remains a fixed historical snapshot,
+even when it matches current defaults. Named force profiles do not reconstruct
+historical source code; reproduce old algorithms at their recorded commits.
 
 Work on a feature branch. Describe the concrete behavior, reproduction command,
 tests actually run, and unresolved acceptance gates. Include a small rendered

@@ -24,7 +24,7 @@ def summarize_run(directory, returncode, *, video):
     process_failure = directory / "process_failure.json"
     if process_failure.exists():
         result["process_failure"] = json.loads(process_failure.read_text())
-    if returncode < 0:
+    if returncode is not None and returncode < 0:
         try:
             name = signal.Signals(-returncode).name
         except ValueError:
@@ -83,17 +83,23 @@ def run_campaign(
     video=False,
     fps=15,
     control_config=None,
+    force_profile="selected",
     episode_timeout=None,
     legacy_contact_control=False,
     guarded_approach=False,
     fixture_avoidance=True,
+    thumb_preshape=True,
 ):
+    from abstract_stack.control_profiles import force_profile_settings
     from abstract_stack.provenance import policy_provenance
     from abstract_stack.tuning import load_control_config
 
     controls = load_control_config(control_config)
+    profile_settings = force_profile_settings(force_profile)
     if not isinstance(legacy_contact_control, bool):
         raise ValueError("legacy_contact_control must be boolean")
+    if not isinstance(thumb_preshape, bool):
+        raise ValueError("thumb_preshape must be boolean")
     if not isinstance(guarded_approach, bool) or not isinstance(fixture_avoidance, bool):
         raise ValueError("guarded_approach and fixture_avoidance must be boolean")
     if episode_timeout is None:
@@ -120,10 +126,13 @@ def run_campaign(
         "execution": "serial isolated processes",
         "runs": [],
         "control_overrides": controls,
+        "force_profile": force_profile,
+        "force_profile_settings": profile_settings,
         "episode_wall_timeout_seconds": episode_timeout,
         "contact_aware": not legacy_contact_control,
         "guarded_approach": guarded_approach,
         "fixture_avoidance": fixture_avoidance,
+        "thumb_preshape": thumb_preshape,
     }
     # Preserve earlier campaigns and all their episode directories.
     index = 1
@@ -160,7 +169,9 @@ def run_campaign(
         if guarded_approach:
             command += ["--guarded-approach"]
         command += ["--fixture-avoidance" if fixture_avoidance else "--no-fixture-avoidance"]
+        command += ["--thumb-preshape" if thumb_preshape else "--no-thumb-preshape"]
         command += ["--control-config", str(controls_path.resolve())]
+        command += ["--force-profile", force_profile]
         manifest["active_run"] = {"seed": seed, "directory": str(episode)}
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
         with (episode / "run.log").open("w") as log:
