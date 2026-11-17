@@ -48,6 +48,13 @@ reproduction is sensitive to allocation layout; they do not replace earlier
 failures. Raw results are in `retained-v10-replay.json` and
 `standalone-results.json` beside the original isolation comparison.
 
+The **model-only** candidate at `283f166` subsequently failed its full native
+suite with signal 11 during a data-array observer access. It is therefore not a
+complete mitigation. That log is preserved as
+`full-suite-retained-283f166.log`. The next candidate retains both model and data
+view wrappers, with the same no-model/state-mutation contract. Its native
+validation must be assessed separately; no passing retry replaces this failure.
+
 ## Standalone reproduction
 
 The diagnostic script imports only MuJoCo, NumPy and the standard library. It

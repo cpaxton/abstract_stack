@@ -120,6 +120,7 @@ unknown attempt remains in the [outcome ledger](replanning_development.json).
 | mobile-table v8 | 0 / 0 / 0 / 0 | Native SIGSEGV during base action; unknown, no terminal stage credit |
 | mobile-table v9 | 1 / 1 / 0 / 0 | Separate diagnostic with matching package; active-carton tilt abort |
 | mobile-table v10 | 2 / 1 / 1 / 1 | Forward/downforce gating completes first stock; second empty withdrawal hits torso/path rejection |
+| mobile-table v11 | 2 / 1 / 1 / 1 | First full stock repeated with checked withdrawal orientation alternatives; next loaded transfer slips from grasp |
 
 The nominal-reference defect is documented in the
 [bit-exact replay diagnosis](mobile_contact_reference_diagnostic.md). Coordinated
@@ -143,6 +144,14 @@ It then completed the first insertion and unloaded retreat without a tip/drop.
 The next carton was physically picked and table-staged; table support earns no
 shelf-place credit. Its first empty withdrawal ran into a torso/tower path
 collision and stopped, preserving the first carton.
+
+V11 allows the existing bounded orientation search during empty withdrawal after
+release. It completes the first stock again, but the second carton slips beyond
+the existing 30 mm measured-grasp guard during its loaded corridor, before table
+release. It never reaches the second withdrawal. Contact normal at failure is
+about 4.6 N with no support contact; stronger retention or a better grasp/loaded
+trajectory needs investigation. These distinct physical histories must not be
+combined into a claim that both issues have been solved.
 
 Released-contact reacquisition is a separate opt-in mode: at most three attempts,
 each at most 1.5 s and 15 mm advance, within the original Cartesian envelope.

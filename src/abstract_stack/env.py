@@ -13,7 +13,7 @@ import mujoco
 import numpy as np
 
 from abstract_stack.control import stationary_targets, validate_targets
-from abstract_stack.native_views import retain_model_views
+from abstract_stack.native_views import retain_data_views, retain_model_views
 from abstract_stack.scene import ShelfConfig, build_scene_xml, initial_positions, products_for
 
 
@@ -55,6 +55,7 @@ class ShelfStockingEnv:
         # Read-only wrapper retention; preserve native model/state semantics.
         self._native_model_views = retain_model_views(self.model)
         self.data = mujoco.MjData(self.model)
+        self._native_data_views = retain_data_views(self.model, self.data)
         self.robot = robot
         self._renderer = None
         self._seed = seed
