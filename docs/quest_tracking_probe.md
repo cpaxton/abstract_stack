@@ -52,6 +52,12 @@ confidence/fresh counters, body state-time advances and recorder status. Returne
 body-joint dots include estimates. The display is not a calibrated avatar and
 pose movement is not an accuracy measurement.
 
+In 0.3.5, look straight ahead at launch until the body appears. The probe waits
+for valid headset and chest tracking and a half-second of stable heading,
+then centers the chest in the startup view with the status panel to the left.
+Both stay anchored as you turn your head. A system recenter clears the old
+placement and waits for the heading to settle again.
+
 Each process launch writes `raw-SESSION_ID.jsonl` under the app's external files
 directory, for at most **180 elapsed seconds**. Relaunch for another recording.
 A background writer has a bounded sample queue; overload drops samples and
