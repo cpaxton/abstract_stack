@@ -505,12 +505,14 @@ class StockingScript:
         video_width=640,
         video_height=480,
         first_person="zed_left",
+        force_profile=None,
     ):
         if not env.robot or not env.products or any(p.kind != "carton" for p in env.products):
             raise ValueError("The script requires MABEL and a carton-only scene (pick_place)")
         if env.config.environment != "studio" or tuple(env.config.robot_xy) != (0.0, 0.0):
             raise ValueError("This first script supports the stationary pick_place bench only")
         self.env, self.config = env, config or ScriptConfig()
+        self.force_profile = force_profile
         self.directory, self.render = Path(directory), render
         self.directory.mkdir(parents=True, exist_ok=True)
         self.controller = CartesianHand(env, self.config)
@@ -1333,6 +1335,7 @@ class StockingScript:
             "failure": None,
             "completed_products": [],
             "controller": asdict(self.config),
+            "force_profile": self.force_profile,
             "assistance": "none",
             "state_access": "privileged_mujoco_world_state",
             "policy_kind": "handwritten_feedback_program",

@@ -198,8 +198,14 @@ geometry is included in empty/loaded IK, coupled hand checks and opening plans.
 Ordinary joint-path IK checks the future posture rather than the initial thumb
 opening sweep; sampled geometry is not a continuous collision or force proof.
 Use `--no-thumb-preshape` with `solve`, `script` or `batch` for an ablation.
-The flag is independent of `--legacy-contact-control`; disable both to reproduce
-the original combined baseline on the current checkout.
+The flag is independent of `--legacy-contact-control` and `--force-profile`.
+Use `--legacy-contact-control --no-thumb-preshape --force-profile legacy` for
+the combined baseline on the current checkout. The legacy force profile selects
+6 N grasp / 2 N push, while the default selected profile uses 4.5 N / 1.875 N.
+Validated `--control-config` overrides take precedence over either profile.
+Campaigns record the profile and overrides; terminal summaries also record the
+full effective controller settings. Historical algorithms require their pinned
+source checkout; these switches select current-code ablations.
 
 ## Recorded evidence
 
