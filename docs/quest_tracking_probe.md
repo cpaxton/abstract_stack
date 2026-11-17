@@ -138,6 +138,17 @@ values are not interchangeable. This capture does not implement host clock sync.
 
 ## Device acceptance procedure
 
+The analyzer's `skeleton_metadata_validation` reports `verified` or `missing`
+separately for each hand and the body, with profile, bone count and the number
+of records verified. A metadata count alone is not verification. Complete named
+OVR24 hand / upper-body70 bind records must have the correct SDK profile, ordered
+IDs/names, the signed `-1` root sentinel, a connected acyclic parent hierarchy,
+finite bind positions and usable unit bind quaternions. Every revised skeleton
+record is checked. Missing metadata remains explicitly unverified; malformed
+provided metadata rejects the capture. Bind checks do not perform FK or certify
+spatial accuracy. Local hand-sample rotations with unavailable orientations
+remain separately counted as unusable and are not confused with bind transforms.
+
 Record the device/runtime build and exact commit/APK hash. Use one phase marker
 at a time and confirm it appears in the pulled JSONL. Do not treat an unexecuted
 or unobserved phase as passed.

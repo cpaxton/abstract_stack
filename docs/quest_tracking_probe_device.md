@@ -84,8 +84,10 @@ APK SHA256:
 `47a5a8b73bb030eac452cb77dbabfa69d4552787ba3ffcaa13c5b5bb59b6ca0a`.
 This APK uses an explicit OVR24 runtime setting and build/runtime profile guards.
 The operator performed a short visible-hand, wrist/finger and elbow motion check.
-The complete local capture passes the strict analyzer, including session identity,
-named bind hierarchy, source-profile agreement and finite/unit pose checks.
+The original analyzer accepted session identity, sample-profile/name agreement
+and usable sample poses, but its bind-metadata checks did not establish hierarchy
+validity. The review-time reanalysis below records the strengthened checks on the
+same retained capture; it is not another device recording.
 
 Evidence: `outputs/quest-tracking/device-20261117-run03-final/`, with raw
 `files/raw-e666b68b28374e6188755d56d6abe0f2.jsonl`, `summary.json` and `device.log`.
@@ -141,6 +143,47 @@ also still required before closing issue #13.
 - Final APK built with zero errors and manifest validation enabled.
 - Independent reviews covered the contract/model conventions and evidence
   analyzer; later profile regressions have explicit rejection tests.
+
+### Bind-metadata revalidation
+
+The analyzer now checks each skeleton record against Meta XR Core209's complete
+`HandLeft` / `HandRight` OVR24 profiles or `Body` upper-body70 profile. IDs/names
+must follow the SDK profile ordering. The sole SDK root is bone0, whose signed
+`ParentBoneIndex` sentinel must be `BoneId.Invalid == -1`; every other parent is
+an in-range array index, and every chain must reach that root without a cycle.
+Bind positions must be finite and bind quaternion norms must be within0.01 of1,
+matching the raw analyzer's existing usable-orientation tolerance. The raw bind
+schema has no per-component availability flags, so unusable or missing bind
+transforms reject the record. A side without any skeleton record is reported as
+`missing`, with no verified profile, rather than implying validated metadata.
+These are structural checks; reconstruction and anatomical accuracy remain
+downstream validation work.
+
+Offline reanalysis of the unchanged final file verifies all45 skeleton records:
+
+| Side | Verified profile / bones | Verified records |
+| --- | --- | --- |
+| Left hand | HandLeft /24 | 1 |
+| Right hand | HandRight /24 | 1 |
+| Upper body | Body /70 | 43 |
+
+The5,691 samples,79.574861833-second duration, polling/hand timestamp statistics,
+motion summaries and drop metrics are unchanged against the reviewed
+`98222f7` analyzer. Full results and comparison provenance are local:
+`device-20261117-run03-final/review-bind-validation-summary.json` and
+`review-bind-validation-provenance.json`.
+
+- Retained capture SHA256:
+  `907438216b54db5ba2c69b1b8eb834543d57e89caf6f842378713a3080840732`.
+- Updated analyzer SHA256:
+  `67532b1bf45ed324ec7522b213eb731aa6e199ab01d1e1d9d06e1655ab0063b1`.
+- Capture/analyzer regression tests: **87 passed**. Negative fixtures cover all
+  three profiles, including the review's invalid parent, root self-cycle, wrong
+  profile and zero bind quaternion cases, disconnected cycles, missing fields,
+  nonfinite/nonunit binds and malformed later revisions. Forward parent indices
+  and equivalent negative-sign unit quaternions remain accepted.
+- Full native regression suite: **224 passed, 1 skipped** (optional Emet
+  dependency unavailable); all13 pre-commit checks and wheel/sdist builds passed.
 
 See [the probe procedure](quest_tracking_probe.md) for build, install, phase-marker,
 capture and analysis commands. The summary deliberately separates hand sample
