@@ -53,6 +53,12 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   retained separately from tracking results.
 - [ ] Use bounded wrench feedback through native position-servo reference offsets;
   retain gravity/load feedforward. Specify world/tool frames and wrench signs.
+- [x] Prototype contact-wrench admittance with bounded orientation alternatives,
+  C++ screening, guarded native forecasts and measured-state replanning every
+  100 ms. A retained-state continuation advances 9.75 mm to measured backstop
+  contact with 2.33 N peak robot/product load; full placement/release is open.
+  This is zero new task credit and slower than real time; see the
+  [development report](docs/reports/compliant_lookahead_development.md).
 - [x] Prototype measured wrist-load compensation for grasp/carry; reserve nominal
   wrist and lift headroom without changing native ranges, gains or force limits.
   Test native torque sign and applied geometry before actuation. Not promoted.
@@ -81,8 +87,9 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   See [backend evaluation](docs/backend_evaluation.md).
 - [x] Implement supervised CPU/GPU throughput probes in the main optional locked
   rollout group, plus per-step guarded native forecasts and C++ screening with
-  a guarded shortlist. Initial 32-world held-target probes favor CPU; no live
-  contact-search integration or stocking speedup is claimed.
+  a guarded shortlist. Initial 32-world held-target probes favor CPU. A native
+  retained-state contact-search continuation exists; no fresh-episode stocking
+  speedup is claimed.
 - [x] Build a stationary bimanual/shared-lift WBC foundation with nominal/applied
   geometry admission and native unloaded tracking evidence. Mobile/loaded/contact
   integration remains open; see [whole-body control](docs/whole_body_control.md).
