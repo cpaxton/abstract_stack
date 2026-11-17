@@ -120,6 +120,10 @@ otherwise bound and report divergence. MP4 previews alone are not training data.
 
 ## Hand and matched collection experiment
 
+The [gripper design tracker](gripper_design_tracker.md) records candidate designs,
+asset availability and evidence gaps, with GET and Dream Gripper as initial
+mechanical baselines.
+
 Begin by reproducing the existing hand baseline. Then compare a conventional
 parallel gripper and a three-finger prototype with declared geometry, mass,
 actuation, sensing and controller differences. Include narrow placement, pushing,

@@ -8,6 +8,10 @@ custom tooling and bimanual mobile execution. The [proof-of-concept critique](po
 separates existing evidence from those unproven capabilities. These are planning
 documents; their acceptance targets are not measured results.
 
+Track candidate mechanics, sensing, build assets and matched-tool experiments in
+the [gripper design tracker](gripper_design_tracker.md), beginning with GET and
+Dream Gripper as separate references.
+
 ## Supported starting point
 
 Install with `./install.sh`, fetch native MABEL with `abstract-stack fetch-mabel`,
