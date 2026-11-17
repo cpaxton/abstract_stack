@@ -112,3 +112,7 @@ project names, task descriptions, repository links, or private context.
   downstream imports. Keep fresh-process failures, return codes and logs. See
   [the diagnostic report](docs/reports/native_view_crash_diagnostic.md). No
   library-level fix is established and nothing was filed upstream.
+- **Mitigation limit:** model-wrapper retention alone later failed a full native
+  suite at a data-array observer access. Preserve that failure separately. The
+  next candidate retains data wrappers as well; this is still a local lifetime
+  hypothesis and requires its own native validation.
