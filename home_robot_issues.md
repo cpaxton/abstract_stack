@@ -86,3 +86,12 @@ project names, task descriptions, repository links, or private context.
   initial integration state and controls, and isolate a standalone upstream-only
   model/state sequence before reporting a library bug. Do not include downstream
   names, repository paths, task details or private artifacts in a future report.
+- **Additional observation, 2026-11-17:** a frozen-source headless regression
+  child exited with signal 11 during a contact-force observer. Faulthandler's
+  current Python frame is the hand-contact accumulator at `contact_forces`, not
+  a native C backtrace; this does not identify the corrupting operation. The
+  process has no terminal summary and retains zero successful stages. Model,
+  initial state, controls/source hashes and the full log are retained locally at
+  `outputs/contact-rich-replanning-v1/standard-regression/benchmark/tuned/seed-2/`.
+  The other nine selected-controller episodes completed; no retry replaces the
+  unknown outcome. The native cause remains open and no upstream issue was filed.

@@ -1,0 +1,261 @@
+{
+  "kind": "changing_source_development_not_success_rate",
+  "ten_carton_attempts": [
+    {
+      "attempt": "baseline-ten-seed0",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "align_shelf: IK prefilter found no acceptable pose/path; predicted miss 0.094 m; replan required",
+      "sim_seconds": 31.69999999999331,
+      "wall_seconds": 20.30627416819334,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": null
+    },
+    {
+      "attempt": "loaded-route-ten-v1",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "stage_align: supported position/yaw alignment timeout",
+      "sim_seconds": 46.16000000001045,
+      "wall_seconds": 35.452109075849876,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/loaded-route-ten-v1/source_snapshot"
+    },
+    {
+      "attempt": "loaded-route-ten-v2",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "pusher_plan: no acceptable posture/path in bounded search",
+      "sim_seconds": 54.40000000002052,
+      "wall_seconds": 43.43365379516035,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/loaded-route-ten-v2/source_snapshot"
+    },
+    {
+      "attempt": "loaded-route-ten-v3",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "clear_high: bounded staging complete; predicted remaining miss 0.377 m; replan required before grasping",
+      "sim_seconds": 85.21999999998279,
+      "wall_seconds": 65.00642085797153,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/loaded-route-ten-v3/source_snapshot"
+    },
+    {
+      "attempt": "loaded-route-ten-v4",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 2,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "loaded_route: bounded corridor search rejected",
+      "sim_seconds": 112.55999999991907,
+      "wall_seconds": 81.810210803058,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/loaded-route-ten-v4/source_snapshot"
+    },
+    {
+      "attempt": "loaded-route-ten-v5",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 2,
+        "place": 2,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "release_front: coupled stationary opening rejected",
+      "sim_seconds": 126.89999999988565,
+      "wall_seconds": 96.09031444299035,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/loaded-route-ten-v5/source_snapshot"
+    },
+    {
+      "attempt": "loaded-route-ten-v6",
+      "returncode": 1,
+      "verification_status": "unknown",
+      "task_success": false,
+      "stages": {
+        "pick": 0,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "No terminal summary; retained process failure",
+      "sim_seconds": null,
+      "wall_seconds": 0.9658986967988312,
+      "protocol": null,
+      "tip_drop_incidents": null,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/loaded-route-ten-v6/source_snapshot"
+    },
+    {
+      "attempt": "loaded-route-ten-v7",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 2,
+        "place": 2,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "release_front: coupled stationary opening rejected",
+      "sim_seconds": 131.77999999990112,
+      "wall_seconds": 100.99194087996148,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/loaded-route-ten-v7/source_snapshot"
+    },
+    {
+      "attempt": "table-front-ten-v1",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "approach: contact force exceeded 25.0 N",
+      "sim_seconds": 120.09199999990152,
+      "wall_seconds": 92.38910720101558,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/table-front-ten-v1/source_snapshot"
+    },
+    {
+      "attempt": "table-front-ten-v2",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "approach: contact outside bounded grasp region",
+      "sim_seconds": 119.97999999990178,
+      "wall_seconds": 92.94102359306999,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/table-front-ten-v2/source_snapshot"
+    },
+    {
+      "attempt": "table-front-ten-v3",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 2,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "completed_products": [
+        "carton_7"
+      ],
+      "failure": "pusher_plan: no acceptable posture/path in bounded search",
+      "sim_seconds": 157.80000000002536,
+      "wall_seconds": 145.23889691010118,
+      "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/table-front-ten-v3/source_snapshot"
+    },
+    {
+      "attempt": "tree-ten-seed0",
+      "returncode": 2,
+      "verification_status": "verified",
+      "task_success": false,
+      "stages": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "align_shelf: IK prefilter found no acceptable pose/path; predicted miss 0.026 m; replan required",
+      "sim_seconds": 31.459999999993443,
+      "wall_seconds": 20.46055550989695,
+      "protocol": "shelf_front_release_then_ungrasped_selected_finger_push",
+      "tip_drop_incidents": 0,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/tree-ten-seed0/source_snapshot"
+    }
+  ],
+  "standard_regression": {
+    "role": "frozen_standard_two_carton_controller_not_optin_policy_validation",
+    "scheduled_episodes": 34,
+    "terminal_summaries": 33,
+    "manifest_count": 34,
+    "unique_python_policy_fingerprints": 1,
+    "all_ten_paired_initial_states_equal": true,
+    "selected_unknown_seed": 2,
+    "selected_native_signal": "SIGSEGV",
+    "baseline_clean": 6,
+    "selected_clean": 9,
+    "development_trials": 7,
+    "best_control_overrides": {}
+  }
+}
