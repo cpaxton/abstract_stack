@@ -39,6 +39,9 @@ def _parser():
     batch.add_argument("--video", action="store_true")
     batch.add_argument("--fps", type=_positive_int, default=15)
     batch.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
+    batch.add_argument("--legacy-contact-control", action="store_true")
+    batch.add_argument("--guarded-approach", action="store_true")
+    batch.add_argument("--fixture-avoidance", action=argparse.BooleanOptionalAction, default=True)
     batch.add_argument(
         "--episode-timeout",
         type=float,
@@ -74,6 +77,22 @@ def _parser():
             sub.add_argument("--render", action="store_true", help="Render scene preview images")
         if command in ("script", "solve"):
             sub.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
+            sub.add_argument(
+                "--legacy-contact-control",
+                action="store_true",
+                help="Disable contact-aware approach and withdrawal for ablations",
+            )
+            sub.add_argument(
+                "--guarded-approach",
+                action="store_true",
+                help="Experimental force-triggered approach and preshaping",
+            )
+            sub.add_argument(
+                "--fixture-avoidance",
+                action=argparse.BooleanOptionalAction,
+                default=True,
+                help="Wrist-board clearance/force feedback (--no-fixture-avoidance for ablations)",
+            )
             selection.add_argument(
                 "--random-scene", action="store_true", help="Generate the scene from --seed"
             )
@@ -229,6 +248,9 @@ def main(argv=None):
                 fps=args.fps,
                 control_config=args.control_config,
                 episode_timeout=args.episode_timeout,
+                legacy_contact_control=args.legacy_contact_control,
+                guarded_approach=args.guarded_approach,
+                fixture_avoidance=args.fixture_avoidance,
             )
         except (OSError, ValueError) as error:
             parser.exit(1, f"Campaign failed: {error}\n")
@@ -316,6 +338,9 @@ def main(argv=None):
                         gravity_compensation=not args.no_gravity_compensation,
                         adaptive_grasps=not args.fixed_grasps,
                         head_tracking=not args.no_head_tracking,
+                        contact_aware=not args.legacy_contact_control,
+                        guarded_approach=args.guarded_approach,
+                        fixture_avoidance=args.fixture_avoidance,
                         **load_control_config(args.control_config),
                     ),
                     render=args.render,

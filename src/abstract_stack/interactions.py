@@ -56,6 +56,17 @@ class ScriptConfig:
     insertion_clearance: float = 0.025
     insertion_vertical_speed: float = 0.01
     head_tracking: bool = True
+    contact_aware: bool = True
+    guarded_approach: bool = False
+    fixture_avoidance: bool = True
+    approach_force_target: float = 15.0
+    release_lateral_limit: float = 0.04
+    contact_grasp_seconds: float = 8.0
+    contact_descent_speed: float = 0.015
+    fixture_force_target: float = 3.0
+    fixture_unload_speed: float = 0.015
+    fixture_unload_distance: float = 0.025
+    fixture_clearance: float = 0.004
 
     def __post_init__(self):
         values = asdict(self)
@@ -63,11 +74,22 @@ class ScriptConfig:
         values.pop("gravity_compensation")
         values.pop("adaptive_grasps")
         values.pop("head_tracking")
+        values.pop("contact_aware")
+        values.pop("guarded_approach")
+        values.pop("fixture_avoidance")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
             raise ValueError("grip must be <= 1 and max_force must exceed contact_threshold")
-        if max(self.grasp_force_target, self.push_force_target) >= self.max_force:
+        if (
+            max(
+                self.grasp_force_target,
+                self.push_force_target,
+                self.approach_force_target,
+                self.fixture_force_target,
+            )
+            >= self.max_force
+        ):
             raise ValueError("force targets must be below the contact abort limit")
         if not isinstance(self.best_effort_staging, bool):
             raise ValueError("best_effort_staging must be true or false")
@@ -77,6 +99,12 @@ class ScriptConfig:
             raise ValueError("adaptive_grasps must be true or false")
         if not isinstance(self.head_tracking, bool):
             raise ValueError("head_tracking must be true or false")
+        if not isinstance(self.contact_aware, bool):
+            raise ValueError("contact_aware must be true or false")
+        if not isinstance(self.guarded_approach, bool) or not isinstance(
+            self.fixture_avoidance, bool
+        ):
+            raise ValueError("guarded_approach and fixture_avoidance must be boolean")
         if self.ik_orientation_span_deg > 90 or self.ik_orientation_tolerance_deg > 45:
             raise ValueError("IK orientation relaxation/tolerance exceeds the grasp search bounds")
 
@@ -94,9 +122,13 @@ def _descendants(model, root_name):
     return result
 
 
-def contact_forces(env, product_name: str, hand_bodies: set[int], *, all_products=None) -> dict:
+def contact_forces(
+    env, product_name: str, hand_bodies: set[int], *, all_products=None, fixture_vector_bodies=None
+) -> dict:
     """Sum measured nonnegative contact-normal forces, in newtons, by counterpart."""
     model, data = env.model, env.data
+    if fixture_vector_bodies is None:
+        fixture_vector_bodies = hand_bodies
     product = model.body(product_name).id
     supply = model.body("supply").id
     shelf = model.body("shelf").id
@@ -112,7 +144,7 @@ def contact_forces(env, product_name: str, hand_bodies: set[int], *, all_product
     }
     hand_contacts = set()
     normals = []
-    normal_vector, hand_force = np.zeros(3), np.zeros(3)
+    normal_vector, hand_force, fixture_normal = np.zeros(3), np.zeros(3), np.zeros(3)
     for i, contact in enumerate(data.contact):
         if contact.efc_address < 0:
             continue
@@ -148,9 +180,12 @@ def contact_forces(env, product_name: str, hand_bodies: set[int], *, all_product
             b2 in hand_bodies and b1 in (supply, shelf)
         ):
             result["arm_fixture"] += normal
+            if b1 in fixture_vector_bodies or b2 in fixture_vector_bodies:
+                fixture_normal += (-1 if b1 in hand_bodies else 1) * normal * contact.frame[:3]
     result["hand_contact_bodies"] = len(hand_contacts)
     result["grip_normal"] = max(0.0, result["hand"] - float(np.linalg.norm(normal_vector)))
     result["push_force"] = max(0.0, -float(hand_force[0]))
+    result["fixture_normal_world_N"] = fixture_normal.tolist()
     result["opposing_contacts"] = any(
         np.dot(a, b) < -0.25 for i, a in enumerate(normals) for b in normals[i + 1 :]
     )
@@ -223,6 +258,52 @@ class CartesianHand:
             self.model, self.data, self.names, self.lower, self.upper, self.home, self.OFFSET
         )
         self.last_prediction = None
+        tower = self.model.body("left_tower").id
+        self.tower_geoms = [
+            g
+            for g in range(self.model.ngeom)
+            if self.model.geom_bodyid[g] == tower
+            and (self.model.geom_contype[g] or self.model.geom_conaffinity[g])
+        ]
+
+    def tower_clearance(self, prediction, level):
+        """Signed native collision-geometry distance, evaluated only on scratch data."""
+        self.ik.forward(prediction.q, prediction.reference_qpos)
+        board = self.model.geom(f"shelf_board_{level}").id
+        best, direction = float("inf"), np.array([0.0, 0.0, 1.0])
+        for geom in self.tower_geoms:
+            segment = np.zeros(6)
+            distance = mujoco.mj_geomDistance(
+                self.model, self.ik.scratch, geom, board, 0.2, segment
+            )
+            if distance < best:
+                best = float(distance)
+                if abs(distance) > 1e-9:
+                    direction = (segment[:3] - segment[3:]) / distance
+                    norm = np.linalg.norm(direction)
+                    direction = direction / norm if norm > 1e-6 else np.array([0.0, 0.0, 1.0])
+        return best, direction
+
+    def check_hand_step(self, prediction, grip, allowed_object):
+        """Check three coupled arm/finger poses on scratch data, never live qpos."""
+        start = self.ik.measured_q()
+        reference = self.data.qpos.copy()
+        object_id = self.model.body(allowed_object).id
+        baseline = self.ik._contacts(start, reference, object_id)
+        for alpha in (0.0, 0.5, 1.0):
+            fingers = reference.copy()
+            for suffix in self.FLEXION:
+                name = f"Left {suffix}"
+                adr = int(self.model.joint(name).qposadr[0])
+                lo, hi = self.model.actuator(name).ctrlrange
+                goal = lo + grip * (hi - lo)
+                fingers[adr] = reference[adr] + alpha * (goal - reference[adr])
+            errors = self.ik.collision_errors(
+                start + alpha * (prediction.q - start), fingers, baseline, object_id
+            )
+            if errors:
+                return errors
+        return []
 
     def position(self):
         return self.data.xpos[self.palm] + self.data.xmat[self.palm].reshape(3, 3) @ self.OFFSET
@@ -414,9 +495,8 @@ class StockingScript:
         self.directory.mkdir(parents=True, exist_ok=True)
         self.controller = CartesianHand(env, self.config)
         self.hand_bodies = _descendants(env.model, "left_palm")
-        self.arm_bodies = _descendants(env.model, "l_shoulder_1") | _descendants(
-            env.model, "r_shoulder_1"
-        )
+        self.left_arm_bodies = _descendants(env.model, "l_shoulder_1")
+        self.arm_bodies = self.left_arm_bodies | _descendants(env.model, "r_shoulder_1")
         self.rows, self.events, self.controls = [], [], []
         self.terminal = False
         self.product = env.products[0]
@@ -441,6 +521,8 @@ class StockingScript:
         )
         self.recorder, self.gaze = None, None
         self.observer = None
+        self.fixture_unloading = False
+        self.fixture_feedback = np.zeros(3)
 
     def _sample(self, env):
         if self.observer is not None:
@@ -449,10 +531,20 @@ class StockingScript:
             raise InteractionFailure("MuJoCo time did not advance; possible physics reset")
         forces = contact_forces(env, self.product.name, self.hand_bodies)
         arm_forces = contact_forces(
-            env, self.product.name, self.arm_bodies, all_products=self.product_bodies
+            env,
+            self.product.name,
+            self.arm_bodies,
+            all_products=self.product_bodies,
+            fixture_vector_bodies=self.left_arm_bodies,
         )
         forces["arm_fixture"] = arm_forces["arm_fixture"]
         forces["other_product"] = arm_forces["other_product"]
+        forces["arm_product"] = max(0.0, arm_forces["hand"] - forces["hand"])
+        forces["robot_product"] = arm_forces["hand"]
+        forces["fixture_normal_world_N"] = arm_forces["fixture_normal_world_N"]
+        vector = np.array(forces["fixture_normal_world_N"])
+        if np.linalg.norm(vector) > np.linalg.norm(self.fixture_feedback):
+            self.fixture_feedback = vector
         self.last_forces = forces
         position = env.data.body(self.product.name).xpos.copy()
         error = float(np.linalg.norm(self.controller.last_target - self.controller.position()))
@@ -469,6 +561,8 @@ class StockingScript:
                 *env.data.body(self.product.name).xquat,
                 forces["grip_normal"],
                 forces["push_force"],
+                *forces["fixture_normal_world_N"],
+                forces["arm_product"],
                 forces["other_product"],
             ]
         )
@@ -505,7 +599,14 @@ class StockingScript:
         ):
             raise InteractionFailure("release: product moved beyond bounded ungrasp allowance")
         if (
-            max(forces["hand"], forces["back"], forces["arm_fixture"], forces["other_product"])
+            max(
+                # Combined hand + non-grasping arm normal load. Components
+                # remain separate in diagnostics; their sum guards contact.
+                forces["robot_product"],
+                forces["back"],
+                forces["arm_fixture"],
+                forces["other_product"],
+            )
             > self.config.max_force
         ):
             raise InteractionFailure(
@@ -521,7 +622,9 @@ class StockingScript:
             desired = self.payload_rotation_goal @ actual.T @ palm_rotation
             vector = rotation_error(self.controller.active_rotation, desired)
             angle = float(np.linalg.norm(vector))
-            if angle > 1e-9:
+            if self.fixture_unloading:
+                self.controller.active_rotation = palm_rotation.copy()
+            elif angle > 1e-9:
                 quat, matrix = np.empty(4), np.empty(9)
                 mujoco.mju_axisAngle2Quat(
                     quat,
@@ -539,6 +642,37 @@ class StockingScript:
                 grip=grip,
             )
             event = self.events[-1]
+            if self.config.contact_aware and self.config.fixture_avoidance and prediction.feasible:
+                clearance, normal = self.controller.tower_clearance(prediction, self.product.level)
+                event["minimum_predicted_tower_clearance_m"] = min(
+                    event.get("minimum_predicted_tower_clearance_m", float("inf")), clearance
+                )
+                if clearance < self.config.fixture_clearance:
+                    correction = self.config.fixture_clearance - clearance
+                    # Prefer lifting above a board edge over pushing back out of
+                    # the shelf. The measured support/clearance guard still applies.
+                    if normal[2] > 0.2:
+                        target[2] += correction / normal[2]
+                    else:
+                        target += correction * normal
+                    origin = np.array(event["push_origin_m"])
+                    if (
+                        not origin[0] - self.config.push_distance <= target[0] <= origin[0] + 0.03
+                        or target[2] - origin[2] > self.config.fixture_unload_distance
+                    ):
+                        raise InteractionFailure(
+                            "push: fixture clearance correction outside bounded motion"
+                        )
+                    prediction = self.controller.predict(
+                        target, allowed_object=self.product.name, alternatives=False, grip=grip
+                    )
+                    event["clearance_corrections"] = event.get("clearance_corrections", 0) + 1
+            origin = np.array(event["push_origin_m"])
+            if (
+                not origin[0] - self.config.push_distance <= target[0] <= origin[0] + 0.03
+                or target[2] - origin[2] > self.config.fixture_unload_distance
+            ):
+                raise InteractionFailure("push: final feedback target outside bounded motion")
             event["feedback_checks"] = event.get("feedback_checks", 0) + 1
             if not prediction.feasible:
                 event["feedback_rejection"] = prediction.report()
@@ -573,6 +707,7 @@ class StockingScript:
                 name = f"Left {suffix}"
                 lo, hi = self.env.model.actuator(name).ctrlrange
                 action[name] = float(lo + self.active_grip * (hi - lo))
+        self.fixture_feedback = np.zeros(3)
         _, _, terminated, truncated, _ = self.env.step(
             self.tracker.targets(action, dt=self.env.dt),
             on_physics_step=self._sample,
@@ -642,6 +777,7 @@ class StockingScript:
                 f"{name}: predicted rate-limited duration exceeds motion limit"
             )
         ticks = max(1, int(np.ceil(duration / self.env.dt)))
+        contact_stopped = False
         for k in range(ticks):
             t = (k + 1) / ticks
             blend = 10 * t**3 - 15 * t**4 + 6 * t**5
@@ -653,6 +789,18 @@ class StockingScript:
             if self._apply_tick(action):
                 if name != "clear":
                     raise InteractionFailure(f"{name}: task ended before push/contact validation")
+                break
+            if (
+                name == "approach"
+                and self.config.contact_aware
+                and self.config.guarded_approach
+                and self.last_forces["robot_product"] >= self.config.approach_force_target
+            ):
+                contact_stopped = True
+                event.update(
+                    decision="cancel_descent_and_check_measured_grasp",
+                    measured_contact_stop_N=self.last_forces["robot_product"],
+                )
                 break
         error = float(np.linalg.norm(self.controller.position() - target))
         event.update(
@@ -688,8 +836,14 @@ class StockingScript:
                 f"{name}: bounded staging complete; predicted remaining miss "
                 f"{prediction.position_error_m:.3f} m; replan required before grasping"
             )
-        if check_tracking and not self.terminal and error > self.config.tracking_tolerance:
+        if (
+            check_tracking
+            and not contact_stopped
+            and not self.terminal
+            and error > self.config.tracking_tolerance
+        ):
             raise InteractionFailure(f"{name}: measured tracking error {error:.3f} m")
+        return contact_stopped
 
     def _select_grasp(self, pending):
         """Regenerate object/height choices before committing to an approach."""
@@ -738,16 +892,88 @@ class StockingScript:
         self.controller.active_rotation = grasp_rotation
         # The shared lift is capped at 8 cm/s; allow the full descent rather
         # than treating lag from a short pose command as a grasp failure.
-        self._move("approach", grasp_target, seconds=config.descend_seconds)
+        contact_stopped = self._move("approach", grasp_target, seconds=config.descend_seconds)
+        if contact_stopped:
+            requested_grasp_target = grasp_target.copy()
+            grasp_target = self.controller.position().copy()
+            body = env.data.body(product.name)
+            if (
+                np.any(
+                    np.abs(grasp_target[:2] - body.xpos[:2])
+                    > np.array(product.half_size[:2]) + 0.002
+                )
+                or abs(grasp_target[2] - body.xpos[2]) > product.half_size[2]
+            ):
+                raise InteractionFailure("approach: contact outside bounded grasp region")
+            measured_grasp = self.controller.predict(
+                grasp_target,
+                allowed_object=product.name,
+                alternatives=False,
+                check_path=False,
+                grip=0,
+                carrying=False,
+            )
+            self.events[-1].update(
+                measured_grasp_target=grasp_target.tolist(),
+                contact_grasp_prediction=measured_grasp.report(),
+            )
+            if not measured_grasp.feasible:
+                raise InteractionFailure("approach: measured contact grasp rejected before closure")
         self._stage("close")
         grasp_grip = config.grip
-        for g in np.linspace(0, config.grip, max(1, int(config.close_seconds / env.dt))):
-            self._tick(grasp_target, float(g))
-            if self.last_forces["opposing_contacts"] and (
-                self.last_forces["grip_normal"] >= config.grasp_force_target
-            ):
-                grasp_grip = float(g)
-                break
+        if contact_stopped:
+            target, fraction = grasp_target.copy(), 0.0
+            self.events[-1].update(
+                contact_descent=True, requested_grasp_target=requested_grasp_target.tolist()
+            )
+            for _ in range(int(config.contact_grasp_seconds / env.dt)):
+                at_depth = self.controller.position()[2] <= requested_grasp_target[2] + 0.005
+                limit = config.grip if at_depth else min(0.2, config.grip)
+                fraction = min(limit, fraction + config.grip_max_rate * env.dt)
+                if self.last_forces["robot_product"] < config.approach_force_target:
+                    target[2] = max(
+                        requested_grasp_target[2], target[2] - config.contact_descent_speed * env.dt
+                    )
+                else:
+                    target[2] = self.controller.position()[2]
+                prediction = self.controller.predict(
+                    target,
+                    allowed_object=product.name,
+                    alternatives=False,
+                    grip=fraction,
+                    carrying=False,
+                )
+                if not prediction.feasible:
+                    self.events[-1]["feedback_rejection"] = prediction.report()
+                    raise InteractionFailure(
+                        "close: contact-descent path rejected before actuation"
+                    )
+                collisions = self.controller.check_hand_step(prediction, fraction, product.name)
+                if collisions:
+                    self.events[-1]["finger_sweep_rejection"] = collisions
+                    raise InteractionFailure("close: coupled hand step rejected before actuation")
+                self.controller.last_target = target.copy()
+                self._apply_tick(self.controller.joint_targets(prediction.q, fraction))
+                if (
+                    at_depth
+                    and self.last_forces["opposing_contacts"]
+                    and (self.last_forces["grip_normal"] >= config.grasp_force_target)
+                ):
+                    break
+            else:
+                raise InteractionFailure("close: guarded descent/closure timeout")
+            grasp_target, grasp_grip = self.controller.position().copy(), fraction
+            self.events[-1].update(
+                contact_descent=True, measured_grasp_target=grasp_target.tolist()
+            )
+        else:
+            for g in np.linspace(0, config.grip, max(1, int(config.close_seconds / env.dt))):
+                self._tick(grasp_target, float(g))
+                if self.last_forces["opposing_contacts"] and (
+                    self.last_forces["grip_normal"] >= config.grasp_force_target
+                ):
+                    grasp_grip = float(g)
+                    break
         if not self.last_forces["opposing_contacts"]:
             raise InteractionFailure("close: no opposing multi-body hand contact")
         self.events[-1].update(
@@ -845,8 +1071,10 @@ class StockingScript:
             raise InteractionFailure("push: no acceptable supported slide path; replan required")
         self.events[-1]["decision"] = "execute_supported_slide"
         target = start.copy()
+        self.events[-1]["push_origin_m"] = start.tolist()
         held = 0.0
         for _ in range(int(config.push_timeout_seconds / env.dt)):
+            previous_target = target.copy()
             upright = env.data.body(product.name).xmat.reshape(3, 3)[2, 2] >= np.cos(
                 np.radians(config.payload_upright_degrees)
             )
@@ -877,6 +1105,31 @@ class StockingScript:
                 )
                 * env.dt
             )
+            if config.contact_aware and config.fixture_avoidance:
+                normal = self.fixture_feedback.copy()
+                force = float(np.linalg.norm(normal))
+                threshold = config.fixture_force_target * (0.5 if self.fixture_unloading else 1)
+                self.fixture_unloading = force > threshold
+                if self.fixture_unloading:
+                    normal /= force
+                    distance = (
+                        config.fixture_unload_speed
+                        * env.dt
+                        * min(1.0, force / config.fixture_force_target)
+                    )
+                    target = previous_target.copy()
+                    target += normal * (
+                        np.dot(self.controller.position() - target, normal) + distance
+                    )
+                    event = self.events[-1]
+                    event["fixture_unload_steps"] = event.get("fixture_unload_steps", 0) + 1
+                    event["fixture_unload_distance_m"] = (
+                        event.get("fixture_unload_distance_m", 0.0) + distance
+                    )
+                    if event["fixture_unload_distance_m"] > config.fixture_unload_distance:
+                        raise InteractionFailure(
+                            "push: fixture unload distance exhausted; replan required"
+                        )
             self._tick(target, grasp_grip)
             contacted = (
                 self.last_forces["back"] >= config.contact_threshold
@@ -893,6 +1146,7 @@ class StockingScript:
         else:
             raise InteractionFailure("push: shelf-back contact was not established")
         self.supported_slide = False
+        self.fixture_unloading = False
         self.observer.begin_retreat(self.product.name)
         self._release_grasp()
         self.payload_rotation_goal = None
@@ -917,28 +1171,73 @@ class StockingScript:
             adr = int(env.model.joint(name).qposadr[0])
             lo, hi = env.model.actuator(name).ctrlrange
             fingers[name] = (adr, float(np.clip(reference[adr], lo, hi)), float(lo))
-        plan, q = [], start_q
-        for alpha in np.linspace(0, 1, 41):
-            finger_reference = reference.copy()
-            for adr, value, opened in fingers.values():
-                finger_reference[adr] = value + alpha * (opened - value)
-            target = start + alpha * np.array([config.release_forward, 0, config.release_up])
-            q, point, rotation = controller.ik.solve(
-                target, controller.active_rotation, q, reference=finger_reference
+        displacements = [np.array([config.release_forward, 0, config.release_up])]
+        if config.contact_aware:
+            others = [p for p in env.products if p.name != self.product.name]
+            nearest = min(
+                others,
+                key=lambda p: np.linalg.norm(
+                    env.data.body(p.name).xpos - env.data.body(self.product.name).xpos
+                ),
+                default=None,
             )
-            errors = controller.ik.collision_errors(q, finger_reference, baseline, object_id)
-            if (
-                np.linalg.norm(point - target) > config.ik_position_tolerance
-                or np.linalg.norm(rotation_error(rotation, controller.active_rotation))
-                > np.radians(config.ik_orientation_tolerance_deg)
-                or errors
-            ):
-                self.events[-1].update(decision="hold_for_replan", collisions=errors)
-                raise InteractionFailure("release: opening/retreat path rejected before actuation")
-            plan.append(q.copy())
+            away = (
+                -1.0
+                if nearest is not None
+                and env.data.body(nearest.name).xpos[1] > env.data.body(self.product.name).xpos[1]
+                else 1.0
+            )
+            for amount in (config.release_lateral_limit / 2, config.release_lateral_limit):
+                for sign in (away, -away):
+                    displacements.append(
+                        np.array([config.release_forward, sign * amount, config.release_up])
+                    )
+        attempts = []
+        for displacement in displacements:
+            plan, q = [], start_q.copy()
+            for alpha in np.linspace(0, 1, 41):
+                finger_reference = reference.copy()
+                for adr, value, opened in fingers.values():
+                    finger_reference[adr] = value + alpha * (opened - value)
+                target = start + alpha * displacement
+                q, point, rotation = controller.ik.solve(
+                    target, controller.active_rotation, q, reference=finger_reference
+                )
+                errors = controller.ik.collision_errors(q, finger_reference, baseline, object_id)
+                pos_error = float(np.linalg.norm(point - target))
+                angle_error = float(
+                    np.linalg.norm(rotation_error(rotation, controller.active_rotation))
+                )
+                if (
+                    pos_error > config.ik_position_tolerance
+                    or angle_error > np.radians(config.ik_orientation_tolerance_deg)
+                    or errors
+                ):
+                    attempts.append(
+                        dict(
+                            displacement_m=displacement.tolist(),
+                            accepted=False,
+                            collisions=errors,
+                            position_error_m=pos_error,
+                            orientation_error_deg=float(np.degrees(angle_error)),
+                        )
+                    )
+                    break
+                plan.append(q.copy())
+            else:
+                attempts.append(dict(displacement_m=displacement.tolist(), accepted=True))
+                break
+        else:
+            self.events[-1].update(
+                decision="hold_for_replan",
+                release_candidates=attempts,
+                collisions=attempts[-1]["collisions"],
+            )
+            raise InteractionFailure("release: opening/retreat path rejected before actuation")
         self.events[-1].update(
             decision="execute_checked_opening_retreat",
             sampled_poses=len(plan),
+            release_candidates=attempts,
             assumption="released object remains on shelf; measured displacement is guarded",
         )
         plan = np.asarray(plan)
@@ -1010,7 +1309,7 @@ class StockingScript:
             self.directory / "rollout_start.npz", state=state, state_spec=int(state_spec)
         )
         result = {
-            "schema_version": 2,
+            "schema_version": 3,
             "physical_success": False,
             "failure": None,
             "completed_products": [],
@@ -1040,6 +1339,13 @@ class StockingScript:
         except (RuntimeError, ValueError, FloatingPointError) as error:
             result["failure"] = str(error)
         finally:
+            terminal_state = np.empty(mujoco.mj_stateSize(self.env.model, state_spec))
+            mujoco.mj_getState(self.env.model, self.env.data, terminal_state, state_spec)
+            np.savez_compressed(
+                self.directory / "rollout_terminal.npz",
+                state=terminal_state,
+                state_spec=int(state_spec),
+            )
             self.env.data.ctrl[:] = stationary_targets(self.env.model, self.env.data)
             result["events"] = self.events
             result["stage_evaluation"] = self.observer.report(self.events)
@@ -1095,6 +1401,10 @@ class StockingScript:
                 "object_qz",
                 "grip_normal_N",
                 "push_force_N",
+                "fixture_normal_world_x_N",
+                "fixture_normal_world_y_N",
+                "fixture_normal_world_z_N",
+                "arm_product_normal_N",
                 "other_product_normal_N",
             ]
             trace = np.asarray(self.rows, dtype=float).reshape(-1, len(result["trace_columns"]))
@@ -1112,6 +1422,8 @@ class StockingScript:
                     )
                 )
                 result["peak_forces_N"]["other_product"] = float(trace[:, -1].max())
+                result["peak_forces_N"]["arm_product"] = float(trace[:, -2].max())
+                result["peak_forces_N"]["robot_product"] = float((trace[:, 7] + trace[:, -2]).max())
             if self.render:
                 from PIL import Image
 

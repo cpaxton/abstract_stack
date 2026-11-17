@@ -11,6 +11,7 @@ from pathlib import Path
 import mujoco
 
 from abstract_stack.assets import MABEL_REVISION, mabel_model_path
+from abstract_stack.provenance import policy_provenance
 
 
 def build_scene_bundle(env, directory: str | Path, *, render: bool = False) -> Path:
@@ -42,6 +43,7 @@ def build_scene_bundle(env, directory: str | Path, *, render: bool = False) -> P
     initial_poses = env.observe()["product_poses"]
     manifest = {
         "schema_version": 1,
+        "policy_source": policy_provenance(),
         "seed": env.info()["seed"],
         "robot": "mabel" if env.robot else "none",
         "robot_source": source,

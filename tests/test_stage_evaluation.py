@@ -137,9 +137,21 @@ def test_search_never_rewards_unknown_force_or_extra_progress_after_knocking():
     assert score_campaign({"runs": [partial]}) > score_campaign({"runs": [unknown]})
 
 
-def test_same_seed_with_changed_geometry_cannot_be_reported_as_paired(tmp_path):
+@pytest.mark.parametrize(
+    "after_width,change_velocity,message",
+    [
+        (0.7, False, "different scene/model/initial conditions"),
+        (0.6, True, "different settled integration state"),
+    ],
+)
+def test_same_seed_with_changed_inputs_cannot_be_reported_as_paired(
+    tmp_path,
+    after_width,
+    change_velocity,
+    message,
+):
     manifests = []
-    for label, width in (("before", 0.6), ("after", 0.7)):
+    for label, width in (("before", 0.6), ("after", after_width)):
         root = tmp_path / label
         episode = root / "seed-0"
         config = replace(load_scene_config(scene="pick_place"), width=width)
@@ -155,7 +167,12 @@ def test_same_seed_with_changed_geometry_cannot_be_reported_as_paired(tmp_path):
             }
             (episode / "summary.json").write_text(json.dumps(summary))
             np.savez(episode / "trace.npz", samples=np.array([[0.0, 0.0], [0.002, 0.0]]))
-            np.savez(episode / "rollout_start.npz", state=env.data.qpos)
+            if label == "after" and change_velocity:
+                env.data.qvel[0] += 0.01
+            spec = mujoco.mjtState.mjSTATE_INTEGRATION
+            state = np.empty(mujoco.mj_stateSize(env.model, spec))
+            mujoco.mj_getState(env.model, env.data, state, spec)
+            np.savez(episode / "rollout_start.npz", state=state, state_spec=int(spec))
             path = root / "campaign.json"
             path.write_text(
                 json.dumps(
@@ -170,5 +187,5 @@ def test_same_seed_with_changed_geometry_cannot_be_reported_as_paired(tmp_path):
             manifests.append(path)
         finally:
             env.close()
-    with pytest.raises(ValueError, match="different scene/model/initial conditions"):
+    with pytest.raises(ValueError, match=message):
         write_comparison(*manifests, tmp_path / "report")

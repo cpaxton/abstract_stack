@@ -82,6 +82,28 @@ at 2 ms intervals even though video is sampled more slowly.
    Guard product displacement while hand contact persists; verify upright
    shelf support and unloaded hand contact, then retreat and check final stability.
 
+The current script searches bounded withdrawal directions when the straight
+opening path collides. It checks each full finger/arm plan before actuation,
+preferring a lateral move away from the nearest object; existing collision and
+release-displacement limits stay fixed. During insertion, native wrist-mount
+collision geometry predicts board clearance. Bounded reference corrections and
+measured fixture-normal feedback unload the left arm; the final motion budget
+is checked after every correction. These are finite kinematic checks and guarded
+feedback, not dynamic collision guarantees.
+
+The force guard includes the combined active-carton contact from both arm trees,
+including non-grasping links, alongside fixture/back/inactive-product channels.
+`arm_product_normal_N` separates non-grasp contact from hand contact; the normal
+vector used for fixture feedback is recorded in world coordinates. Summaries use
+schema 3 with self-describing trace columns and save `rollout_terminal.npz` before
+the final hold command, in addition to the initial integration state.
+
+`--legacy-contact-control` reproduces the earlier motion program under the same
+stronger force coverage. `--no-fixture-avoidance` isolates the withdrawal change.
+`--guarded-approach` opts into a research prototype that stops on early contact,
+checks a new grasp, and samples coupled preshape/descent poses. That approach
+regressed a full-suite candidate and remains **off by default**.
+
 Gross normal force still drives the hard force abort. The controller separates
 an approximate balanced squeeze component (gross hand normals minus the norm
 of their vector sum) from net hand force along the push direction. This is a
@@ -91,13 +113,19 @@ determine what actually happens. Sampled checks are not continuous guarantees.
 
 ## Evidence and limits
 
+The [current control report](reports/contact_control_followup.md) compares the
+legacy, release-only and selected programs on public seeds 0–9, then checks the
+frozen selected policy on fresh seeds 200–209. It pins the policy revisions and
+effective flags and verifies both initial-scene and settled-state hashes. The
+historical report requires its historical checkout, not current defaults.
+
 The scripted benchmark and compliant-control search run without RL:
 
 ```bash
 ./scripts/benchmark_stocking.sh outputs/my-benchmark
 # Individual stages, with failed scenes retained (batch exits 2 for task failures):
 abstract-stack batch --seeds 0 1 2 3 4 5 6 7 8 9 --objects 2 \
-  --output-dir outputs/baseline
+  --legacy-contact-control --output-dir outputs/baseline
 abstract-stack tune --seeds 100 101 --objects 2 --rounds 1 \
   --output-dir outputs/search
 abstract-stack batch --seeds 0 1 2 3 4 5 6 7 8 9 --objects 2 \
