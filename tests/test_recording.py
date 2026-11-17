@@ -12,6 +12,7 @@ from abstract_stack.assets import mabel_model_path
 
 
 @pytest.mark.mabel
+@pytest.mark.rendering
 def test_native_camera_mp4s_have_identical_frame_counts_and_timestamps(tmp_path):
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         pytest.skip("ffmpeg and ffprobe are required for the encoding integration test")
@@ -40,7 +41,8 @@ try:
 finally:
     env.close()
 """
-    process_env = dict(os.environ, MUJOCO_GL="egl")
+    process_env = dict(os.environ)
+    process_env.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
     subprocess.run(
         [sys.executable, "-c", source, str(tmp_path)], env=process_env, check=True, timeout=60
     )
