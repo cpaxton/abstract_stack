@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
+import inspect
 import json
 import platform
 import subprocess
@@ -18,6 +20,7 @@ import numpy as np
 import PIL
 
 from abstract_stack.scene import ShelfConfig
+from abstract_stack.teleop import video as video_module
 from abstract_stack.teleop.sim import MujocoTeleopAdapter
 from abstract_stack.teleop.video import (
     LatestSlot,
@@ -50,6 +53,17 @@ class Source:
         self.error = None
         self.worker = None
         self.provenance = {"source": args.source, "seed": args.seed}
+        # Pin at startup: another worktree/commit operation during a long test
+        # must not relabel the code that this process already imported.
+        self.revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        self.dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], text=True))
+        files = [
+            Path(__file__),
+            Path(video_module.__file__),
+            Path(inspect.getfile(MujocoTeleopAdapter)),
+            Path(inspect.getfile(ShelfConfig)),
+        ]
+        self.fingerprints = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
         self.step_times = []
         self.encode_times = []
         self.decode_times = []
@@ -207,7 +221,9 @@ async def main_async(args):
             await server.close()
         await asyncio.to_thread(source.close)
     output = {
-        "git_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        "git_revision_at_start": source.revision,
+        "worktree_dirty_at_start": source.dirty,
+        "source_sha256_at_start": source.fingerprints,
         "platform": platform.platform(),
         "python": platform.python_version(),
         "versions": {
