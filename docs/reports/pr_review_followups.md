@@ -1,9 +1,16 @@
 # PR review follow-ups
 
-The five controller/planning findings are addressed on `fix/review-followups`,
-based on PR #7. The independent macOS changes remain in PR #4. No PRs were
-merged or parent branches rewritten. Merge instructions require squash merges
-and rebasing each child onto the actual parent squash commit.
+The five controller/planning findings were validated together on
+`fix/review-followups`, based on PR #7. During the subsequent authorized merge
+pass, each fix moved into its originating PR. PRs #2 through #6 are now
+squash-merged; #7 has been restacked with its planning fix and remains draft
+while its experimental scope/acceptance decision is open. PR #8 retains this
+audit report and an additional native-crash observation for review.
+
+The benchmark below remains pinned to its original immutable source `e8679d5`.
+Historical outcomes have not been rewritten. Archive refs preserve original
+source revisions; merge instructions require squash merges and rebasing each
+child onto the actual parent squash commit.
 
 | Original PR | Change |
 | --- | --- |
