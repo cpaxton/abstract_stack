@@ -30,3 +30,7 @@
 - Do not change upstream checkouts, publish generated assets, or merge a PR as
   part of routine implementation. Use a branch and describe final behavior,
   validation, and remaining limitations in the PR.
+- When a merge is authorized, squash-merge the PR. For stacked PRs, merge parents
+  first, then rebase each child onto the actual squash commit, dropping its old
+  parent commits; update its base and rerun required checks. Do not merge the
+  stack merely to perform this maintenance.

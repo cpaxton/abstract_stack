@@ -69,5 +69,11 @@ draft PR for a control prototype that has not demonstrated the full task. Keep
 generated downloads, full videos, credentials and machine-specific configuration
 out of commits. Do not merge until reviewed.
 
+Use **squash merge** when a PR is approved and merging is authorized. For a PR
+stack, merge parents first. Rebase each dependent branch onto the parent's new
+squash commit, dropping the old parent commits, then update its PR base and
+rerun required checks. Check that its diff contains only the remaining child
+changes. Review or stack maintenance alone does not authorize merging.
+
 Potential Emet fixes belong in `home_robot_issues.md` first. Upstream drafts must
 use upstream-only reproductions without naming this repository or task.
