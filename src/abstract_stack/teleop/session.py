@@ -701,7 +701,7 @@ class EngagementGate:
                     if self.state == SessionState.FAULT
                     else self._limit(self._hold)
                 )
-                self._last_nominal = applied.copy()
+                self._last_nominal = self._hold.copy()
             if callable(self.composed_guard):
                 guarded = self.composed_guard(
                     state, dict(zip(self.names, applied.tolist(), strict=True))

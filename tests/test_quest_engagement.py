@@ -374,6 +374,20 @@ def test_gate_rejects_wrong_thread(gate):
             pool.submit(gate.host_pause, now=10).result()
 
 
+def test_pause_telemetry_separates_latched_hold_from_rate_limited_command(gate):
+    engaged(gate)
+    index = gate.indices["Neck Yaw"]
+    measured = gate.sim.current.actuator_lengths.copy()
+    measured[index] += 0.1
+    gate.sim.current = replace(gate.sim.current, actuator_lengths=measured)
+    gate.host_pause(now=10.04)
+    applied = gate.tick(now=10.04)
+    assert applied is not None and applied[index] < measured[index]
+    telemetry = gate.telemetry(now=10.04)
+    assert telemetry.nominal_targets["Neck Yaw"] == measured[index]
+    assert telemetry.applied_targets["Neck Yaw"] == applied[index]
+
+
 def test_native_measured_hold_failure_keeps_native_limits_and_last_reference():
     # Reproduce #14's native measured-reference counterexample using ctrl+step,
     # before installing the sole final gate; never edit live poses or limits.
