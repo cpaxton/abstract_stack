@@ -336,6 +336,9 @@ def evaluate_batch(model, initial_state, candidates, scene, *, rates, workers=1)
             fresh_task_credit=0,
             live_execution_admitted=False,
             contact_seen=monitor.contact_seen,
+            active_yaw_rad=float(
+                np.arctan2(data.xmat[monitor.active, 3], data.xmat[monitor.active, 0])
+            ),
         )
         return result, np.asarray(samples, float), integration_state(model, data)
 
@@ -349,7 +352,7 @@ def evaluate_batch(model, initial_state, candidates, scene, *, rates, workers=1)
 
 
 def evaluate_screened_batch(
-    model, initial_state, candidates, scene, *, rates, workers=4, shortlist=4
+    model, initial_state, candidates, scene, *, rates, workers=4, shortlist=4, objective="advance"
 ):
     """Rank with C++ trajectories, then guard a bounded shortlist from reset.
 
@@ -361,6 +364,8 @@ def evaluate_screened_batch(
 
     if type(shortlist) is not int or not 1 <= shortlist <= len(candidates) <= 32:
         raise ValueError("Shortlist must be between one and the bounded candidate count")
+    if objective not in ("advance", "square_backstop"):
+        raise ValueError("Unknown contact forecast objective")
     # Validate every complete applied-target sequence before launching the
     # screen. Neither ranking nor finite endpoint state establishes force safety.
     if type(workers) is not int or not 1 <= workers <= 8:
@@ -450,20 +455,31 @@ def evaluate_screened_batch(
             )
         )
         progress = float(data.qpos[x_index - 1] - states[index, -1, x_index]) if valid else None
+        yaw = None
+        if valid:
+            rotation = np.empty(9)
+            quaternion = states[index, -1, x_index + 3 : x_index + 7]
+            if not np.isclose(np.linalg.norm(quaternion), 1, atol=1e-6, rtol=0):
+                valid = False
+            else:
+                mujoco.mju_quat2Mat(rotation, quaternion)
+                yaw = float(np.arctan2(rotation[3], rotation[0]))
         rows.append(
             dict(
                 name=candidate["name"],
                 screen_progress_minus_x_m=progress,
+                screen_active_yaw_rad=yaw,
                 eligible=False,
                 verification_status="not_force_checked",
                 fresh_task_credit=0,
             )
         )
         if valid:
-            ranking.append((index, progress))
+            score = (progress,) if objective == "advance" else (-abs(yaw), progress)
+            ranking.append((index, score))
         else:
             rows[-1]["verification_status"] = "invalid_screen_trajectory"
-    ranking.sort(key=lambda item: (-item[1], item[0]))
+    ranking.sort(key=lambda item: tuple(-v for v in item[1]) + (item[0],))
     selected = ranking[:shortlist]
     if selected:
         guarded, guard_seconds = evaluate_batch(
@@ -474,9 +490,21 @@ def evaluate_screened_batch(
     for (index, _), result in zip(selected, guarded, strict=True):
         rows[index].update(result[0], verification_status="guarded_forecast")
     admitted = [r for r in rows if r["eligible"]]
-    best = max(admitted, key=lambda r: r["progress_minus_x_m"]) if admitted else None
+    best = (
+        max(
+            admitted,
+            key=lambda r: (
+                (r["progress_minus_x_m"],)
+                if objective == "advance"
+                else (-abs(r["active_yaw_rad"]), r["progress_minus_x_m"])
+            ),
+        )
+        if admitted
+        else None
+    )
     return dict(
         kind="screen_then_guard_forecast_zero_task_credit",
+        objective=objective,
         candidates=rows,
         selected_name=None if best is None else best["name"],
         screen_seconds=screen_seconds,

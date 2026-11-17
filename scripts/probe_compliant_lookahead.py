@@ -25,6 +25,7 @@ def worker(args):
     import numpy as np
 
     from abstract_stack.compliant_lookahead import PushAdmittance, generate_push_candidates
+    from abstract_stack.contact_finish import BackstopDwell
     from abstract_stack.contact_rollout import (
         ContactMonitor,
         RolloutScene,
@@ -144,13 +145,38 @@ def worker(args):
         ):
             raise ValueError("Prefix must contain whole control intervals within the horizon")
         monitor = ContactMonitor(model, data, scene)
+        yaw_limit = next(
+            (
+                event["requested_backstop_yaw_tolerance_deg"]
+                for event in reversed(original["events"])
+                if event.get("phase") == "finger_push"
+                and "requested_backstop_yaw_tolerance_deg" in event
+            ),
+            None,
+        )
+        if args.require_dwell and yaw_limit is None:
+            raise ValueError("Require the retained source's explicit backstop yaw criterion")
+        dwell = (
+            BackstopDwell(
+                float(model.opt.timestep),
+                hand.config.contact_threshold,
+                hand.config.contact_dwell,
+                hand.config.payload_upright_degrees,
+                yaw_limit,
+            )
+            if args.require_dwell
+            else None
+        )
         records = []
         executed = []
         tracking_samples = []
         actor_failure = None
         active_body = model.body(active).id
         start_x = float(data.xpos[active_body, 0])
+        yaw_integral_lever = 0.0
         for cycle in range(args.replans):
+            lateral_goal = lateral_measured = None
+            objective = "advance"
             if cycle:
                 expected = integration_state(model, data)
                 reading = suite.sample(data)
@@ -159,6 +185,59 @@ def worker(args):
                     rotation @ reading["contact_wrench"][0, :3],
                     rotation @ reading["contact_wrench"][0, 3:],
                 ]
+                if (
+                    args.square_feedback
+                    and monitor.last.get("back_N", 0) >= hand.config.contact_threshold
+                ):
+                    object_rotation = data.xmat[active_body].reshape(3, 3)
+                    yaw = float(np.arctan2(object_rotation[1, 0], object_rotation[0, 0]))
+                    velocity = np.empty(6)
+                    mujoco.mj_objectVelocity(
+                        model, data, mujoco.mjtObj.mjOBJ_BODY, active_body, velocity, 0
+                    )
+                    # Reuse the dense controller's bounded yaw lever and
+                    # anti-windup gains; task/force tolerances stay unchanged.
+                    yaw_integral_lever -= 0.03 * yaw * args.execute_prefix
+                    lever = float(
+                        np.clip(
+                            -hand.config.insertion_yaw_lever_gain * yaw
+                            + yaw_integral_lever
+                            - 0.01 * velocity[2],
+                            -0.014,
+                            0.014,
+                        )
+                    )
+                    yaw_integral_lever = (
+                        lever + hand.config.insertion_yaw_lever_gain * yaw + 0.01 * velocity[2]
+                    )
+                    lateral_goal = float(
+                        np.clip(data.xpos[active_body, 1] + lever, lower[1], upper[1])
+                    )
+                    contact_points = []
+                    for index, contact in enumerate(data.contact):
+                        b1, b2 = (int(model.geom_bodyid[g]) for g in (contact.geom1, contact.geom2))
+                        if contact.efc_address < 0 or not (
+                            b1 == active_body
+                            and b2 in suite.subtrees[0]
+                            or b2 == active_body
+                            and b1 in suite.subtrees[0]
+                        ):
+                            continue
+                        load = np.empty(6)
+                        mujoco.mj_contactForce(model, data, index, load)
+                        if load[0] > 0:
+                            contact_points.append((float(contact.pos[1]), float(load[0])))
+                    lateral_measured = (
+                        float(
+                            np.average(
+                                [point[0] for point in contact_points],
+                                weights=[point[1] for point in contact_points],
+                            )
+                        )
+                        if contact_points
+                        else float(hand.position()[1])
+                    )
+                    objective = "square_backstop"
                 candidates, generation, rates = generate_push_candidates(
                     hand,
                     active,
@@ -170,6 +249,8 @@ def worker(args):
                     max_candidates=args.candidates,
                     wall_seconds=args.generation_seconds,
                     admittance=configuration,
+                    lateral_goal_m=lateral_goal,
+                    lateral_measurement_m=lateral_measured,
                 )
                 evaluated = evaluate_screened_batch(
                     model,
@@ -179,6 +260,7 @@ def worker(args):
                     rates=rates,
                     workers=4,
                     shortlist=min(args.shortlist, len(candidates)),
+                    objective=objective,
                 )
             else:
                 expected = initial
@@ -188,6 +270,9 @@ def worker(args):
                 generation=generation,
                 evaluation=evaluated,
                 candidate_metadata=[c["metadata"] for c in candidates],
+                yaw_integral_lever_m=yaw_integral_lever,
+                privileged_lateral_goal_m=lateral_goal,
+                privileged_lateral_measurement_m=lateral_measured,
             )
             records.append(record)
             if selected_name is None:
@@ -202,6 +287,8 @@ def worker(args):
             actor_failure = monitor.sample(data, elapsed=0)
             if actor_failure:
                 break
+            if dwell is not None and dwell.last_time_s is None:
+                dwell.update(data.time, monitor.last, data.xmat[active_body].reshape(3, 3))
             for step_index, control in enumerate(chosen["controls"][:prefix_steps]):
                 data.ctrl[:] = control
                 mujoco.mj_step(model, data)
@@ -232,18 +319,29 @@ def worker(args):
                 if np.any(hand.position() < lower) or np.any(hand.position() > upper):
                     actor_failure = "measured_tool_left_corridor"
                     break
+                if dwell is not None and dwell.update(
+                    data.time, monitor.last, data.xmat[active_body].reshape(3, 3)
+                ):
+                    break
             record.update(
                 executed_steps=min(prefix_steps, len(executed) - cycle * prefix_steps),
                 after_x_m=float(data.xpos[active_body, 0]),
                 last_sample=monitor.last.copy(),
             )
-            if actor_failure or monitor.last.get("back_N", 0) >= hand.config.contact_threshold:
+            contact_finished = (
+                dwell.verified
+                if dwell is not None
+                else monitor.last.get("back_N", 0) >= hand.config.contact_threshold
+            )
+            if actor_failure or contact_finished:
                 break
             if chosen["metadata"].get("nominal_references"):
                 nominal = np.array(
                     chosen["metadata"]["nominal_references"][prefix_steps // control_steps - 1]
                 )
                 hand.command = nominal.copy()
+        if dwell is not None and not dwell.verified and actor_failure is None:
+            actor_failure = "backstop_dwell_decision_budget_exhausted"
         report["continuation"] = dict(
             kind="retained_checkpoint_continuation_not_new_episode",
             replans=records,
@@ -254,6 +352,9 @@ def worker(args):
             progress_minus_x_m=start_x - float(data.xpos[active_body, 0]),
             failure=actor_failure,
             measured_back_contact_N=monitor.last.get("back_N", 0),
+            backstop_dwell=None if dwell is None else dwell.report(),
+            active_rotation_world=data.xmat[active_body].reshape(3, 3).tolist(),
+            active_position_world_m=data.xpos[active_body].tolist(),
             peak_forces_N=monitor.peaks,
             incidents=monitor.incidents,
             maximum_product_displacement_m=monitor.max_displacement,
@@ -301,6 +402,8 @@ def main():
     parser.add_argument("--generation-seconds", type=float, default=10)
     parser.add_argument("--wall-seconds", type=float, default=60)
     parser.add_argument("--execute-prefix", type=float, default=0)
+    parser.add_argument("--require-dwell", action="store_true")
+    parser.add_argument("--square-feedback", action="store_true")
     parser.add_argument("--replans", type=int, default=1)
     parser.add_argument("--worker", action="store_true")
     args = parser.parse_args()
@@ -310,7 +413,9 @@ def main():
         and 0 < args.wall_seconds <= 180
         and 0 < args.generation_seconds <= 30
         and 0 <= args.execute_prefix <= args.horizon
-        and 1 <= args.replans <= 40
+        and 1 <= args.replans <= 80
+        and (not args.require_dwell or args.execute_prefix > 0)
+        and (not args.square_feedback or args.require_dwell)
     ):
         parser.error("Keep candidate, shortlist and compute budgets bounded")
     args.output = args.output.resolve()
@@ -378,6 +483,10 @@ def main():
         "--replans",
         str(args.replans),
     ]
+    if args.require_dwell:
+        command.append("--require-dwell")
+    if args.square_feedback:
+        command.append("--square-feedback")
     write(
         args.output / "process.json",
         dict(returncode=None, verification_status="unknown", fresh_task_credit=0),

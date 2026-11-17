@@ -59,6 +59,13 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   contact with 2.33 N peak robot/product load; full placement/release is open.
   This is zero new task credit and slower than real time; see the
   [development report](docs/reports/compliant_lookahead_development.md).
+- [x] Distinguish first back contact from sustained, supported, squared contact
+  at every physics step. Add an opt-in yaw-priority forecast objective and
+  bounded contact-lever feedback using measured contact position.
+- [ ] Close the retained insertion's squaring gate: development follow-ups
+  reduce yaw from 4.43 to 2.75 degrees, still above the unchanged 0.15-degree
+  criterion. No release/retreat or fresh-stock credit; see the
+  [sustained-contact report](docs/reports/sustained_contact_development.md).
 - [x] Prototype measured wrist-load compensation for grasp/carry; reserve nominal
   wrist and lift headroom without changing native ranges, gains or force limits.
   Test native torque sign and applied geometry before actuation. Not promoted.
