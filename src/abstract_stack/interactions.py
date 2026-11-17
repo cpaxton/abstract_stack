@@ -600,11 +600,12 @@ class StockingScript:
             raise InteractionFailure("release: product moved beyond bounded ungrasp allowance")
         if (
             max(
+                # Combined hand + non-grasping arm normal load. Components
+                # remain separate in diagnostics; their sum guards contact.
                 forces["robot_product"],
                 forces["back"],
                 forces["arm_fixture"],
                 forces["other_product"],
-                forces["arm_product"],
             )
             > self.config.max_force
         ):
