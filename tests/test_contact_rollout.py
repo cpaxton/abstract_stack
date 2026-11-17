@@ -178,6 +178,44 @@ def test_initial_external_force_cannot_receive_forecast_admission(fixture):
     assert result[0][0]["completed_steps"] == 0
 
 
+@pytest.mark.parametrize("yaw", [-0.1, 0.1])
+def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(fixture, yaw):
+    model, data, scene = fixture
+    # Reset-only orientation fixture: compare screened free-joint quaternion
+    # yaw against independently guarded native forward kinematics.
+    address = int(model.jnt_qposadr[model.body_jntadr[model.body("active").id]])
+    data.qpos[address + 3 : address + 7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
+    mujoco.mj_forward(model, data)
+    candidates = [dict(name=n, controls=np.zeros((10, 1))) for n in ("a", "b")]
+    result = evaluate_screened_batch(
+        model,
+        integration_state(model, data),
+        candidates,
+        scene,
+        rates=np.ones(1),
+        shortlist=1,
+        objective="square_backstop",
+    )
+    admitted = [r for r in result["candidates"] if r["eligible"]]
+    assert len(admitted) == 1 and result["guarded_count"] == 1
+    assert admitted[0]["active_yaw_rad"] == pytest.approx(
+        admitted[0]["screen_active_yaw_rad"], abs=1e-10
+    )
+    assert result["selected_name"] == admitted[0]["name"]
+    unchecked = next(r for r in result["candidates"] if not r["eligible"])
+    assert unchecked["verification_status"] == "not_force_checked"
+    with pytest.raises(ValueError, match="objective"):
+        evaluate_screened_batch(
+            model,
+            integration_state(model, data),
+            candidates,
+            scene,
+            rates=np.ones(1),
+            shortlist=1,
+            objective="ignore_forces",
+        )
+
+
 def test_cpp_screen_never_selects_unchecked_or_guard_rejected_candidates(fixture):
     model, data, scene = fixture
     initial = integration_state(model, data)

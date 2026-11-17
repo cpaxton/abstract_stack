@@ -9,6 +9,9 @@ retains failed proposals and native checkpoint continuations, including measured
 backstop contact. The [LfD pipeline](learning_from_demonstration.md) and
 [simulated sensors](sim_sensors.md) document causal collection, local LeRobot
 roundtrip evidence and the remaining student/camera integration work.
+The [sustained-contact follow-up](reports/sustained_contact_development.md)
+distinguishes backstop contact from squaring: bounded continuations reduce yaw
+but do not pass the unchanged placement gate or earn new task credit.
 
 ## Supported starting point
 

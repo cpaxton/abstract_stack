@@ -79,6 +79,8 @@ def generate_push_candidates(
     max_candidates=16,
     wall_seconds=10.0,
     admittance=None,
+    lateral_goal_m=None,
+    lateral_measurement_m=None,
 ):
     """Generate checked arm/lift trajectories with held native finger commands.
 
@@ -108,6 +110,10 @@ def generate_push_candidates(
         or not 1 <= max_candidates <= 16
         or not np.isfinite(wall_seconds)
         or not 0 < wall_seconds <= 30
+        or lateral_goal_m is not None
+        and (not np.isfinite(lateral_goal_m) or not lower_xyz[1] <= lateral_goal_m <= upper_xyz[1])
+        or lateral_measurement_m is not None
+        and (lateral_goal_m is None or not np.isfinite(lateral_measurement_m))
     ):
         raise ValueError("Invalid bounded push forecast configuration")
     # Validate wrench even when only the held-target baseline is requested.
@@ -181,6 +187,18 @@ def generate_push_candidates(
             velocity = config.velocity(
                 wrench_on_hand_world, lateral_bias=lateral_bias, normal_scale=normal_scale
             )
+            if lateral_goal_m is not None:
+                velocity[1] = np.clip(
+                    2
+                    * (
+                        lateral_goal_m
+                        - (origin[1] if lateral_measurement_m is None else lateral_measurement_m)
+                    )
+                    + config.tangent_gain_m_Ns * np.asarray(wrench_on_hand_world)[1]
+                    + lateral_bias,
+                    -config.lateral_speed_m_s,
+                    config.lateral_speed_m_s,
+                )
             angle = np.radians(tilt_deg)
             turn = np.array(
                 [[np.cos(angle), 0, np.sin(angle)], [0, 1, 0], [-np.sin(angle), 0, np.cos(angle)]]
@@ -221,6 +239,8 @@ def generate_push_candidates(
                 lateral_bias_m_s=lateral_bias,
                 tilt_delta_deg=tilt_deg,
                 velocity_world_m_s=velocity.tolist(),
+                privileged_lateral_goal_m=lateral_goal_m,
+                privileged_lateral_measurement_m=lateral_measurement_m,
                 endpoint=endpoint.report(),
                 compensation="frozen initial applied-minus-nominal offsets",
             )
@@ -266,6 +286,18 @@ def generate_push_candidates(
                     > config.angular_speed_rad_s * hand.env.dt + 1e-6
                 ):
                     failure = "bounded_nominal_geometry_or_motion"
+                    report["nominal_rejection"] = dict(
+                        control_tick=tick,
+                        prediction=prediction.report(),
+                        lower_m=lower_xyz.tolist(),
+                        upper_m=upper_xyz.tolist(),
+                        linear_step_m=float(np.linalg.norm(prediction.position - previous_point)),
+                        max_linear_step_m=float(linear_bound),
+                        angular_step_rad=float(
+                            np.linalg.norm(rotation_error(previous_rotation, prediction.rotation))
+                        ),
+                        max_angular_step_rad=float(config.angular_speed_rad_s * hand.env.dt),
+                    )
                     break
                 wanted = base.copy()
                 wanted[aids] = base[aids] + prediction.q - nominal

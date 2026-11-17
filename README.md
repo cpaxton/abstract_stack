@@ -27,6 +27,8 @@ and coarse tactile force proxies. A
 [compliant replanning continuation](docs/reports/compliant_lookahead_development.md)
 advanced a stalled carton to backstop contact; release and full stocking remain
 unverified.
+The [squaring follow-up](docs/reports/sustained_contact_development.md) reduces
+residual yaw to 2.75 degrees, still above the unchanged 0.15-degree criterion.
 
 The [first physical stocking script](docs/scripted_interactions.md) attempts
 box pickup and push-to-contact with per-step force traces. Development trials
