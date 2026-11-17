@@ -93,6 +93,15 @@ def test_offset_caps_are_visible(clear_robot):
     assert "Lift" in tracker.last_report["feedforward_limited"]
 
 
+def test_invalid_tracking_configuration():
+    with pytest.raises(ValueError):
+        TrackingConfig(lift_speed=0)
+    with pytest.raises(ValueError):
+        TrackingConfig(wrist_damping=-1)
+    with pytest.raises(ValueError):
+        TrackingConfig(wrist_offset_limit=float("nan"))
+
+
 @pytest.mark.mabel
 def test_partial_update_validates_retained_nominal_instead_of_live_servo_target(clear_robot):
     env = clear_robot
@@ -107,17 +116,6 @@ def test_partial_update_validates_retained_nominal_instead_of_live_servo_target(
     assert tracker.nominal[index] == nominal
     with pytest.raises(ValueError, match="joint bounds"):
         tracker.targets({"Left Arm 1": nominal + 0.02}, dt=env.dt)
-
-
-def test_invalid_tracking_configuration():
-    with pytest.raises(ValueError):
-        TrackingConfig(lift_speed=0)
-    with pytest.raises(ValueError):
-        TrackingConfig(wrist_damping=-1)
-    with pytest.raises(ValueError):
-        TrackingConfig(wrist_offset_limit=float("nan"))
-
-
 
 
 @pytest.mark.mabel
