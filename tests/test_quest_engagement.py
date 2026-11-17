@@ -594,11 +594,16 @@ def test_unexpected_guard_exception_faults_before_any_actuator_write(gate):
 
 
 def test_nonfinite_physics_cannot_be_hidden_by_reset(gate):
+    from dataclasses import asdict
+
     gate.sim.current.actuator_forces[0] = float("nan")
     assert gate.tick(now=10) is None
     assert gate.state == SessionState.FAULT
     assert not gate.host_reset(now=11)["accepted"]
     assert gate.sim.resets == 0
+    telemetry = asdict(gate.telemetry(now=11))
+    assert telemetry["measured_forces"][gate.names[0]] is None
+    json.dumps(telemetry, allow_nan=False)
 
 
 def test_repeated_engage_cannot_reset_command_acceleration_history(gate):
