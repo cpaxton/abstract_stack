@@ -626,6 +626,25 @@
       "protocol": "not_started",
       "tip_drop_incidents": null,
       "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v19-video/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v20-video",
+      "returncode": -11,
+      "verification_status": "unknown",
+      "task_success": false,
+      "stages": {
+        "pick": 0,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "Native SIGSEGV during IK/pusher planning; no terminal episode summary",
+      "sim_seconds": null,
+      "wall_seconds": 548.9291718739996,
+      "protocol": "table_front_supported_split_insertion",
+      "tip_drop_incidents": null,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v20-video/source_snapshot"
     }
   ],
   "standard_regression": {

@@ -60,6 +60,7 @@ events and terminal/process outcomes. All stage counts use ten as denominator.
 | v17 | 1 / 1 / 0 / 0 | Alternate finger admits deep push; progress stalls near backstop and times out |
 | v18 | 1 / 1 / 0 / 0 | Settled partial stop verified; empty withdrawal stopped after bounded staging |
 | v19-video | 0 / 0 / 0 / 0 | Launcher constructor argument error before episode; unknown outcome |
+| v20-video | 0 / 0 / 0 / 0 | Native signal during IK/pusher planning; no terminal summary, unknown outcome |
 
 V14 and v15 delivered carton 8 to the existing table beside the shelf. Table
 support earns no shelf-place credit. V15's checked 50 mm base backoff and lateral
@@ -129,6 +130,11 @@ keyword and failed before physics. It retains zero credit. The launcher now
 uses the existing `video`/`video_fps` constructor arguments, with native CLI
 construction tests for recording enabled and disabled. No video was produced
 by the failed launch.
+The corrected v20 recording process later exited with native signal 11 after
+548.93 s wall time. Its last Python frame was in IK during pusher planning; that
+does not identify the underlying native cause. Frozen sources, partial recording
+files and progress remain retained. No terminal summary or finalized video
+verdict exists, so the entire attempt earns zero successful stages.
 
 The supervisor freezes package, runner and explicit control configs, then runs
 one process group with a declared wall budget. It records source hashes, base

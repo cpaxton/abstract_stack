@@ -124,3 +124,32 @@ project names, task descriptions, repository links, or private context.
   printed test label in the latter process does not identify the corrupting
   operation. Exact source fingerprints and process logs remain local. Nothing
   has been sent upstream.
+- **Later recording process:** a frozen two-view development run exited with
+  signal 11 after 548.93 s wall time. Its Python frame was in IK during a pusher
+  planning call; that frame is not a native corruption diagnosis. There is no
+  terminal episode summary, so it earns zero successful stages. Raw progress,
+  incomplete recordings, frozen sources and stack remain under ignored local
+  artifacts. An earlier whole-body focused-test process also failed during
+  environment construction before the new controller was created; its later
+  passing focused tests do not replace that unknown outcome.
+
+## SIM-002 — Warp CUDA compilation signal in state helper
+
+- **Status:** observed 2026-11-17 during a bounded backend admission probe;
+  not established as an Emet defect and no upstream report has been sent.
+- **Environment:** CPython 3.11.12, NumPy 1.26.4, MuJoCo 3.17.0,
+  MuJoCo Warp 3.17.0, Warp 1.19.0, RTX 4090.
+- **Observation:** model import and the first step/forward compilation returned;
+  the process subsequently exited with signal 11 while compiling the
+  `mujoco_warp.set_state` helper. The Python stack ends in Warp `build_cuda`;
+  it does not identify the underlying native cause. The original return code,
+  source/lock hashes and log remain at
+  `outputs/rollout-backends-v1/cuda-admission/` with zero task credit.
+- **Bounded alternative:** initialize a fresh independent device data object
+  from native data after the disposable compilation forecast; verify initial
+  qpos/controls and that CUDA capture did not advance time. This path completed
+  subsequent throughput probes without model changes. It does not establish
+  that the state-helper defect or earlier native process faults are fixed.
+- **Next diagnostic:** a minimal upstream-only state-helper compilation example
+  without robot assets, downstream imports, paths or task context. Do not file
+  or send this draft without authorization.

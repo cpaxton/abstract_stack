@@ -21,6 +21,17 @@ Keep `GIT_LFS_SKIP_SMUDGE=1` set when updating Git dependencies; unavailable
 upstream documentation media must not prevent a simulation-only checkout.
 Never run `git reset --hard` or clean an existing upstream checkout to fix assets.
 
+For the optional rollout throughput tools, install the pinned `rollout` group in
+the normal project environment with `uv sync --locked --group rollout --inexact`.
+It keeps the native MuJoCo version fixed and adds MuJoCo Warp; GPU execution
+requires CUDA, while native forecasts remain usable without the optional group.
+See [backend evaluation](docs/backend_evaluation.md) for supervised benchmarks.
+The fast C++/GPU paths do not themselves provide force admission. Only fully
+guarded shortlist members may be selected as forecasts, and those still require
+fresh-state task/geometry admission before live execution. Report screened,
+guarded and unchecked counts alongside timing; a restored state earns no fresh
+manipulation credit. Keep compilation/cache and execution timings separate.
+
 ## Required checks
 
 ```bash
