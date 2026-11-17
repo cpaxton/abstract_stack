@@ -93,6 +93,12 @@ is retained; it does not invalidate the earlier hardware rendering evidence or
 establish CGL support on hosted runners. The required Mac job checks physics and
 scene export without claiming a rendering pass.
 
+The native CI job excludes tests marked `rendering`, including the dual-camera
+MP4 integration test added with the controller stack. Those tests remain required
+in Linux CI and run by default on a real Mac when its graphics services and
+encoding tools are available. Physics and non-rendering robot tests still run on
+the hosted Mac.
+
 Runner details follow [GitHub's hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 The `mjpython` viewer requirement is documented by
 [MuJoCo](https://mujoco.readthedocs.io/en/stable/python.html#passive-viewer).

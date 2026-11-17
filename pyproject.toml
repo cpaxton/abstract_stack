@@ -34,7 +34,10 @@ ci = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
-markers = ["mabel: requires the downloaded MABEL model"]
+markers = [
+    "mabel: requires the downloaded MABEL model",
+    "rendering: requires a supported graphics context and encoding tools",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

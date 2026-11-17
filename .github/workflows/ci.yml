@@ -30,7 +30,7 @@ jobs:
           scripts/run-macos.sh --help
           scripts/run-macos.sh sim --help
           scripts/run-macos.sh sim --headless --steps 20 --json outputs/macos-smoke.json
-          scripts/test.sh --junitxml=outputs/pytest-macos.xml
+          scripts/test.sh -m 'not rendering' --junitxml=outputs/pytest-macos.xml
       # Hosted macos-15 lacks the CGL pixel format required by MuJoCo. Exercise
       # native composition/export here; CGL rendering is a manual hardware check.
       # Linux's simulation job continues to require rendered house previews.
