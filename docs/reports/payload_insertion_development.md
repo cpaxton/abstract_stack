@@ -59,6 +59,7 @@ events and terminal/process outcomes. All stage counts use ten as denominator.
 | v16 | 1 / 1 / 0 / 0 | Partial shelf push, unloading and clearing verified; deep-push search rejected |
 | v17 | 1 / 1 / 0 / 0 | Alternate finger admits deep push; progress stalls near backstop and times out |
 | v18 | 1 / 1 / 0 / 0 | Settled partial stop verified; empty withdrawal stopped after bounded staging |
+| v19-video | 0 / 0 / 0 / 0 | Launcher constructor argument error before episode; unknown outcome |
 
 V14 and v15 delivered carton 8 to the existing table beside the shelf. Table
 support earns no shelf-place credit. V15's checked 50 mm base backoff and lateral
@@ -123,6 +124,11 @@ the world camera and native robot-mounted camera. Run video jobs with
 command on this Linux workstation. Both views share physics timestamps; neck
 gaze uses recorded native actuator commands. Failed and partial episodes retain
 their verdicts in the overlays and metadata.
+The first recording launch (`v19-video`) passed an unsupported constructor
+keyword and failed before physics. It retains zero credit. The launcher now
+uses the existing `video`/`video_fps` constructor arguments, with native CLI
+construction tests for recording enabled and disabled. No video was produced
+by the failed launch.
 
 The supervisor freezes package, runner and explicit control configs, then runs
 one process group with a declared wall budget. It records source hashes, base

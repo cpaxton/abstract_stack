@@ -607,6 +607,25 @@
       "protocol": "table_front_release_then_selected_finger_slide_to_shelf",
       "tip_drop_incidents": 0,
       "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v18/source_snapshot"
+    },
+    {
+      "attempt": "mobile-table-ten-v19-video",
+      "returncode": 1,
+      "verification_status": "unknown",
+      "task_success": false,
+      "stages": {
+        "pick": 0,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "completed_products": [],
+      "failure": "Process exited before episode: unsupported video_options constructor keyword",
+      "sim_seconds": null,
+      "wall_seconds": 1.0165148239993869,
+      "protocol": "not_started",
+      "tip_drop_incidents": null,
+      "exact_source_snapshot": "outputs/contact-rich-replanning-v1/mobile-table-ten-v19-video/source_snapshot"
     }
   ],
   "standard_regression": {
