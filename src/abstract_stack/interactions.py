@@ -460,6 +460,8 @@ class CartesianHand:
             or not np.array_equal(prediction.baseline_qpos, self.data.qpos)
             or prediction.carried_object is not None
             or prediction.sliding_object is not None
+            or self.ik.carry is not None
+            or self.ik.slide is not None
             or prediction.preferred_orientation_error_rad
             > np.radians(
                 self.config.ik_orientation_span_deg + self.config.ik_orientation_tolerance_deg

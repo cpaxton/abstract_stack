@@ -318,6 +318,15 @@ def test_staging_recheck_keeps_contact_context_and_rejects_stale_state(robot, mo
     assert stage is not None
     assert calls[0]["allowed_object"] == "carton_0"
     np.testing.assert_array_equal(calls[0]["baseline_reference"], prediction.baseline_qpos)
+    # An intervening query may change the planner's cached contact mode without
+    # changing live qpos. Do not reuse an empty-hand staging result in that mode.
+    for mode in ("carrying", "sliding"):
+        controller.predict(
+            controller.position(), allowed_object="carton_0", check_path=False, **{mode: True}
+        )
+        assert controller.staging_pose(prediction) is None
+        assert len(calls) == 1
+    controller.predict(controller.position(), check_path=False)
     # A new fixture state invalidates the old prediction before any actuation.
     adr = int(robot.model.joint("carton_0_joint").qposadr[0])
     robot.data.qpos[adr] += 0.001
