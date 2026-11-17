@@ -103,7 +103,29 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 - [ ] Aim for 2x lower median simulated completion time at matched complete-shelf
   success relative to the first working ten-carton baseline; no such baseline yet.
 
-## 5. Acceptance and evidence
+## 5. Demonstrations, teacher/student and sensing — in progress
+
+- [x] Add a causal control-rate recorder: pre-action observation, nominal teacher
+  reference, applied servo target and next observation. Keep privileged teacher
+  state separate and preserve failure/unknown outcomes.
+- [x] Audit legacy traces; refuse BC export when pre-action proprioception or
+  nominal actions are absent. Diagnostic controls are not nominal teacher labels.
+- [x] Export/reload a native ten-transition pipeline fixture with official
+  LeRobot 0.7.0 locally. Preserve masks, action units/modes and outcome labels;
+  no upload or successful stocking demonstration is claimed.
+- [x] Add scratch-derived wrist reaction F/T, contact-only wrist wrenches and
+  coarse native-geometry tactile force proxies with explicit frames/provenance.
+- [ ] Wire the recorder into stocking and VR before all compensation paths;
+  collect raw synchronized camera observations and verified task demonstrations.
+- [ ] Add calibrated sensor noise/bias and hardware observation adapters.
+- [ ] Train/evaluate a student with declared sensor inputs; add teacher queries
+  on student-induced states after the teacher primitives are reliable. No RL yet.
+
+See [learning from demonstrations](docs/learning_from_demonstration.md) and
+[simulated sensors](docs/sim_sensors.md). LeRobot's NumPy 2/Python 3.12 export
+worker is independently locked; collection remains in the main simulator env.
+
+## 6. Acceptance and evidence
 
 - [ ] Close native process stability gate: primitive-only named-view accesses
   reproduce an intermittent signal. Retained model/data wrappers passed one

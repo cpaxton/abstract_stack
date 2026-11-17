@@ -1,0 +1,22 @@
+[project]
+name = "abstract-stack-lfd-export-worker"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "lerobot[dataset]==0.7.0",
+    "numpy>=2,<2.3",
+    "torch==2.15.0+cpu",
+    "torchvision==0.29.2+cpu",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

@@ -18,6 +18,13 @@ A [stationary whole-body prototype](docs/whole_body_control.md) coordinates both
 arms and their shared lift, with native unloaded tracking evidence. Mobile and
 contact integration remain open.
 
+The [demonstration pipeline](docs/learning_from_demonstration.md) separates
+observable student inputs, privileged teacher context, nominal actions and
+applied controls. A native hold fixture passed local LeRobot export/reload;
+stocking/VR recording and student training remain open. The
+[simulated sensors](docs/sim_sensors.md) provide wrist F/T, contact-only wrenches
+and coarse tactile force proxies.
+
 The [first physical stocking script](docs/scripted_interactions.md) attempts
 box pickup and push-to-contact with per-step force traces. Development trials
 have completed two-carton shelves with verified pickup, lift, back contact,
