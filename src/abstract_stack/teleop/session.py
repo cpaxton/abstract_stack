@@ -721,6 +721,15 @@ class EngagementGate:
         now = finite(now, "now")
         state = self.sim.read_state()
         uncertainty = self._clock[1] if self._clock else 0
+
+        def measured(values):
+            # Fault diagnostics must remain valid v1 JSON even when the native
+            # state is nonfinite. Null is unavailable, never a fabricated zero.
+            return {
+                name: float(value) if np.isfinite(value) else None
+                for name, value in zip(self.names, values, strict=True)
+            }
+
         return GateTelemetry(
             self.state.value,
             self.reason,
@@ -737,6 +746,6 @@ class EngagementGate:
             self._limiter_channels.copy(),
             dict(zip(self.names, self._last_nominal.tolist(), strict=True)),
             dict(zip(self.names, self._last_applied.tolist(), strict=True)),
-            dict(zip(self.names, state.actuator_lengths.tolist(), strict=True)),
-            dict(zip(self.names, state.actuator_forces.tolist(), strict=True)),
+            measured(state.actuator_lengths),
+            measured(state.actuator_forces),
         )
