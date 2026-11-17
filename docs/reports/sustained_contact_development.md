@@ -96,3 +96,13 @@ acceptance gate despite the passing publication suites. The next task gate is
 successful squaring with support preserved, then unloading and clean retreat,
 then integration into a fresh full pick/carry/stock sequence. Planning remains
 slower than real time. No whole-shelf success rate is inferred from this study.
+
+## Publication stability evidence
+
+The first required pre-push at `3a0dcab` collected 310 tests, passed seven and
+aborted with signal 6 during `MjModel.from_xml_string` in a base-control fixture.
+Git exited 1 and no branch was published. The full log/process outcome remains
+in `outputs/pr-publication-squaring-v1/`. This occurred before execution of the
+new contact gate/search, but the Python frame does not identify a native cause.
+It is retained independently of earlier passing full suites and subsequent
+allocator diagnostics. The source commit remains in this branch's history.

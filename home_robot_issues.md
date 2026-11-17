@@ -64,6 +64,16 @@ project names, task descriptions, repository links, or private context.
 
 ## SIM-001 — Intermittent native MuJoCo signal during MABEL control
 
+- **Additional construction abort, 2026-11-17:** a required publication hook at
+  `3a0dcab` collected 310 tests, passed seven and aborted with signal 6 while
+  compiling a fresh MABEL model in `MjModel.from_xml_string`. The Python frame
+  is environment construction in a base-control fixture; the new dwell/search
+  control had not executed. No native C backtrace or corrupting operation is
+  identified. The Git process exited 1, the hook 134, and no publication occurred.
+  Preserve `outputs/pr-publication-squaring-v1/` separately from the earlier
+  successful 300-test publication and any allocator diagnostic. This need not
+  share a cause with the previously observed signals. Nothing was filed upstream.
+
 - **Status:** at least two SIGSEGVs observed 2026-11-16: an isolated headless
   process during concurrent simulation runs, and a later serial pre-push test
   process. Separate serial full-suite runs completed. The native cause remains
