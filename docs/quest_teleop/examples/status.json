@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "type": "status",
+  "session_id": "fixture-session",
+  "host_monotonic_s": 3.0,
+  "state": "Paused",
+  "reason": "required_input_stale",
+  "calibration_generation": 1,
+  "last_tracking_sequence": 42,
+  "sim_time_s": 1.02,
+  "command_sequence": 51,
+  "video_pair_id": 30,
+  "measured_tracking_error": {
+    "left_position_m": 0.013,
+    "left_orientation_rad": 0.021,
+    "right_position_m": 0.011,
+    "right_orientation_rad": 0.018
+  },
+  "ik_residual": {
+    "left_position_m": 0.001,
+    "left_orientation_rad": 0.002,
+    "right_position_m": 0.002,
+    "right_orientation_rad": 0.003
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "type": "tracking",
+  "session_id": "fixture-session",
+  "sequence": 42,
+  "calibration_generation": 1,
+  "sent_monotonic_s": 12.001,
+  "frame": "operator_forward_left_up",
+  "worn": true,
+  "focused": true,
+  "head": {
+    "source_time_s": null,
+    "source_clock": "unavailable",
+    "observed_monotonic_s": 12.0,
+    "fresh": null,
+    "pose": {
+      "position_m": [
+        0,
+        0,
+        1.6
+      ],
+      "quaternion_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "position_valid": true,
+      "orientation_valid": true,
+      "position_tracked": null,
+      "orientation_tracked": null,
+      "confidence": null
+    },
+    "timestamp_kind": "unavailable"
+  },
+  "left_hand": {
+    "source_time_s": 100,
+    "source_clock": "quest_runtime",
+    "observed_monotonic_s": 12.0,
+    "fresh": true,
+    "pose": {
+      "position_m": [
+        0.4,
+        0.25,
+        1.2
+      ],
+      "quaternion_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "position_valid": true,
+      "orientation_valid": true,
+      "position_tracked": null,
+      "orientation_tracked": null,
+      "confidence": null
+    },
+    "skeleton_profile": "ovr_hand_24",
+    "joints": [
+      {"name":"Hand_WristRoot","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_ForearmStub","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb0","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb1","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb2","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb3","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Index1","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Index2","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Index3","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Middle1","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Middle2","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Middle3","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Ring1","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Ring2","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Ring3","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky0","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky1","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky2","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky3","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_ThumbTip","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_IndexTip","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_MiddleTip","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_RingTip","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_PinkyTip","position_m":[0.4,0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null}
+    ],
+    "timestamp_kind": "sensor_sample"
+  },
+  "right_hand": {
+    "source_time_s": 100,
+    "source_clock": "quest_runtime",
+    "observed_monotonic_s": 12.0,
+    "fresh": true,
+    "pose": {
+      "position_m": [
+        0.4,
+        -0.25,
+        1.2
+      ],
+      "quaternion_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "position_valid": true,
+      "orientation_valid": true,
+      "position_tracked": null,
+      "orientation_tracked": null,
+      "confidence": null
+    },
+    "skeleton_profile": "ovr_hand_24",
+    "joints": [
+      {"name":"Hand_WristRoot","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_ForearmStub","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb0","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb1","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb2","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Thumb3","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Index1","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Index2","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Index3","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Middle1","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Middle2","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Middle3","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Ring1","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Ring2","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Ring3","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky0","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky1","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky2","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_Pinky3","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_ThumbTip","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_IndexTip","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_MiddleTip","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_RingTip","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Hand_PinkyTip","position_m":[0.4,-0.25,1.2],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null}
+    ],
+    "timestamp_kind": "sensor_sample"
+  },
+  "body": {
+    "source_time_s": 100.0,
+    "source_clock": "quest_runtime",
+    "observed_monotonic_s": 12.0,
+    "fresh": null,
+    "confidence": 0.8,
+    "skeleton_profile": "ovr_body_upper_18",
+    "joints": [
+      {"name":"Body_Root","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_Hips","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_SpineLower","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_SpineMiddle","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_SpineUpper","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_Chest","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_Neck","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_Head","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_LeftShoulder","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_LeftScapula","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_LeftArmUpper","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_LeftArmLower","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_LeftHandWristTwist","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_RightShoulder","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_RightScapula","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_RightArmUpper","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_RightArmLower","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null},
+      {"name":"Body_RightHandWristTwist","position_m":[0,0,1],"quaternion_wxyz":[1,0,0,0],"position_valid":true,"orientation_valid":true,"position_tracked":null,"orientation_tracked":null,"confidence":null}
+    ],
+    "timestamp_kind": "state_target",
+    "state_advanced": true
+  }
+}

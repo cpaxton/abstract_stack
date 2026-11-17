@@ -34,6 +34,11 @@ Run `./scripts/benchmark_stocking.sh` for the baseline, bounded compliant-contro
 hill-climb on separate development seeds, paired validation and report generation.
 Task acceptance and force abort limits stay fixed during the search.
 
+The [Quest Teleop v1 interfaces](docs/quest_teleop/README.md) define the new
+simulation-only Quest 3 work: stationary base, upper-body tracking and a stereo
+head-camera window. This is an interface contract; live VR control is not yet
+implemented.
+
 See [Shelf scene setup](docs/scene_setup.md) for dimensions, editable scene
 configurations, MABEL import, scene exports, and validation. Upstream concerns
 are tracked locally in [home_robot_issues.md](home_robot_issues.md).
