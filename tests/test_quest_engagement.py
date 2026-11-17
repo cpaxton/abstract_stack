@@ -461,6 +461,36 @@ def test_mailbox_bounds_cancelled_controls_actual_drain_time_and_urgent_disconne
     assert mailbox.status()["state"] == "Disconnected"
 
 
+def test_mailbox_preserves_owner_disconnect_among_other_peer_disconnects(gate):
+    from abstract_stack.teleop.session_bridge import OwnerMailbox
+
+    engaged(gate)
+    mailbox = OwnerMailbox()
+    mailbox.disconnect(gate.session_id)
+    mailbox.disconnect(str(uuid4()))
+    mailbox.drain(gate, now=10.04)
+    assert gate.state == SessionState.DISCONNECTED
+    assert gate.session_id is None
+    assert gate.calibration.artifact is None
+
+
+def test_mailbox_cancels_disconnected_peer_connect_past_drain_budget(gate):
+    from abstract_stack.teleop.session_bridge import OwnerMailbox
+
+    mailbox = OwnerMailbox()
+    mailbox.submit("host_pause")
+    sid = str(uuid4())
+    pending = mailbox.submit("connect", sid)
+    mailbox.disconnect(sid)
+    mailbox.drain(gate, now=10, max_controls=1)
+    mailbox.drain(gate, now=10.02)
+    assert pending.cancelled()
+    assert gate.session_id is None
+    reconnect = mailbox.submit("connect", str(uuid4()))
+    mailbox.drain(gate, now=10.04)
+    assert reconnect.result() == 0
+
+
 def test_mailbox_keeps_one_detached_latest_input(gate):
     from abstract_stack.teleop.session_bridge import OwnerMailbox
 
