@@ -13,6 +13,48 @@ env:
   PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
   MUJOCO_GL: egl
 jobs:
+  macos-simulation:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      MUJOCO_GL: cgl
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+      - name: Install using the native macOS installer
+        run: scripts/install-macos.sh
+      - name: Exercise launcher and native physics
+        run: |
+          scripts/run-macos.sh --help
+          scripts/run-macos.sh sim --help
+          scripts/run-macos.sh sim --headless --steps 20 --json outputs/macos-smoke.json
+          scripts/test.sh -m 'not rendering' --junitxml=outputs/pytest-macos.xml
+      # Hosted macos-15 lacks the CGL pixel format required by MuJoCo. Exercise
+      # native composition/export here; CGL rendering is a manual hardware check.
+      # Linux's simulation job continues to require rendered house previews.
+      - name: Export the house scene
+        run: scripts/run-macos.sh build-scene --scene house --output-dir outputs/house
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: macos-simulation-evidence
+          path: |
+            outputs/macos-smoke.json
+            outputs/pytest-macos.xml
+            outputs/house/manifest.json
+            outputs/house/scene.xml
+          if-no-files-found: ignore
+  macos-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check Mac shell scripts
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/install-macos.sh scripts/run-macos.sh
   simulation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
