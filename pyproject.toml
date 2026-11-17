@@ -13,6 +13,8 @@ dependencies = [
     "mujoco>=3.4,<4",
     "numpy>=1.24,<2",
     "pillow>=10",
+    "websockets==16.1.1; python_version < '3.11'",
+    "websockets==17.4; python_version >= '3.11'",
     "emet[sim] @ git+https://github.com/cpaxton/home_robot_v3.git@main",
 ]
 
@@ -29,6 +31,8 @@ ci = [
     "mujoco>=3.4,<4",
     "numpy>=1.24,<2",
     "pillow>=10",
+    "websockets==16.1.1; python_version < '3.11'",
+    "websockets==17.4; python_version >= '3.11'",
 ]
 
 [tool.pytest.ini_options]
