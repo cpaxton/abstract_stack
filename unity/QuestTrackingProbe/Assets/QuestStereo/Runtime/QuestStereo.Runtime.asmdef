@@ -1,0 +1,11 @@
+{
+  "name": "QuestStereo.Runtime",
+  "references": [
+    "Unity.ugui"
+  ],
+  "autoReferenced": true,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ]
+}

@@ -12,6 +12,40 @@ from pathlib import Path
 FORMAT = "quest_tracking_probe_v1"
 MAX_LINE_BYTES = 2 * 1024 * 1024
 
+# Pinned Meta XR Core 209 OVRPlugin.BoneId/SkeletonType. ParentBoneIndex is
+# an array index (short), with BoneId.Invalid == -1 for the sole root.
+HAND_BONE_NAMES = tuple(
+    "Hand_" + name
+    for name in (
+        "WristRoot ForearmStub Thumb0 Thumb1 Thumb2 Thumb3 Index1 Index2 Index3 "
+        "Middle1 Middle2 Middle3 Ring1 Ring2 Ring3 Pinky0 Pinky1 Pinky2 Pinky3 "
+        "ThumbTip IndexTip MiddleTip RingTip PinkyTip"
+    ).split()
+)
+BODY_BONE_NAMES = tuple(
+    "Body_" + name
+    for name in (
+        "Root Hips SpineLower SpineMiddle SpineUpper Chest Neck Head LeftShoulder "
+        "LeftScapula LeftArmUpper LeftArmLower LeftHandWristTwist RightShoulder "
+        "RightScapula RightArmUpper RightArmLower RightHandWristTwist"
+    ).split()
+) + tuple(
+    f"Body_{side}Hand{name}"
+    for side in ("Left", "Right")
+    for name in (
+        "Palm Wrist ThumbMetacarpal ThumbProximal ThumbDistal ThumbTip "
+        "IndexMetacarpal IndexProximal IndexIntermediate IndexDistal IndexTip "
+        "MiddleMetacarpal MiddleProximal MiddleIntermediate MiddleDistal MiddleTip "
+        "RingMetacarpal RingProximal RingIntermediate RingDistal RingTip "
+        "LittleMetacarpal LittleProximal LittleIntermediate LittleDistal LittleTip"
+    ).split()
+)
+SKELETON_PROFILES = {
+    "left_hand": ("HandLeft", HAND_BONE_NAMES),
+    "right_hand": ("HandRight", HAND_BONE_NAMES),
+    "body": ("Body", BODY_BONE_NAMES),
+}
+
 
 def reject_constant(value):
     raise ValueError(f"non-finite JSON constant: {value}")
@@ -59,6 +93,58 @@ def pose(value):
     return vector(value["position_m"], 3), vector(value["quaternion_xyzw"], 4)
 
 
+def unit_quaternion(rotation):
+    norm = math.sqrt(sum(float(v) * float(v) for v in rotation))
+    if abs(norm - 1) > 0.01:
+        raise ValueError("usable orientation is not a unit quaternion")
+    return norm
+
+
+def validate_skeleton(record):
+    """Validate a complete supported bind profile, not just its reported count.
+
+    This verifies structural consistency, not anatomical accuracy or FK. The raw
+    format has no per-bind-component availability flags, so an unusable bind
+    transform must fail rather than being silently treated as reconstruction data.
+    """
+    side = record["side"]
+    if side not in SKELETON_PROFILES:
+        raise ValueError("unsupported skeleton side")
+    profile, expected = SKELETON_PROFILES[side]
+    if record["profile"] != profile:
+        raise ValueError("skeleton profile does not agree with side/declared OVR24 or Body profile")
+    bones = record["bones"]
+    if not isinstance(bones, list) or len(bones) != len(expected):
+        raise ValueError("incomplete skeleton profile")
+    names, parents = {}, []
+    for index, (bone, expected_name) in enumerate(zip(bones, expected, strict=True)):
+        bid = integer(bone["id"])
+        if bid != index or bone["name"] != expected_name:
+            raise ValueError("skeleton bone ID/name/order does not match SDK profile")
+        names[bid] = bone["name"]
+        _, rotation = pose(bone["bind_pose"])
+        unit_quaternion(rotation)
+        parent = bone["parent_index"]
+        if type(parent) is not int:
+            raise ValueError("skeleton parent index must be an integer")
+        if index == 0:
+            if parent != -1:
+                raise ValueError("SDK skeleton root must use parent sentinel -1")
+        elif not 0 <= parent < len(bones):
+            raise ValueError("non-root skeleton parent index is outside the profile")
+        parents.append(parent)
+    rooted = {0}
+    for index in range(1, len(bones)):
+        path, current = set(), index
+        while current not in rooted:
+            if current in path:
+                raise ValueError("skeleton parent hierarchy contains a cycle")
+            path.add(current)
+            current = parents[current]
+        rooted.update(path)
+    return side, names
+
+
 class Motion:
     def __init__(self):
         self.low = None
@@ -74,9 +160,7 @@ class Motion:
                 position.copy() if self.high is None else list(map(max, self.high, position))
             )
         if rotation is not None:
-            norm = math.sqrt(sum(v * v for v in rotation))
-            if abs(norm - 1) > 0.01:
-                raise ValueError("valid orientation is not a unit quaternion")
+            norm = unit_quaternion(rotation)
             rotation = [v / norm for v in rotation]
             if self.first_rotation is None:
                 self.first_rotation = rotation
@@ -182,15 +266,9 @@ def summarize(path: Path):
                             dropped = max(dropped, int(terminal_detail.rsplit("=", 1)[1]))
                     continue
                 if kind == "skeleton":
-                    side = record["side"]
-                    names = {}
-                    for bone in record["bones"]:
-                        bid = integer(bone["id"])
-                        if bid in names or bone["name"] in names.values():
-                            raise ValueError("duplicate skeleton bone")
-                        names[bid] = bone["name"]
-                        pose(bone["bind_pose"])
+                    side, names = validate_skeleton(record)
                     metadata[side] = names
+                    counts[side + "_verified_skeleton_records"] += 1
                     continue
                 if kind != "sample":
                     raise ValueError("unknown record type")
@@ -285,6 +363,15 @@ def summarize(path: Path):
         "observed_end_event": ended,
         "terminal_detail": terminal_detail,
         "skeleton_metadata_bone_counts": {side: len(names) for side, names in metadata.items()},
+        "skeleton_metadata_validation": {
+            side: {
+                "status": "verified" if side in metadata else "missing",
+                "profile": profile if side in metadata else None,
+                "bone_count": len(metadata.get(side, {})),
+                "records_verified": counts[side + "_verified_skeleton_records"],
+            }
+            for side, (profile, _) in SKELETON_PROFILES.items()
+        },
         "quality_observation_counts": {key: dict(value) for key, value in qualities.items()},
         "motion_by_origin": {key: value.summary() for key, value in sorted(motion.items())},
         "events": events,

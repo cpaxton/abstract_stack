@@ -6,8 +6,8 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Probe/TrackingProbe.unity
-    guid: 6a7e081309f864993a2b539842ab90a9
+    path: Assets/QuestStereo/QuestStereo.unity
+    guid: 908411ff8767f4147ac57b55eeea7580
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 81889ae86e6be487786057fe804372ca, type: 2}
