@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Text;
 using AbstractStack.QuestStereo;
 using Newtonsoft.Json.Linq;
@@ -87,5 +88,79 @@ public sealed class StereoPairTests
     {
         var shader = Shader.Find("QuestTeleop/RoomStereo"); Assert.That(shader, Is.Not.Null); Assert.That(ShaderUtil.ShaderHasError(shader), Is.False);
         var material = new Material(shader); Assert.That(material.GetFloat("_DebugEye"), Is.EqualTo(-1)); UnityEngine.Object.DestroyImmediate(material);
+    }
+
+    const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+
+    static void ConfigurePauseFixture(StereoViewer viewer, Action pause)
+    {
+        // Keep the fixture local. Configure the presentation queue and callback
+        // without creating a WebSocket, which is irrelevant to these transitions.
+        viewer.synthetic = false;
+        viewer.Queue.Reset("test", 0);
+        typeof(StereoViewer).GetField("requestPause", PrivateInstance).SetValue(viewer, pause);
+    }
+
+    static void Invoke(StereoViewer viewer, string method, params object[] args) =>
+        typeof(StereoViewer).GetMethod(method, PrivateInstance).Invoke(viewer, args);
+
+    [Test] public void StaleFrameRequestsPauseBeforeNextFeedbackTick()
+    {
+        var root = new GameObject("stereo pause test");
+        root.SetActive(false);
+        try
+        {
+            var viewer = root.AddComponent<StereoViewer>();
+            viewer.viewerCamera = root.AddComponent<Camera>();
+            viewer.window = root.AddComponent<MeshRenderer>();
+            int pauses = 0, feedback = 0;
+            ConfigurePauseFixture(viewer, () => pauses++);
+            typeof(StereoViewer).GetField("sendControl", PrivateInstance)
+                .SetValue(viewer, (Action<JObject>)(_ => feedback++));
+            typeof(StereoViewer).GetField("feedbackAt", PrivateInstance)
+                .SetValue(viewer, StereoViewer.MonotonicSeconds + 10);
+            Invoke(viewer, "SetStale", false);
+
+            Invoke(viewer, "Update");
+            Assert.That(viewer.Stale, Is.True);
+            Assert.That(feedback, Is.Zero);
+            Assert.That(pauses, Is.EqualTo(1));
+            Invoke(viewer, "Update");
+            Assert.That(pauses, Is.EqualTo(1));
+
+            Invoke(viewer, "SetStale", false);
+            Invoke(viewer, "Update");
+            Assert.That(pauses, Is.EqualTo(2));
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    [TestCase("OnApplicationFocus", false)]
+    [TestCase("OnApplicationPause", true)]
+    public void LifecycleLossRequestsPauseBeforeClearingVideo(string method, bool value)
+    {
+        var root = new GameObject("stereo lifecycle test");
+        root.SetActive(false);
+        try
+        {
+            var viewer = root.AddComponent<StereoViewer>();
+            int pauses = 0;
+            ConfigurePauseFixture(viewer, () =>
+            {
+                pauses++;
+                Assert.That(viewer.Queue.Take()?.PairId, Is.EqualTo(1));
+            });
+            Invoke(viewer, "SetStale", false);
+            Assert.That(viewer.Queue.Offer(Pair()), Is.True);
+
+            Invoke(viewer, method, value);
+            Assert.That(viewer.Stale, Is.True);
+            Assert.That(pauses, Is.EqualTo(1));
+            Assert.That(viewer.Queue.Offer(Pair(2)), Is.False);
+
+            Invoke(viewer, method, value);
+            Assert.That(pauses, Is.EqualTo(1));
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
     }
 }
