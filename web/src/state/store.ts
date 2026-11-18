@@ -7,6 +7,9 @@ export type CameraPreset = "operator" | "side" | "top" | "front";
 export type Quality = "high" | "low";
 export type MainView = "twin" | "camera";
 export type Eyes = "left" | "right" | "both";
+/** follow: head tracks the active hand (or looks ahead while driving); point: holds a
+ * clicked spot; free: manual angles from drags, arrows or sliders. */
+export type HeadMode = "follow" | "point" | "free";
 
 const initialQuality = (): Quality => {
   if (typeof window === "undefined") return "high";
@@ -43,6 +46,9 @@ interface UiState {
   eyes: Eyes;
   videoAvailable: boolean;
   pipVisible: boolean;
+  headMode: HeadMode;
+  /** Chassis-frame point for headMode "point". */
+  lookPoint: [number, number, number] | null;
   /** Set when the host rejects the access token; shows the access screen. */
   authError: string | null;
   helpOpen: boolean;
@@ -85,6 +91,8 @@ export const useUi = create<UiState>((set, get) => ({
   videoAvailable: false,
   pipVisible: true,
   authError: null,
+  headMode: "follow",
+  lookPoint: null,
   toasts: [],
   mirror: { grip: { left: 0, right: 0 }, lift: 0.3175, torso: 0, yaw: 0, pitch: 0 },
   set: (patch) => set(patch),

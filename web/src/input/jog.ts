@@ -1,6 +1,6 @@
 import { Quaternion, Vector3 } from "three";
 import type { Side } from "../net/protocol";
-import { clampChannels, intent } from "../state/intent";
+import { clampChannels, intent, takeManualHead } from "../state/intent";
 
 /** Normalised rates in [-1, 1]; combined from keyboard and touch each frame. */
 export interface JogInput {
@@ -81,6 +81,7 @@ export function applyJog(
     changed = true;
   }
   if (input.headYaw || input.headPitch) {
+    takeManualHead();
     intent.head.yaw += input.headYaw * RATES.head * scale * dt;
     intent.head.pitch += input.headPitch * RATES.head * scale * dt;
     changed = true;

@@ -3,6 +3,7 @@ import type { TeleopClient } from "../net/TeleopClient";
 import { useUi } from "../state/store";
 import { togglePrimary } from "./actions";
 import { ControlChip } from "./ControlChip";
+import { LookChip } from "./LookChip";
 import { Icon } from "./Icon";
 
 export function Toasts() {
@@ -116,6 +117,8 @@ const SHORTCUTS: [string, string][] = [
   ["T / Y", "Gizmo move / rotate"],
   ["← → ↑ ↓", "Head yaw / pitch"],
   ["Home", "Re-centre the head"],
+  ["F", "Head follows the hand again"],
+  ["Click the 3D view", "Look at that spot"],
   ["Drag / click video", "Look around / look at a point"],
   ["PgUp / PgDn", "Lift up / down"],
   ["R", "Ready pose"],
@@ -176,6 +179,7 @@ export function KeyHints() {
   return (
     <div className="key-hints glass hide-touch">
       <ControlChip />
+      {engaged && <LookChip />}
       {engaged ? (
         driveMode ? (
           <>

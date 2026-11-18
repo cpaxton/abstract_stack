@@ -198,11 +198,17 @@ def parse_command(message: Mapping) -> dict:
     if head is not None:
         if not isinstance(head, dict):
             raise ProtocolError("head must be an object or null")
-        _require_keys(head, {"yaw_rad", "pitch_rad"})
-        head = {
-            "Neck Yaw": _finite(head["yaw_rad"], "head.yaw_rad"),
-            "Neck Pitch": _finite(head["pitch_rad"], "head.pitch_rad"),
-        }
+        if "look_at_m" in head:
+            # Gaze target in the chassis frame; the host solves neck angles so the head
+            # camera points at it (follow-hand and click-to-look).
+            _require_keys(head, {"look_at_m"})
+            head = {"look_at": _vector(head["look_at_m"], 3, "head.look_at_m")}
+        else:
+            _require_keys(head, {"yaw_rad", "pitch_rad"})
+            head = {
+                "Neck Yaw": _finite(head["yaw_rad"], "head.yaw_rad"),
+                "Neck Pitch": _finite(head["pitch_rad"], "head.pitch_rad"),
+            }
     return {
         "session_id": _session(message["session_id"]),
         "sequence": _counter(message["sequence"], "sequence"),

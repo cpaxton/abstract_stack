@@ -1188,3 +1188,40 @@ input[type="range"]:disabled {
 .error-text {
   color: var(--bad);
 }
+
+/* ---- Look chip ---------------------------------------------------------------------- */
+.look-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.look-chip.look-follow {
+  color: var(--ok);
+  border-color: rgba(63, 212, 122, 0.45);
+}
+.look-chip.look-point {
+  color: var(--accent);
+  border-color: rgba(76, 194, 255, 0.45);
+}
+.look-chip-action {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+@media (pointer: coarse) {
+  .touch-center .look-chip {
+    height: 34px;
+    padding: 0 14px;
+    background: var(--glass-strong);
+  }
+}

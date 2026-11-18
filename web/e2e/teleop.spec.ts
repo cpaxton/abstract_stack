@@ -5,7 +5,7 @@ interface Debug {
     state: string;
     target_epoch: number;
     base: { forward_mps: number };
-    channels: { head: { yaw_rad: number } };
+    channels: { head: { yaw_rad: number }; head_mode: string };
     arms: Record<string, { palm: { position_m: [number, number, number] } }>;
   } | null;
   poseAgeMs: () => number;
@@ -112,6 +112,9 @@ test("drive mode moves the base and the head follows clicks on the video", async
   await open(page);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Engaged");
+  // Follow-hand is the default: the host tracks a gaze point, not fixed angles.
+  await expect(page.locator(".key-hints .look-chip")).toContainText("Following hand");
+  await expect.poll(async () => (await status(page))!.channels.head_mode).toBe("gaze");
   await page.keyboard.press("Tab"); // right hand → drive
   await expect(page.locator(".key-hints")).toContainText("Drive");
   await page.keyboard.down("KeyW");

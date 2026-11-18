@@ -3,6 +3,7 @@ import { touch } from "../input/touch";
 import { useUi } from "../state/store";
 import { haptic } from "./actions";
 import { ControlChip } from "./ControlChip";
+import { LookChip } from "./LookChip";
 
 /** Pointer-captured virtual joystick writing normalised [-1, 1] values into `target`. */
 function Joystick({
@@ -101,6 +102,7 @@ export function TouchControls() {
       />
       <div className="touch-center">
         <ControlChip />
+        <LookChip />
         {!driveMode && (
           <div className="touch-row">
             <HoldButton label="Open" value={-1} />

@@ -19,6 +19,7 @@ import numpy as np
 from abstract_stack.control import validate_targets
 from abstract_stack.ik import PoseIK, rotation_error
 from abstract_stack.mabel_controller import MabelController, TrackingConfig
+from abstract_stack.recording import HeadGaze
 from abstract_stack.web_teleop.base import BaseConfig, SwerveBase
 
 SIDES = ("left", "right")
@@ -143,6 +144,9 @@ class WebRetargeter:
         if hasattr(self, "base"):
             self.base.reset()
         self.tilt_guard = False
+        # Gaze state follows the episode clock, so rebuild it on every reset.
+        self.gaze = HeadGaze(self.model, self.data)
+        self._gazing = False
 
     def resync(self) -> None:
         """Invalidate client arm targets: commands must be rebased on ``arm_targets``."""
@@ -245,6 +249,17 @@ class WebRetargeter:
             "ik_orientation_error_rad": orientation_error,
         }
 
+    def _look_at(self, point_root: np.ndarray, dt: float) -> None:
+        """Aim the head camera at a chassis-frame point with the repository's gaze solver."""
+        if not self._gazing:
+            # Start from the current references so switching modes never jumps.
+            self.gaze.command = np.array([self.reference["Neck Yaw"], self.reference["Neck Pitch"]])
+            self.gaze.next_update = 0.0
+            self._gazing = True
+        origin, root = self.root_pose()
+        for name, value in self.gaze.targets(origin + root @ point_root, dt).items():
+            self.reference[name] = float(np.clip(value, *self._ranges[name]))
+
     def tilt(self) -> float:
         """Chassis tilt from vertical in radians."""
         return float(math.acos(min(1.0, max(-1.0, self.data.xmat[self.chassis][8]))))
@@ -265,8 +280,12 @@ class WebRetargeter:
         if intent["torso"] is not None:
             goal = float(np.clip(intent["torso"], *self._ranges["Torso"]))
             self.reference["Torso"] = _rate(self.reference["Torso"], goal, cfg.torso_rate * dt)
-        if intent["head"] is not None:
-            for name, value in intent["head"].items():
+        head = intent["head"]
+        if head is not None and "look_at" in head:
+            self._look_at(head["look_at"], dt)
+        elif head is not None:
+            self._gazing = False
+            for name, value in head.items():
                 goal = float(np.clip(value, *self._ranges[name]))
                 self.reference[name] = _rate(self.reference[name], goal, cfg.head_rate * dt)
         if intent["target_epoch"] != self.target_epoch:
@@ -301,7 +320,7 @@ class WebRetargeter:
                 }
                 for side in SIDES
             },
-            "channels": self.channel_state(),
+            "channels": {**self.channel_state(), "head_mode": "gaze" if self._gazing else "angles"},
             "base": {
                 **self.base.report(),
                 "tilt_deg": round(math.degrees(self.tilt()), 1),

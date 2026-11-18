@@ -1,6 +1,11 @@
 import { Quaternion, Vector3 } from "three";
 import type { CommandBody, Pose, Side, Status } from "../net/protocol";
 import { SIDES } from "../net/protocol";
+import { useUi } from "./store";
+
+// Where the head looks while driving in follow mode: ahead and slightly down (chassis
+// frame; MABEL faces -X).
+const DRIVE_LOOK_AHEAD: [number, number, number] = [-1.4, 0, 0.55];
 
 /**
  * Operator intent: the absolute targets sent to the host at `command_hz`.
@@ -46,6 +51,11 @@ export function rebaseFromStatus(status: Status): boolean {
     intent.epoch = status.target_epoch;
     changed = true;
   }
+  if (useUi.getState().headMode !== "free") {
+    // Keep manual angles in step with what the host is doing, for a seamless takeover.
+    intent.head.yaw = status.channels.head.yaw_rad;
+    intent.head.pitch = status.channels.head.pitch_rad;
+  }
   if (status.calibration_generation !== intent.generation || !intent.initialized) {
     const ch = status.channels;
     intent.head.yaw = ch.head.yaw_rad;
@@ -62,6 +72,21 @@ export function rebaseFromStatus(status: Status): boolean {
 }
 
 const clamp = (v: number, [lo, hi]: [number, number]) => Math.min(hi, Math.max(lo, v));
+
+/**
+ * Switch to manual (free) look, starting from the host's current neck angles so the
+ * head does not jump when leaving follow/point mode.
+ */
+export function takeManualHead(): void {
+  const ui = useUi.getState();
+  if (ui.headMode === "free") return;
+  const head = ui.status?.channels.head;
+  if (head) {
+    intent.head.yaw = head.yaw_rad;
+    intent.head.pitch = head.pitch_rad;
+  }
+  ui.set({ headMode: "free" });
+}
 
 export function stopBase(): void {
   intent.base.forward = intent.base.left = intent.base.turn = 0;
@@ -93,6 +118,18 @@ export function buildCommand(): CommandBody | null {
       grip: round(a.grip),
     };
   }
+  const ui = useUi.getState();
+  let head: CommandBody["head"];
+  if (ui.headMode === "point" && ui.lookPoint) {
+    head = { look_at_m: ui.lookPoint.map(round) as [number, number, number] };
+  } else if (ui.headMode === "follow") {
+    const p = intent.arms[ui.activeArm].position;
+    head = {
+      look_at_m: ui.driveMode ? DRIVE_LOOK_AHEAD : [round(p.x), round(p.y), round(p.z)],
+    };
+  } else {
+    head = { yaw_rad: round(intent.head.yaw), pitch_rad: round(intent.head.pitch) };
+  }
   const b = intent.base;
   const driving = b.forward !== 0 || b.left !== 0 || b.turn !== 0;
   return {
@@ -101,7 +138,7 @@ export function buildCommand(): CommandBody | null {
       ? { forward_mps: round(b.forward), left_mps: round(b.left), turn_radps: round(b.turn) }
       : null,
     arms,
-    head: { yaw_rad: round(intent.head.yaw), pitch_rad: round(intent.head.pitch) },
+    head,
     lift_m: round(intent.lift),
     torso_rad: round(intent.torso),
   };

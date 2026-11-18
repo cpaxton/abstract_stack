@@ -34,6 +34,7 @@ export interface Channels {
   lift_m: number;
   torso_rad: number;
   grip: Record<Side, number>;
+  head_mode?: "gaze" | "angles";
   ranges: {
     head: { yaw_rad: [number, number]; pitch_rad: [number, number] };
     lift_m: [number, number];
@@ -134,7 +135,8 @@ export interface CommandBody {
   /** Epoch of the host arm targets these poses were rebased on (see target_epoch). */
   target_epoch: number;
   arms: Partial<Record<Side, ArmIntent | null>>;
-  head: { yaw_rad: number; pitch_rad: number } | null;
+  /** Explicit neck angles (free look) or a chassis-frame gaze point for the host to track. */
+  head: { yaw_rad: number; pitch_rad: number } | { look_at_m: Vec3 } | null;
   lift_m: number | null;
   torso_rad: number | null;
   /** Base velocity intent in the robot's frame; null stops the base. */

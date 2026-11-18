@@ -11,7 +11,9 @@ import {
   Mesh,
   MeshStandardMaterial,
   Quaternion,
+  Raycaster,
   SphereGeometry,
+  Vector2,
   Vector3,
   type Object3D,
 } from "three";
@@ -216,6 +218,83 @@ function Ghosts({
   );
 }
 
+/**
+ * Click (not drag) in the 3D view to point the head at that spot. One raycast per
+ * click against the robot/scene meshes — never on pointer move, since the full-res
+ * model is ~1.3M triangles. A marker shows the gaze point while it is held.
+ */
+function LookPicker({
+  model,
+  frames,
+  enabled,
+}: {
+  model: RobotModel;
+  frames: Frames;
+  enabled: boolean;
+}) {
+  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+  const headMode = useUi((s) => s.headMode);
+  const lookPoint = useUi((s) => s.lookPoint);
+  const marker = useMemo(() => {
+    const mesh = new Mesh(
+      new SphereGeometry(0.025, 20, 14),
+      new MeshStandardMaterial({ color: "#4cc2ff", emissive: "#4cc2ff", emissiveIntensity: 0.8 }),
+    );
+    mesh.visible = false;
+    return mesh;
+  }, []);
+  useEffect(() => {
+    model.root.add(marker);
+    return () => {
+      model.root.remove(marker);
+    };
+  }, [model, marker]);
+  useEffect(() => {
+    const element = gl.domElement;
+    const raycaster = new Raycaster();
+    let down: { x: number; y: number; t: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      down = { x: e.clientX, y: e.clientY, t: performance.now() };
+    };
+    const onUp = (e: PointerEvent) => {
+      const start = down;
+      down = null;
+      if (!start || !enabled) return;
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 5) return; // orbit drag
+      if (performance.now() - start.t > 450) return; // long press
+      const rect = element.getBoundingClientRect();
+      const ndc = new Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(ndc, camera);
+      const hit = raycaster.intersectObjects(model.bodies, true)[0];
+      if (!hit) return;
+      const world = fromThree(hit.point, new Vector3()); // MuJoCo world
+      const inv = frames.chassisQuat.clone().invert();
+      const root = world.sub(frames.chassisPos).applyQuaternion(inv);
+      useUi.getState().set({ headMode: "point", lookPoint: [root.x, root.y, root.z] });
+    };
+    element.addEventListener("pointerdown", onDown);
+    element.addEventListener("pointerup", onUp);
+    return () => {
+      element.removeEventListener("pointerdown", onDown);
+      element.removeEventListener("pointerup", onUp);
+    };
+  }, [gl, camera, model, frames, enabled]);
+  useFrame(() => {
+    marker.visible = headMode === "point" && lookPoint !== null;
+    if (marker.visible && lookPoint) {
+      marker.position
+        .set(lookPoint[0], lookPoint[1], lookPoint[2])
+        .applyQuaternion(frames.chassisQuat)
+        .add(frames.chassisPos);
+    }
+  });
+  return null;
+}
+
 /** Keyboard/touch jog, integrated at display rate in the viewer's ground frame. */
 function JogLoop({ frames, enabled }: { frames: Frames; enabled: boolean }) {
   const camera = useThree((s) => s.camera);
@@ -398,6 +477,7 @@ export function TwinView({ model, client }: { model: RobotModel | null; client: 
       />
       {model && <RobotTwin model={model} client={client} frames={frames} />}
       {model && <Ghosts model={model} frames={frames} controlsEnabled={operating && !driveMode} />}
+      {model && <LookPicker model={model} frames={frames} enabled={operating} />}
       <JogLoop frames={frames} enabled={operating} />
       <OrbitControls
         makeDefault

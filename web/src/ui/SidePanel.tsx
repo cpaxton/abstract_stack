@@ -1,5 +1,5 @@
 import { SIDES, type Side } from "../net/protocol";
-import { clampChannels, intent } from "../state/intent";
+import { clampChannels, intent, takeManualHead } from "../state/intent";
 import { useUi, type CameraPreset } from "../state/store";
 import { Icon } from "./Icon";
 
@@ -296,7 +296,12 @@ export function SidePanel() {
               step={0.01}
               format={(v) => `${deg(v).toFixed(0)}°`}
               disabled={!editable}
-              onChange={(v) => update(() => (intent.head.yaw = v))}
+              onChange={(v) =>
+                update(() => {
+                  takeManualHead();
+                  intent.head.yaw = v;
+                })
+              }
             />
             <Slider
               label="Head pitch"
@@ -306,7 +311,12 @@ export function SidePanel() {
               step={0.01}
               format={(v) => `${deg(v).toFixed(0)}°`}
               disabled={!editable}
-              onChange={(v) => update(() => (intent.head.pitch = v))}
+              onChange={(v) =>
+                update(() => {
+                  takeManualHead();
+                  intent.head.pitch = v;
+                })
+              }
             />
           </section>
         )}

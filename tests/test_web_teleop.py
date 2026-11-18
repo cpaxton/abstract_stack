@@ -464,3 +464,36 @@ def test_base_stops_when_operator_input_goes_stale(clear_env):
     for _ in range(50):
         core._tick_once(clear_env.dt)
     assert core._state.value == "paused" and not core.retargeter.base.moving
+
+
+def test_head_look_at_is_validated():
+    look = {"look_at_m": [-0.5, 0.1, 0.8]}
+    parsed = protocol.parse_command(protocol.decode_json(json.dumps(_command(head=look))))
+    np.testing.assert_allclose(parsed["head"]["look_at"], [-0.5, 0.1, 0.8])
+    with pytest.raises(protocol.ProtocolError, match="unexpected fields"):
+        bad = {"look_at_m": [0, 0, 1], "yaw_rad": 0.1}
+        protocol.parse_command(protocol.decode_json(json.dumps(_command(head=bad))))
+
+
+@pytest.mark.mabel
+def test_head_follows_a_gaze_target(clear_env):
+    core = _core(clear_env, input_timeout_s=10.0)
+    operator = str(uuid.uuid4())
+    core.open_session(operator, "operator")
+    assert _event(core, operator, "engage", 1)["accepted"]
+    target_root = np.array([-0.6, -0.35, 0.85])  # ahead, to the robot's left, below eye level
+    for sequence in range(1, 151):
+        command = _arm_command(core, sequence, np.zeros(3))
+        command["arms"] = {"left": None, "right": None}
+        command["head"] = {"look_at": target_root}
+        core.submit_command(operator, command | {"session_id": operator})
+        core._tick_once(clear_env.dt)
+    model, data = clear_env.model, clear_env.data
+    camera = model.camera("zed_left").id
+    chassis = model.body("mabel_chassis").id
+    goal = data.xpos[chassis] + data.xmat[chassis].reshape(3, 3) @ target_root
+    forward = -data.cam_xmat[camera].reshape(3, 3)[:, 2]
+    direction = (goal - data.cam_xpos[camera]) / np.linalg.norm(goal - data.cam_xpos[camera])
+    # Measured camera axis (native physics), not the commanded angles.
+    assert np.degrees(np.arccos(np.clip(forward @ direction, -1, 1))) < 6
+    assert core._publish_status()["channels"]["head_mode"] == "gaze"

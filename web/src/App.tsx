@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { recentreHead } from "./input/headLook";
 import { installKeyboard } from "./input/keyboard";
 import { TeleopClient } from "./net/TeleopClient";
 import type { Role } from "./net/protocol";
@@ -156,9 +157,12 @@ export function App() {
             ui.cycleControl();
             return true;
           case "Home":
-            intent.head.yaw = 0;
-            intent.head.pitch = 0;
+            recentreHead();
             syncMirror();
+            return true;
+          case "KeyF":
+            ui.set({ headMode: "follow" });
+            ui.toast("info", "Head follows the hand");
             return true;
           case "KeyG": {
             if (ui.driveMode) return true;
