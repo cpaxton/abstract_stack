@@ -67,6 +67,18 @@ def test_front_reference_is_chosen_inside_the_carry_route_before_seating():
     assert script._front_reference_y() == canonical
 
 
+def test_edge_carton_uses_an_explicit_interior_handoff_without_changing_final_slot():
+    script = script_fixture(completed=False)
+    script.config = ScriptConfig(ungrasped_insertion=True, paired_finger_insertion=True)
+    script.env.config = SimpleNamespace(row_free_space=0.01, center_y=-0.12, width=0.51)
+    for canonical, staging in ((0.109090909, 0.06), (-0.349090909, -0.30)):
+        script.product.target = (-0.722, canonical, 0.92)
+        assert script._front_reference_y() == pytest.approx(staging)
+        assert script.product.target[1] == canonical
+        assert script._pusher_class().__name__ == "WallFingerPusher"
+        assert script._pushing_finger() == ("Pinky" if canonical > -0.12 else "Index")
+
+
 def test_native_continuation_sync_keeps_nominal_separate_from_applied():
     from abstract_stack.contact_execution import sync_tracking_state
 
@@ -209,5 +221,57 @@ def test_paired_native_tool_and_release_forecast_own_their_state(tmp_path):
             assert grasp.finger_targets(0.5)[name] == value
         assert not grasp.open_posture_overrides
         np.testing.assert_array_equal(integration_state(env.model, env.data), before)
+    finally:
+        env.close()
+
+
+@pytest.mark.mabel
+@pytest.mark.parametrize("finger", ["Index", "Pinky"])
+def test_wall_finger_posture_and_headroom_preserve_native_model(finger):
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.config import load_scene_config
+    from abstract_stack.contact_rollout import integration_state
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.finger_pusher import WallFingerPusher
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(load_scene_config(scene="pick_place"))
+    try:
+        before = integration_state(env.model, env.data)
+        ranges = env.model.jnt_range.copy()
+        hand = WallFingerPusher(
+            env.clone_for_planning(),
+            ScriptConfig(ungrasped_insertion=True),
+            finger=finger,
+            wrist_posture=0.2,
+        )
+        goals = hand.finger_targets(0)
+        assert goals[f"Left {finger} MCP"] == -0.2
+        assert goals[f"Left {finger} PIP"] == 0.0
+        for other in {"Index", "Middle", "Ring", "Pinky"} - {finger}:
+            assert goals[f"Left {other} MCP"] == goals[f"Left {other} PIP"] == 1.5
+        assert goals["Left Thumb MCP"] == 0.4
+        reference = hand.data.qpos.copy()
+        for name, value in goals.items():
+            reference[int(env.model.joint(name).qposadr[0])] = value
+        contacts = hand.ik._contacts(hand.ik.measured_q(), reference, None)
+        descendants = {hand.palm}
+        for body in range(hand.palm + 1, env.model.nbody):
+            if int(env.model.body_parentid[body]) in descendants:
+                descendants.add(body)
+        self_collisions = [
+            info
+            for pair, info in contacts.items()
+            if all(int(env.model.geom_bodyid[g]) in descendants for g in pair)
+            and info["distance_m"] < -0.002
+        ]
+        assert not self_collisions
+        assert np.isfinite(hand.OFFSET).all()
+        assert hand.ik.upper[hand.ik.names.index("Left Wrist")] <= 0.324
+        np.testing.assert_array_equal(integration_state(env.model, env.data), before)
+        np.testing.assert_array_equal(env.model.jnt_range, ranges)
     finally:
         env.close()

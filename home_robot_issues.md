@@ -64,6 +64,18 @@ project names, task descriptions, repository links, or private context.
 
 ## SIM-001 — Intermittent native MuJoCo signal during MABEL control
 
+- **2026-11-18 validation:** a frozen complete suite at `fcee9d0` reached
+  95% progress before signal 11 in native data construction for a primitive
+  contact-torque fixture. A later focused process failed while compiling the
+  existing side-pusher model fixture, before the new compensation controller
+  executed. Separate native skill checks subsequently passed 43 tests. These
+  passes do not replace either failure or establish a native cause. Exact
+  source/log records remain locally under
+  `outputs/adjacent-insertion-v1/validation-fcee9d0/` and
+  `native-validation-20261118/`. A saved-state development worker also exited
+  with -11 and no terminal summary; retain it as unknown. Probe launchers now
+  enable Python faulthandler for subsequent signals. Nothing was filed upstream.
+
 - **Import-only failures during checkpoint work:** separate capture and replay
   children segfaulted while importing the native `_specs` module, before any
   checkpoint model was loaded. Logs remain in

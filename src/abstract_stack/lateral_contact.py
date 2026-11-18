@@ -44,7 +44,18 @@ class LateralPushConfig:
 class SideFingerPusher(FingerPusher):
     """Rotate the native selected-finger posture so its tip points along +/-Y."""
 
-    def __init__(self, env, config, *, direction=-1, yaw_degrees=90, **kwargs):
+    def finger_targets(self, grip):
+        targets = super().finger_targets(grip)
+        for finger in ("Index", "Middle", "Ring", "Pinky"):
+            if finger != self.finger:
+                for joint in ("MCP", "PIP"):
+                    targets[f"Left {finger} {joint}"] = self.folded_flexion
+        return targets
+
+    def __init__(self, env, config, *, direction=-1, yaw_degrees=90, folded_flexion=1.0, **kwargs):
+        if not np.isfinite(folded_flexion) or not 1 <= folded_flexion <= 1.5:
+            raise ValueError("Folded side-pusher references must stay within 1–1.5 rad")
+        self.folded_flexion = float(folded_flexion)
         if direction not in (-1, 1):
             raise ValueError("Lateral direction must be -1 or +1")
         if not np.isfinite(yaw_degrees) or not 30 <= yaw_degrees <= 90:
@@ -59,6 +70,11 @@ class SideFingerPusher(FingerPusher):
         self.ROTATION = yaw @ self.ROTATION
         self.active_rotation = self.ROTATION.copy()
         self.direction = direction
+        if config.ungrasped_insertion:
+            index = self.ik.names.index("Left Wrist")
+            self.ik.constrain_reference_range(
+                "Left Wrist", self.ik.original_lower[index], self.ik.original_upper[index] - 0.35
+            )
         self.last_target = self.position().copy()
 
 
@@ -81,6 +97,8 @@ class LateralStockingScript(DenseStockingScript):
 
     def _cartesian_move(self, name, end, *, speed_m_s=0.025, allowed_object=None):
         """Execute a straight tool-space route with per-tick native-geometry checks."""
+        from abstract_stack.grasping import timed_joint_path
+
         self._stage(name)
         hand = self.controller
         start = hand.position().copy()
@@ -103,25 +121,46 @@ class LateralStockingScript(DenseStockingScript):
         event["ik_prediction"] = prediction.report()
         if not prediction.feasible:
             raise InteractionFailure(f"{name}: Cartesian route rejected before actuation")
+        if prediction.joint_path is None:
+            raise InteractionFailure(f"{name}: missing checked Cartesian waypoints")
+        rates = np.r_[np.full(len(hand.names), self.config.max_joint_speed), 0.08]
+        path, knots, minimum = timed_joint_path(prediction.joint_path, rates)
+        duration = max(duration, minimum * 1.05)
+        event.update(planned_duration_s=duration, retained_waypoints=len(path))
         for k in range(max(1, int(np.ceil(duration / self.env.dt)))):
             t = min(1.0, (k + 1) * self.env.dt / duration)
             blend = 10 * t**3 - 15 * t**4 + 6 * t**5
-            target = start + blend * (end - start)
-            prediction = hand.predict(
-                target, alternatives=False, carrying=False, allowed_object=allowed_object
-            )
-            if not prediction.feasible:
-                event["feedback_rejection"] = prediction.report()
-                raise InteractionFailure(f"{name}: Cartesian feedback route rejected")
-            hand.last_target = target.copy()
-            self._apply_tick(hand.joint_targets(prediction.q, 0))
+            q = np.array([np.interp(blend, knots, path[:, i]) for i in range(path.shape[1])])
+            collisions = hand.check_hand_step(replace(prediction, q=q), 0, allowed_object)
+            if collisions:
+                event["coupled_rejection"] = collisions
+                raise InteractionFailure(
+                    f"{name}: coupled Cartesian step rejected before actuation"
+                )
+            action = hand.joint_targets(q, 0)
+            hand.last_target = hand.ik.forward(hand.command, prediction.reference_qpos)[0]
+            self._apply_tick(action)
         error = float(np.linalg.norm(hand.position() - end))
         event.update(end_time=float(self.env.data.time), measured_tracking_error_m=error)
         if error > self.config.tracking_tolerance:
             raise InteractionFailure(f"{name}: measured Cartesian tracking error {error:.3f}m")
 
-    def push_laterally(self, *, direction, distance_m, settings=None):
+    def push_laterally(
+        self,
+        *,
+        direction,
+        distance_m,
+        settings=None,
+        yaw_candidates=(45, 30, 60, 90),
+        brace_wall=False,
+    ):
         settings = settings or LateralPushConfig()
+        if type(brace_wall) is not bool:
+            raise ValueError("Wall bracing must be explicit")
+        if not yaw_candidates or any(
+            not np.isfinite(yaw) or not 30 <= yaw <= 90 for yaw in yaw_candidates
+        ):
+            raise ValueError("Side approach yaw candidates must stay within 30–90 degrees")
         if direction not in (-1, 1) or not np.isfinite(distance_m):
             raise ValueError("Expected +/-1 direction and finite distance")
         if not 0 < distance_m <= settings.distance_limit_m:
@@ -149,7 +188,17 @@ class LateralStockingScript(DenseStockingScript):
         selected = None
         # Native model is shared read-only; every candidate owns independent MjData.
         started = time.monotonic()
-        for yaw, tilt, wrist in product((45, 30, 60, 90), (20, 30, 40), (0.2, 0.4, 0.0, 0.6)):
+        if self.config.ungrasped_insertion and self.config.base_reposition:
+            base_y = float(env.data.body("mabel_chassis").xpos[1])
+            dy = float(precontact[1] + 0.12 - base_y)
+            if abs(dy) > 0.03:
+                if abs(dy) > 0.25:
+                    raise InteractionFailure("lateral_plan: workspace shift exceeds bounded search")
+                self._move_base([0, dy], reason="lateral_contact_workspace")
+                self._stage("lateral_plan")
+                self.events[-1]["candidates"] = candidates
+        wrists = (0.2, 0.0) if self.config.ungrasped_insertion else (0.2, 0.4, 0.0, 0.6)
+        for yaw, tilt, wrist in product(yaw_candidates, (20, 30, 40), wrists):
             if time.monotonic() - started > 45:
                 break
             kwargs = dict(
@@ -158,8 +207,14 @@ class LateralStockingScript(DenseStockingScript):
                 finger="Middle",
                 tilt_degrees=tilt,
                 wrist_posture=wrist,
+                folded_flexion=1.5 if self.config.ungrasped_insertion else 1.0,
             )
-            hand = SideFingerPusher(env.clone_for_planning(), self.config, **kwargs)
+            hand_config = (
+                replace(self.config, ik_position_tolerance=0.002)
+                if self.config.ungrasped_insertion
+                else self.config
+            )
+            hand = SideFingerPusher(env.clone_for_planning(), hand_config, **kwargs)
             hand.command = self.controller.command.copy()
             raised = precontact + [0, 0, 0.14]
             candidate = {**kwargs, "waypoints_m": [raised.tolist(), precontact.tolist()]}
@@ -195,7 +250,13 @@ class LateralStockingScript(DenseStockingScript):
         self.events[-1]["planning_wall_seconds"] = time.monotonic() - started
         if selected is None:
             raise InteractionFailure("lateral_plan: no checked exposed-side approach; replan")
+        self.events[-1]["selected"] = selected
         self._change_hand(SideFingerPusher, **selected)
+        if self.config.ungrasped_insertion:
+            self.controller.config = replace(self.config, ik_position_tolerance=0.002)
+        self.events[-1]["controller_ik_position_tolerance_m"] = (
+            self.controller.config.ik_position_tolerance
+        )
         self._move(
             "lateral_orient_high",
             precontact + [0, 0, 0.14],
@@ -217,6 +278,9 @@ class LateralStockingScript(DenseStockingScript):
             forecast="robot/finger kinematics only; no lateral object dynamics certificate",
             settings=vars(settings),
             samples=[],
+            yaw_controller_goal_deg=0.15 if self.config.paired_finger_insertion else None,
+            x_reference_bound_m=0.015,
+            brace_wall=brace_wall,
         )
         held = 0.0
         had_push_contact = False
@@ -231,19 +295,46 @@ class LateralStockingScript(DenseStockingScript):
             velocity = settings.velocity(direction * force[1])
             # Stop forward pressure at the measured displacement; excessive
             # contact force still commands bounded unloading rather than windup.
-            if remaining <= settings.position_tolerance_m:
+            if remaining <= settings.position_tolerance_m and not brace_wall:
                 velocity = min(velocity, 0.0)
-            elif velocity > 0:
+            elif velocity > 0 and not brace_wall:
                 velocity = min(velocity, 1.5 * remaining)
             target[1] += direction * velocity * env.dt
+            wall_normal = self.carton_wall_forces.get(env.model.body(self.product.name).id, 0.0)
+            if brace_wall and wall_normal >= self.config.contact_threshold:
+                # Let the wall supply the opposing squaring contact; unload
+                # measured hand yaw moment instead of dragging a free box.
+                moment = self.last_forces.get("hand_moment_about_body_origin_Nm", [0, 0, 0])[2]
+                vx = -direction * 0.10 * moment + 0.10 * (start_body[0] - body.xpos[0])
+                target[0] += np.clip(vx * env.dt, -0.003 * env.dt, 0.003 * env.dt)
+                target[0] = np.clip(target[0], origin[0] - 0.015, origin[0] + 0.015)
+                event.setdefault("wall_moment_feedback_samples", []).append(
+                    [float(env.data.time), wall_normal, moment, float(target[0])]
+                )
+            if self.config.paired_finger_insertion and not brace_wall:
+                matrix = body.xmat.reshape(3, 3)
+                yaw = float(np.arctan2(matrix[1, 0], matrix[0, 0]))
+                lever = float(
+                    np.clip(-direction * self.config.insertion_yaw_lever_gain * yaw, -0.006, 0.006)
+                )
+                contact = self.last_forces.get("hand_contact_position_world_m")
+                measured_x = contact[0] if contact is not None else self.controller.position()[0]
+                vx = (
+                    2 * (body.xpos[0] + lever - measured_x)
+                    + (start_body[0] - body.xpos[0])
+                    - 0.004 * force[0]
+                )
+                target[0] += np.clip(vx * env.dt, -0.005 * env.dt, 0.005 * env.dt)
+                target[0] = np.clip(target[0], origin[0] - 0.015, origin[0] + 0.015)
             target[2] += np.clip(-0.012 * force[2] * env.dt, -0.005 * env.dt, 0.005 * env.dt)
             # Final bounds follow every force/height correction.
             if (
                 abs(target[1] - origin[1]) > distance_m + 0.025
+                or abs(target[0] - origin[0]) > 0.015 + 1e-12
                 or not height - 0.005 <= target[2] <= height + 0.025
             ):
                 raise InteractionFailure("lateral_push: final corrected reference bound")
-            prediction = self.controller.predict(
+            prediction = self._contact_prediction(
                 target,
                 allowed_object=self.product.name,
                 alternatives=False,
@@ -252,6 +343,14 @@ class LateralStockingScript(DenseStockingScript):
             if not prediction.feasible:
                 event["feedback_rejection"] = prediction.report()
                 raise InteractionFailure("lateral_push: checked feedback path rejected; replan")
+            if self.config.ungrasped_insertion:
+                target = prediction.position.copy()
+                if (
+                    abs(target[1] - origin[1]) > distance_m + 0.025
+                    or abs(target[0] - origin[0]) > 0.015 + 1e-12
+                    or not height - 0.005 <= target[2] <= height + 0.025
+                ):
+                    raise InteractionFailure("lateral_push: projected reference outside bounds")
             self.controller.last_target = target.copy()
             self._apply_tick(self.controller.joint_targets(prediction.q, 0))
             measured_force = self.last_forces.get("hand_force_world_N", [0, 0, 0])
@@ -277,6 +376,16 @@ class LateralStockingScript(DenseStockingScript):
                 and self.last_forces["shelf"] > 0.2
                 and upright
             )
+            if brace_wall:
+                event["last_carton_wall_normal_N"] = wall_normal
+                verified = verified and wall_normal >= self.config.contact_threshold
+                if remaining < -0.002:
+                    raise InteractionFailure("lateral_push: wall registration displacement guard")
+            if self.config.paired_finger_insertion:
+                matrix = body.xmat.reshape(3, 3)
+                verified = verified and abs(np.arctan2(matrix[1, 0], matrix[0, 0])) <= np.radians(
+                    0.15
+                )
             held = held + env.dt if verified else 0.0
             if held >= settings.contact_dwell_s:
                 event.update(

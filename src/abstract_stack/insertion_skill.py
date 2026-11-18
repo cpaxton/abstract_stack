@@ -17,8 +17,13 @@ class SelectedFingerInsertion:
     FORWARD_UNLOAD_DOWNFORCE_N = 0.6
 
     def _pusher_class(self):
-        from abstract_stack.finger_pusher import FingerPusher, PairedFingerPusher
+        from abstract_stack.finger_pusher import FingerPusher, PairedFingerPusher, WallFingerPusher
 
+        if (
+            self.config.paired_finger_insertion
+            and self._wall_front_staging_y() != self.product.target[1]
+        ):
+            return WallFingerPusher
         return (
             PairedFingerPusher
             if self.config.paired_finger_insertion
@@ -32,6 +37,7 @@ class SelectedFingerInsertion:
         self.wrist_load_last_requested = 0.0
         self.wrist_load_clipped = 0
         self.carton_wall_peak = 0.0
+        self.carton_wall_forces = {}
         self._carton_wall_geoms = {self.env.model.geom(f"shelf_side_{side}").id for side in (-1, 1)}
 
     def _restore_grasp_hand(self):
@@ -102,6 +108,7 @@ class SelectedFingerInsertion:
             else:
                 key = b1 if b1 in self.product_bodies else b2
                 walls[key] = walls.get(key, 0.0) + max(0.0, float(force[0]))
+        self.carton_wall_forces = dict(walls)
         if walls:
             self.carton_wall_peak = max(self.carton_wall_peak, max(walls.values()))
             if max(walls.values()) > self.config.max_force:
@@ -133,6 +140,7 @@ class SelectedFingerInsertion:
 
         previous = self.controller
         self.controller = kind(self.env, self.config, **kwargs)
+        self.controller.tool_parameters = dict(kwargs)
         if not issubclass(kind, FingerPusher):
             self._configure_payload_hand(self.controller)
         # ctrl contains compensation; carry NOMINAL references across tool
@@ -167,9 +175,15 @@ class SelectedFingerInsertion:
             pushing_fingers=list(
                 getattr(self.controller, "fingers", (getattr(self.controller, "finger", None),))
             ),
+            tool_parameters=dict(kwargs),
         )
 
     def _pushing_finger(self):
+        if (
+            self.config.paired_finger_insertion
+            and self._wall_front_staging_y() != self.product.target[1]
+        ):
+            return "Pinky" if self.product.target[1] > self._wall_front_staging_y() else "Index"
         row = sorted(self.env.products, key=lambda p: p.target[1])
         if self.product == row[0]:
             return "Index"
@@ -183,7 +197,7 @@ class SelectedFingerInsertion:
     def _pusher_settings(self):
         for finger in self._pushing_finger_candidates():
             for tilt in (20, 30, 10, 40):
-                for wrist in (0.2, 0.4, 0.0, 0.6):
+                for wrist in getattr(self._pusher_class(), "WRISTS", (0.2, 0.4, 0.0, 0.6)):
                     yield dict(finger=finger, tilt_degrees=tilt, wrist_posture=wrist)
 
     def _release_and_insert_front(self, grip):
@@ -200,7 +214,71 @@ class SelectedFingerInsertion:
                 orientation_alternatives=False,
             )
         self._move("staging_clear", retreat + [0.12, 0, 0.02], orientation_alternatives=False)
+        if self._wall_front_staging_y() != self.product.target[1]:
+            self._register_front_laterally()
+        self._stage("front_registered")
         self._insert_from_front()
+
+    def _wall_front_staging_y(self):
+        """Leave room to unload a wrapping grasp before moving an edge carton."""
+        if not self.config.paired_finger_insertion:
+            return self.product.target[1]
+        env, product = self.env, self.product
+        margin = product.half_size[1] + 0.05
+        lower = env.config.center_y - env.config.width / 2 + margin
+        upper = env.config.center_y + env.config.width / 2 - margin
+        if lower > upper:
+            raise ValueError("Shelf has no wrapping-hand front staging corridor")
+        return float(np.clip(product.target[1], lower, upper))
+
+    @property
+    def lateral_goal_y(self):
+        staging = self._wall_front_staging_y()
+        canonical = self.product.target[1]
+        if staging == canonical:
+            return float(canonical)
+        direction = 1 if canonical > staging else -1
+        return float(
+            self.env.config.center_y
+            + direction * (self.env.config.width / 2 - self.product.half_size[1])
+        )
+
+    def _cartesian_move(self, *args, **kwargs):
+        # Reuse the existing native exposed-side skill without duplicating its
+        # coupled path admission or actuator execution. Import after class setup.
+        from abstract_stack.lateral_contact import LateralStockingScript
+
+        return LateralStockingScript._cartesian_move(self, *args, **kwargs)
+
+    def _register_front_laterally(self):
+        from abstract_stack.interactions import InteractionFailure
+        from abstract_stack.lateral_contact import LateralPushConfig, LateralStockingScript
+
+        registration_y = self.lateral_goal_y
+        for _ in range(2):
+            error = float(registration_y - self.env.data.body(self.product.name).xpos[1])
+            if abs(error) <= 0.0005:
+                break
+            LateralStockingScript.push_laterally(
+                self,
+                direction=1 if error > 0 else -1,
+                distance_m=min(abs(error), 0.05),
+                settings=LateralPushConfig(
+                    speed_m_s=0.015,
+                    force_target_N=2.5,
+                    timeout_s=30,
+                    distance_limit_m=0.05,
+                    position_tolerance_m=0.0005,
+                ),
+                yaw_candidates=(90, 60, 45, 30),
+                brace_wall=True,
+            )
+        error = float(registration_y - self.env.data.body(self.product.name).xpos[1])
+        if abs(error) > 0.0005:
+            raise InteractionFailure("front_lateral: bounded registration needs replanning")
+        goal = self.controller.last_target.copy()
+        goal[0] = max(goal[0], self.env.config.front_x + 0.08)
+        self._cartesian_move("lateral_front_exit", goal)
 
     def _front_reference_y(self):
         """Choose the handoff corridor before seating, preserving task targets."""
@@ -208,6 +286,13 @@ class SelectedFingerInsertion:
         if not self.config.ungrasped_insertion:
             return product.target[1]
         from abstract_stack.interactions import InteractionFailure
+
+        staging = self._wall_front_staging_y()
+        if staging != product.target[1]:
+            # Previous stocks occupy the back of the board. This explicit
+            # front-only intermediate goal is followed by a measured side push;
+            # the task's canonical final target is never changed.
+            return staging
 
         lower_y, upper_y = product.target[1] - 0.02, product.target[1] + 0.02
         clearance_m = self.config.adjacent_release_clearance_m
@@ -789,7 +874,7 @@ class SelectedFingerInsertion:
         hand = self.controller
         attempt = dict(sim_time=float(self.env.data.time), candidates=[])
         event.setdefault("limited_progress_replans", []).append(attempt)
-        for wrist in (0.0, 0.4, 0.6, 0.2):
+        for wrist in getattr(type(hand), "WRISTS", (0.0, 0.4, 0.6, 0.2)):
             clone = type(hand)(
                 self.env.clone_for_planning(),
                 self.config,
@@ -845,6 +930,36 @@ class SelectedFingerInsertion:
         attempt["decision"] = "no_checked_wrist_continuation"
         return False
 
+    def _settle_pusher_preshape(self):
+        """Unfold selected fingers in free space before admitting approach."""
+        from abstract_stack.interactions import InteractionFailure
+
+        hand = self.controller
+        self._stage("pusher_preshape")
+        event = self.events[-1]
+        event.update(maximum_seconds=4.5, joint_error_goal_rad=0.03, velocity_goal_rad_s=0.1)
+        nominal = hand.command.copy()
+        held = 0.0
+        for _ in range(int(4.5 / self.env.dt)):
+            self._apply_tick(hand.joint_targets(nominal, 0))
+            goals = hand.finger_targets(0)
+            errors, velocities = [], []
+            for name, value in goals.items():
+                joint = self.env.model.joint(name)
+                errors.append(abs(float(self.env.data.qpos[int(joint.qposadr[0])]) - value))
+                velocities.append(abs(float(self.env.data.qvel[int(joint.dofadr[0])])))
+            if self.last_forces["robot_product"] > 0.2:
+                raise InteractionFailure("pusher_preshape: unexpected product contact")
+            ready = max(errors) <= 0.03 and max(velocities) <= 0.1
+            held = held + self.env.dt if ready else 0.0
+            event.update(
+                maximum_joint_error_rad=max(errors), maximum_joint_velocity_rad_s=max(velocities)
+            )
+            if held >= 0.1:
+                event["measured_preshape_verified"] = True
+                return
+        raise InteractionFailure("pusher_preshape: measured native hand did not settle")
+
     def _insert_from_front(self, *, partial_stop_x=None):
         from abstract_stack.interactions import InteractionFailure
 
@@ -872,6 +987,8 @@ class SelectedFingerInsertion:
         settings, waypoints = self._plan_pusher(precontact, end)
         self._change_hand(self._pusher_class(), **settings)
         hand = self.controller
+        if self.config.ungrasped_insertion:
+            self._settle_pusher_preshape()
         for point in waypoints:
             self._move("pusher_approach", point, carrying=False, orientation_alternatives=False)
         self._stage("finger_push")
@@ -926,6 +1043,7 @@ class SelectedFingerInsertion:
             else "measured single-finger contact center"
         )
         yaw_integral_lever = 0.0
+        lateral_integral = 0.0
         object_velocity = np.zeros(6)
         limited_seconds = 0.0
         last_limit_replan = -np.inf
@@ -1031,16 +1149,26 @@ class SelectedFingerInsertion:
                 event["backstop_alignment_uses_yaw_priority"] = True
             lateral_speed = (
                 2 * (desired_y - measured_y)
-                + position_gain * (product.target[1] - body.xpos[1])
+                + position_gain * (self.lateral_goal_y - body.xpos[1])
                 - config.insertion_tangent_admittance * force_y
             )
+            if paired:
+                lateral_integral = float(
+                    np.clip(
+                        lateral_integral + 2 * (self.lateral_goal_y - body.xpos[1]) * env.dt,
+                        -0.006,
+                        0.006,
+                    )
+                )
+                lateral_speed += 2 * lateral_integral
+                event["lateral_integral_reference_bias_m"] = lateral_integral
             target[1] += np.clip(lateral_speed * env.dt, -0.01 * env.dt, 0.01 * env.dt)
             if paired:
                 # A two-pad face squares by its plane. Chasing its instantaneous
                 # center of pressure overhangs the carton when one pad unloads.
                 # Keep the physical tool centered; canonical registration still
                 # acts through the bounded lateral velocity above.
-                target[1] = np.clip(target[1], body.xpos[1] - 0.002, body.xpos[1] + 0.002)
+                target[1] = np.clip(target[1], body.xpos[1] - 0.006, body.xpos[1] + 0.006)
             measured_height = contact[2] if contact is not None else hand.position()[2]
             force_z = self.last_forces.get("hand_force_world_N", [0, 0, 0])[2]
             vertical_speed = -0.012 * force_z + 0.2 * (height - measured_height)
@@ -1107,7 +1235,7 @@ class SelectedFingerInsertion:
                     "candidates": [],
                 }
                 event.setdefault("posture_replans", []).append(attempt)
-                for wrist in (0.2, 0.4, 0.0, 0.6):
+                for wrist in getattr(type(hand), "WRISTS", (0.2, 0.4, 0.0, 0.6)):
                     if wrist == original:
                         continue
                     hand.ik.constrain_posture("Left Wrist", wrist)

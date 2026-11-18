@@ -88,6 +88,49 @@ def test_tiny_displacement_cannot_pass_without_a_meaningful_motion():
 
 
 @pytest.mark.mabel
+def test_selected_finger_compensation_is_bounded_and_does_not_edit_native_state():
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0, product_count=3, initially_stocked=2))
+    try:
+        before_qpos, before_ctrl = env.data.qpos.copy(), env.data.ctrl.copy()
+        ranges, gains = env.model.jnt_range.copy(), env.model.actuator_gainprm.copy()
+        hand = SideFingerPusher(
+            env.clone_for_planning(),
+            ScriptConfig(ungrasped_insertion=True),
+            direction=1,
+            wrist_posture=0.2,
+            folded_flexion=1.5,
+        )
+        tracker = hand.finger_load_compensation
+        initial = before_ctrl.copy()
+        targets, report = tracker.propose(initial, env.products[-1].name)
+        for name, state in tracker.joints.items():
+            detail = report["joints"][name]
+            assert abs(detail["requested_feedforward_offset_rad"]) <= 0.15
+            assert abs(detail["bounded_holding_Nm"]) <= 0.15
+            assert (
+                abs(targets[state["actuator"]] - initial[state["actuator"]]) <= 0.5 * env.dt + 1e-12
+            )
+            assert state["lower"] <= targets[state["actuator"]] <= state["upper"]
+            assert state["previous"] == initial[state["actuator"]]
+        tracker.acknowledge(targets)
+        assert all(
+            state["previous"] == targets[state["actuator"]] for state in tracker.joints.values()
+        )
+        np.testing.assert_array_equal(env.data.qpos, before_qpos)
+        np.testing.assert_array_equal(env.data.ctrl, before_ctrl)
+        np.testing.assert_array_equal(initial, before_ctrl)
+        np.testing.assert_array_equal(env.model.jnt_range, ranges)
+        np.testing.assert_array_equal(env.model.actuator_gainprm, gains)
+        assert hand.ik.upper[hand.ik.names.index("Left Wrist")] <= 0.324
+    finally:
+        env.close()
+
+
+@pytest.mark.mabel
 def test_cartesian_route_rejection_never_commands_native_robot(tmp_path):
     try:
         mabel_model_path()

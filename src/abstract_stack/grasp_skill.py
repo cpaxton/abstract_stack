@@ -214,6 +214,80 @@ def plan_pregrasp_route(script, target, rotation):
     raise InteractionFailure("pregrasp_route: no checked empty-hand route around shelf fixtures")
 
 
+def navigate_to_inventory(script, pending, *, pregrasp=None, rotation=None):
+    """Bounded empty-base search when the inventory leaves the arm workspace."""
+    from abstract_stack.navigation import BaseNavigationSpace, plan_base_path
+
+    env = script.env
+    base = env.data.body("mabel_chassis").xpos[:2].copy()
+    script._move("empty_navigation_clear", [base[0] - 0.25, base[1] - 0.20, 1.35])
+    base = env.data.body("mabel_chassis").xpos[:2].copy()
+    script._stage("inventory_base_search")
+    event = script.events[-1]
+    event.update(candidates=[], wall_budget_seconds=15.0)
+    right = env.config.table_xy[0] + env.config.table_size[0] / 2
+    started = time.monotonic()
+    for product in sorted(
+        pending, key=lambda p: np.linalg.norm(env.data.body(p.name).xpos[:2] - base)
+    ):
+        body = env.data.body(product.name)
+        try:
+            grasp_rotation = (
+                object_aligned_rotation(body.xmat.reshape(3, 3), script.controller.ROTATION)[0]
+                if rotation is None
+                else rotation
+            )
+        except ValueError:
+            continue
+        target = (
+            body.xpos + [0, 0, product.half_size[2] / 3 + script.config.pregrasp_height]
+            if pregrasp is None
+            else pregrasp
+        )
+        for dy in (0.30, 0.40, 0.50):
+            for extra in (0.02, 0.06, 0.10):
+                if time.monotonic() - started > 15:
+                    event["decision"] = "bounded_inventory_search_exhausted"
+                    return False
+                goal = np.array(
+                    [
+                        right + BaseNavigationSpace.FOOTPRINT_RADIUS_M + 0.03 + extra,
+                        body.xpos[1] + dy,
+                    ]
+                )
+                shift = goal - base
+                route = plan_base_path(env, base, goal)
+                row = dict(
+                    product=product.name, goal_xy_m=goal.tolist(), navigable=route is not None
+                )
+                event["candidates"].append(row)
+                if route is None:
+                    continue
+                reachable = empty_reachable(
+                    env,
+                    script.controller,
+                    script.config,
+                    target,
+                    base_xy=shift,
+                    alternatives=False,
+                    active_rotation=grasp_rotation,
+                    path_mode="cartesian",
+                )
+                row["pregrasp_endpoint_reachable"] = reachable
+                if not reachable:
+                    continue
+                script.product = product
+                event.update(
+                    decision="guarded_empty_navigation_then_fresh_grasp_selection",
+                    selected_goal_xy_m=goal.tolist(),
+                    wall_seconds=time.monotonic() - started,
+                )
+                script._move_base(shift, reason="inventory_grasp_workspace")
+                return True
+    event.update(decision="no_checked_inventory_base_pose", wall_seconds=time.monotonic() - started)
+    return False
+
+
 class GraspSkillProbe(StockingScript):
     """Pick one declared carton in the original inventory, without stocking credit."""
 

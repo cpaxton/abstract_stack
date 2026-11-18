@@ -58,6 +58,22 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
         else "explicit total hand preload target"
     )
     paired = bool(getattr(hand, "fingers", ()))
+    registration_required = config.paired_finger_insertion and env.config.row_free_space is not None
+    row_count = sum(p.level == script.product.level for p in env.products)
+    lateral_tolerance = (
+        min(0.0005, env.config.row_free_space / (row_count + 1) / 4)
+        if registration_required
+        else None
+    )
+    lateral_reference = float(getattr(script, "lateral_goal_y", script.product.target[1]))
+    event.update(
+        controller_lateral_goal_world_y_m=lateral_reference,
+        controller_lateral_goal_tolerance_m=lateral_tolerance,
+    )
+    initial_error = lateral_reference - float(data.xpos[monitor.active, 1])
+    lateral_bias = float(
+        np.clip(hand.position()[1] - data.xpos[monitor.active, 1] - initial_error, -0.006, 0.006)
+    )
     plane = hand.active_rotation @ hand.ROTATION.T
     plane_bias = float(np.clip(np.arctan2(plane[1, 0], plane[0, 0]), -np.radians(3), np.radians(3)))
     event["lateral_feedback_reference"] = (
@@ -95,7 +111,9 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
         if paired:
             integral = 0.0
             center = float(data.xpos[monitor.active, 1])
-            goal = float(np.clip(script.product.target[1], center - 0.002, center + 0.002))
+            error_y = lateral_reference - center
+            lateral_bias = float(np.clip(lateral_bias + 2 * error_y * 0.2, -0.006, 0.006))
+            goal = float(np.clip(center + error_y + lateral_bias, center - 0.006, center + 0.006))
             goal = float(np.clip(goal, lower[1], upper[1]))
             measured = float(hand.position()[1])
             # A two-pad pusher controls yaw with its contact plane, not by
@@ -109,6 +127,15 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             c, s = np.cos(plane_bias), np.sin(plane_bias)
             hand.active_rotation = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]) @ hand.ROTATION
         nominal = hand.command.copy()
+        finger_goals = None
+        finger_report = None
+        finger_tracker = getattr(hand, "finger_load_compensation", None)
+        if finger_tracker is not None:
+            finger_controls, finger_report = finger_tracker.propose(data.ctrl, script.product.name)
+            finger_goals = {
+                name: float(finger_controls[state["actuator"]])
+                for name, state in finger_tracker.joints.items()
+            }
         candidates, generation, rates = generate_push_candidates(
             hand,
             script.product.name,
@@ -123,12 +150,19 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             lateral_goal_m=goal,
             lateral_measurement_m=measured,
             project_reference_bounds=True,
+            finger_control_targets=finger_goals,
         )
         if normal_target_N is not None and monitor.last.get("hand_N", 0) > 1.3 * force_goal:
             candidates = [c for c in candidates if c["name"] != "held_native_targets"]
             generation["held_baseline_filtered_for_preload_taper"] = True
         if not candidates:
             raise InteractionFailure("contact_refine: no checked preload-taper candidate")
+        lateral_error = lateral_reference - float(data.xpos[monitor.active, 1])
+        objective = "square_backstop"
+        if monitor.last.get("back_N", 0) < config.contact_threshold:
+            objective = "advance"
+        elif paired and registration_required and abs(lateral_error) > lateral_tolerance:
+            objective = "lateral_left" if lateral_error < 0 else "lateral_right"
         evaluated = evaluate_screened_batch(
             model,
             expected,
@@ -137,11 +171,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             rates=rates,
             workers=4,
             shortlist=min(4, len(candidates)),
-            objective=(
-                "square_backstop"
-                if monitor.last.get("back_N", 0) >= config.contact_threshold
-                else "advance"
-            ),
+            objective=objective,
             yaw_target_rad=float(np.radians(yaw_target_deg)),
         )
         event["decisions"].append(
@@ -152,6 +182,9 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
                 yaw_integral_lever_m=integral,
                 measured_support_reaction_estimate_N=reaction,
                 effective_hand_normal_target_N=hand_force_goal,
+                selected_finger_tracking=finger_report,
+                measured_lateral_error_m=lateral_error,
+                lateral_integral_reference_bias_m=lateral_bias,
                 paired_plane_reference_bias_deg=float(np.degrees(plane_bias)) if paired else None,
             )
         )
@@ -190,12 +223,22 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
                 dwell.verified
                 and force_ready
                 and abs(yaw - yaw_target_deg) <= config.pre_release_yaw_goal_deg
+                and (
+                    not registration_required
+                    or abs(lateral_reference - data.xpos[monitor.active, 1]) <= lateral_tolerance
+                )
             ):
                 event.update(native_dwell=dwell.report(), verified_pre_release_goal=True)
                 return
     event["native_dwell"] = dwell.report()
-    if dwell.verified and (
-        normal_target_N is None or monitor.last.get("hand_N", 0) <= 1.3 * force_goal
+    if (
+        dwell.verified
+        and (
+            not registration_required
+            or abs(lateral_reference - data.xpos[monitor.active, 1])
+            <= max(0.001, 4 * lateral_tolerance)
+        )
+        and (normal_target_N is None or monitor.last.get("hand_N", 0) <= 1.3 * force_goal)
     ):
         # The tighter controller reference is not the contact success gate.
         # A bounded square staging result may proceed only to a complete

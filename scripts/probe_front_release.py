@@ -32,7 +32,13 @@ def worker(args):
     checkpoint = load_checkpoint(path)
     state = checkpoint.controller
     if state["kind"] != "stocking_skill_entry" or checkpoint.context["skill_entry"]["skill"] != (
-        "release_retreat" if args.withdrawal else "transfer" if args.transfer else "front_release"
+        "front_insertion"
+        if args.insert_only
+        else "release_retreat"
+        if args.withdrawal
+        else "transfer"
+        if args.transfer
+        else "front_release"
     ):
         raise ValueError("Require the matching recorded front-release or withdrawal skill entry")
     env = CheckpointContinuationEnv(checkpoint)
@@ -46,7 +52,10 @@ def worker(args):
         if hashlib.sha256(source.read_bytes()).hexdigest() != controller["sha256"]:
             raise ValueError("Frozen probe controller input changed")
         settings.update(load_control_config(source))
-    settings.update(record_skill_starts=False, continuous_finger_opening=not args.legacy_opening)
+    settings.update(
+        record_skill_starts=args.record_skill_starts,
+        continuous_finger_opening=not args.legacy_opening,
+    )
     if args.paired_fingers:
         settings["paired_finger_insertion"] = True
     if args.back_force_target is not None:
@@ -59,18 +68,31 @@ def worker(args):
     script.product = next(
         p for p in env.products if p.name == checkpoint.context["skill_entry"]["active_product"]
     )
-    if args.withdrawal:
-        from abstract_stack.finger_pusher import FingerPusher, PairedFingerPusher
+    if args.record_skill_starts:
+        scene = copy.deepcopy(checkpoint.scene)
+        scene["continuation"] = dict(checkpoint=str(path), fresh_task_credit=0)
+        initial = script.directory / "initial-scene"
+        initial.mkdir()
+        write(initial / "manifest.json", scene)
+    if args.withdrawal or args.insert_only and state.get("tool_class") != "CartesianHand":
+        from abstract_stack.finger_pusher import FingerPusher, PairedFingerPusher, WallFingerPusher
+        from abstract_stack.lateral_contact import SideFingerPusher
 
-        if state.get("tool_class") not in ("FingerPusher", "PairedFingerPusher"):
+        kinds = {
+            kind.__name__: kind
+            for kind in (FingerPusher, PairedFingerPusher, WallFingerPusher, SideFingerPusher)
+        }
+        if state.get("tool_class") not in kinds:
             raise ValueError("Withdrawal continuation requires an explicitly recorded FingerPusher")
-        selected = next(
+        selected = state.get("tool_parameters") or next(
             e["selected"]
             for e in reversed(checkpoint.context["prior_events"])
             if e["phase"] == "pusher_plan" and e.get("selected")
         )
-        kind = PairedFingerPusher if state["tool_class"] == "PairedFingerPusher" else FingerPusher
-        script.controller = kind(env, script.config, **selected)
+        kind = kinds[state["tool_class"]]
+        tool_settings = dict(state.get("tool_settings", state["settings"]))
+        tool_settings.update({k: v for k, v in settings.items() if state["settings"].get(k) != v})
+        script.controller = kind(env, ScriptConfig(**tool_settings), **selected)
         # Passive distal joints can settle after the original calibration.
         # Restore the recorded tool reference, not a newly calibrated frame.
         offset = np.asarray(state["tool_offset_m"], dtype=float)
@@ -83,6 +105,13 @@ def worker(args):
         for name, value in state["tool_posture_constraints"].items():
             script.controller.ik.constrain_posture(name, value)
     hand = script.controller
+    finger_tracker = getattr(hand, "finger_load_compensation", None)
+    if finger_tracker is not None:
+        for name, value in state.get("finger_compensation_applied", {}).items():
+            aid = finger_tracker.joints[name]["actuator"]
+            if value != float(env.data.ctrl[aid]):
+                raise ValueError("Saved finger compensation differs from native applied control")
+            finger_tracker.joints[name]["previous"] = value
     if "open_posture_overrides" in state:
         hand.open_posture_overrides = dict(state["open_posture_overrides"])
     if "abduction_targets" in state:
@@ -106,6 +135,14 @@ def worker(args):
         env.model, env.data, tracking, nominal_references=state["nominal_subset"]
     )
     script.active_grip = state["active_grip"]
+    if state.get("base_translation_origin_xy_m") is not None:
+        script._base_translation_origin = np.asarray(state["base_translation_origin_xy_m"])
+    if "wrist_load_state_Nm" in state:
+        if not np.isfinite(state["wrist_load_state_Nm"]) or abs(state["wrist_load_state_Nm"]) > 0.3:
+            raise ValueError(
+                "Saved wrist holding state exceeds the native-controller effort budget"
+            )
+        script.wrist_load = float(state["wrist_load_state_Nm"])
     script.carry_reference = (
         np.asarray(state["carry_reference"])
         if args.transfer and state["carry_reference"] is not None
@@ -127,7 +164,11 @@ def worker(args):
     initial = native_state(env.model, env.data)
     failure = None
     try:
-        if args.transfer:
+        if args.insert_only:
+            if state["active_grip"] is not None or state["carry_reference"] is not None:
+                raise ValueError("Insertion-only continuation requires a released carton")
+            script._insert_from_front()
+        elif args.transfer:
             if script.carry_reference is None or script.active_grip is None:
                 raise ValueError("Transfer continuation requires a recorded retained grasp")
             if args.base_dy:
@@ -140,6 +181,13 @@ def worker(args):
             from abstract_stack.contact_execution import squared_contact_retreat
 
             squared_contact_retreat(script, {})
+            if args.base_goal is not None:
+                script._restore_grasp_hand()
+                base = env.data.body("mabel_chassis").xpos[:2].copy()
+                script._move("empty_navigation_clear", [base[0] - 0.25, base[1] - 0.20, 1.35])
+                script._move_base(
+                    np.asarray(args.base_goal) - base, reason="inventory_grasp_workspace"
+                )
         elif args.insert:
             script._release_and_insert_front(state["active_grip"])
         else:
@@ -160,6 +208,7 @@ def worker(args):
             if args.transfer
             else "supported_front_release_continuation",
             fresh_task_credit=0,
+            base_navigation_goal_m=args.base_goal,
             task_success=False,
             failure=failure,
             reference_initialization=initialization,
@@ -193,9 +242,12 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--legacy-opening", action="store_true")
     parser.add_argument("--insert", action="store_true")
+    parser.add_argument("--insert-only", action="store_true")
+    parser.add_argument("--record-skill-starts", action="store_true")
     parser.add_argument("--withdrawal", action="store_true")
     parser.add_argument("--transfer", action="store_true")
     parser.add_argument("--base-dy", type=float, default=0)
+    parser.add_argument("--base-goal", type=float, nargs=2)
     parser.add_argument("--wall-seconds", type=float, default=90)
     parser.add_argument("--paired-fingers", action="store_true")
     parser.add_argument("--back-force-target", type=float)
@@ -206,10 +258,16 @@ def main():
     args = parser.parse_args()
     if not 0 < args.wall_seconds <= 180:
         parser.error("Keep skill continuations within 180 wall seconds")
-    if sum([args.withdrawal, args.insert, args.transfer]) > 1:
+    if sum([args.withdrawal, args.insert, args.transfer, args.insert_only]) > 1:
         parser.error("Choose front insertion, transfer or withdrawal continuation")
     if not -0.15 <= args.base_dy <= 0.15 or (args.base_dy and not args.transfer):
         parser.error("Loaded base probes need --transfer and at most 15 cm translation")
+    if args.base_goal is not None and (
+        not args.withdrawal
+        or not -1.2 <= args.base_goal[0] <= 0.6
+        or not -1 <= args.base_goal[1] <= 0.6
+    ):
+        parser.error("Empty base goals require --withdrawal and a finite workspace XY pair")
     if args.wrist_offset is not None and not 0.1 <= args.wrist_offset <= 0.5:
         parser.error("Wrist offset search is bounded to .1–.5 rad")
     if args.back_force_target is not None and not 0 < args.back_force_target <= 3:
@@ -268,10 +326,16 @@ def main():
         command.append("--paired-fingers")
     if args.insert:
         command.append("--insert")
+    if args.insert_only:
+        command.append("--insert-only")
+    if args.record_skill_starts:
+        command.append("--record-skill-starts")
     if args.withdrawal:
         command.append("--withdrawal")
     if args.transfer:
         command += ["--transfer", "--base-dy", str(args.base_dy)]
+    if args.base_goal is not None:
+        command += ["--base-goal", *(str(value) for value in args.base_goal)]
     if args.back_force_target is not None:
         command += ["--back-force-target", str(args.back_force_target)]
     if args.alignment_seconds is not None:
@@ -288,6 +352,7 @@ def main():
             os.environ,
             PYTHONPATH=str(frozen.runtime_root / "src"),
             PYTHONDONTWRITEBYTECODE="1",
+            PYTHONFAULTHANDLER="1",
             ABSTRACT_STACK_SOURCE_REFERENCE=str(args.output / "source_ref.json"),
         ),
         log=args.output / "run.log",

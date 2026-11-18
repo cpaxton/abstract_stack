@@ -1,5 +1,9 @@
 # Stocking workflows and experiment index
 
+Current whole-shelf work: [ten-carton development](reports/whole_shelf_development.md)
+tracks edge-slot bracing, native finger compensation and retained fresh/continued
+outcomes. Saved-state skill successes remain separate from fresh full-shelf credit.
+
 Latest: [adjacent insertion toward a complete shelf](reports/adjacent_insertion_development.md)
 integrates the released selected-finger skill into ordinary stocking. A fresh
 tight three-carton episode completes all stages; four/ten-carton development

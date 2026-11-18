@@ -83,8 +83,9 @@ def generate_push_candidates(
     lateral_goal_m=None,
     lateral_measurement_m=None,
     project_reference_bounds=False,
+    finger_control_targets=None,
 ):
-    """Generate checked arm/lift trajectories with held native finger commands.
+    """Generate checked arm/lift paths with held or explicitly bounded fingers.
 
     Caller supplies an independent planning hand and known uncompensated nominal
     references. Applied servo offsets are frozen from the initial native state,
@@ -135,13 +136,33 @@ def generate_push_candidates(
     for body in range(hand.palm + 1, model.nbody):
         if int(model.body_parentid[body]) in hand_bodies:
             hand_bodies.add(body)
-    finger_targets = {}
+    finger_ids = {}
     for aid in range(model.nu):
         if model.actuator_trntype[aid] != 0 or aid in aids:
             continue
         joint = int(model.actuator_trnid[aid, 0])
         if joint >= 0 and int(model.jnt_bodyid[joint]) in hand_bodies:
-            finger_targets[model.joint(joint).name] = float(base[aid])
+            finger_ids[model.joint(joint).name] = aid
+    finger_goals = {}
+    if finger_control_targets is not None:
+        if not isinstance(finger_control_targets, dict):
+            raise ValueError("Finger proposals must be an explicit native-name mapping")
+        for name, value in finger_control_targets.items():
+            if (
+                name not in finger_ids
+                or isinstance(value, bool)
+                or not isinstance(value, (float, int, np.floating, np.integer))
+                or not np.isfinite(value)
+            ):
+                raise ValueError("Finger proposals must name native distal hand position actuators")
+            aid = finger_ids[name]
+            joint = int(model.actuator_trnid[aid, 0])
+            lo = max(model.jnt_range[joint, 0], model.actuator_ctrlrange[aid, 0])
+            hi = min(model.jnt_range[joint, 1], model.actuator_ctrlrange[aid, 1])
+            if not lo <= value <= hi or abs(value - base[aid]) > 0.5 * hand.env.dt + 1e-12:
+                raise ValueError("Finger proposal exceeds native bounds or the 0.5 rad/s rate")
+            finger_goals[aid] = float(value)
+            rates[aid] = 0.5
     old_command, old_rotation = hand.command.copy(), hand.active_rotation.copy()
     old_prediction = hand.last_prediction
     old_carry, old_slide = hand.ik.carry, hand.ik.slide
@@ -317,6 +338,8 @@ def generate_push_candidates(
                     break
                 wanted = base.copy()
                 wanted[aids] = base[aids] + prediction.q - nominal
+                for aid, value in finger_goals.items():
+                    wanted[aid] = value
                 limited = model.actuator_ctrllimited != 0
                 wanted[limited] = np.clip(
                     wanted[limited],
@@ -355,7 +378,10 @@ def generate_push_candidates(
                     )
                     break
                 collision = hand.check_hand_step(
-                    SimpleNamespace(q=bounded[aids]), 0, active, targets=finger_targets
+                    SimpleNamespace(q=bounded[aids]),
+                    0,
+                    active,
+                    targets={name: float(bounded[aid]) for name, aid in finger_ids.items()},
                 )
                 if collision:
                     failure = "coupled_applied_arm_finger_geometry"
@@ -399,6 +425,7 @@ def generate_push_candidates(
             generated=len(candidates),
             rejected=rejected,
             fresh_task_credit=0,
+            selected_finger_control_targets=finger_control_targets,
         ),
         rates,
     )

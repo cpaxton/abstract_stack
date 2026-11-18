@@ -102,3 +102,14 @@ def test_coalescing_keeps_corners_and_reversals_and_removes_only_straight_stops(
 
     path = [(0, 0), (0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (2, 1)]
     assert coalesce_collinear_path(path) == [(0, 0), (2, 0), (2, 2), (2, 1)]
+
+
+def test_long_base_segments_preserve_corners_and_exact_goal_inside_time_budget():
+    from abstract_stack.navigation import bounded_waypoint_segments
+
+    route = bounded_waypoint_segments([(0, 0), (0.8, 0), (0.8, -0.6)])
+    assert route[0] == (0, 0) and route[-1] == (0.8, -0.6)
+    assert (0.8, 0) in route
+    lengths = np.linalg.norm(np.diff(np.asarray(route), axis=0), axis=1)
+    assert lengths.max() <= 0.3 + 1e-12
+    assert lengths.sum() == pytest.approx(1.4)

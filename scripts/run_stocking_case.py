@@ -22,8 +22,8 @@ def main():
     parser.add_argument("--wall-seconds", type=float, default=300)
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
-    if not 0 < args.wall_seconds <= 900:
-        parser.error("Bound each native episode to at most 900 wall seconds")
+    if not 0 < args.wall_seconds <= 1800:
+        parser.error("Bound each native episode to at most 1800 wall seconds")
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
     content = args.config.read_bytes()

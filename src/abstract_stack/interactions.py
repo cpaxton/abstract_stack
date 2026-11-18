@@ -920,7 +920,20 @@ class StockingScript(SelectedFingerInsertion):
         targets = self.tracker.targets(
             action, dt=self.env.dt, load_feedforward=self._load_feedforward()
         )
+        finger_tracker = getattr(self.controller, "finger_load_compensation", None)
+        if finger_tracker is not None:
+            from abstract_stack.payload_control import guard_payload_targets
+
+            targets, report = finger_tracker.propose(targets, self.product.name)
+            self.events[-1].setdefault("selected_finger_tracking", []).append(report)
+            guard_payload_targets(
+                self,
+                targets,
+                intended_contact=self.phase in ("lateral_push", "lateral_unload", "finger_push"),
+            )
         self._check_tracked_targets(targets)
+        if finger_tracker is not None:
+            finger_tracker.acknowledge(targets)
         _, _, terminated, truncated, _ = self.env.step(
             targets,
             on_physics_step=self._sample,
@@ -1135,6 +1148,7 @@ class StockingScript(SelectedFingerInsertion):
         velocity, held = np.zeros(6), 0.0
         integral = np.zeros(2)
         filtered_velocity = np.zeros(6)
+        settling = False
         waypoint_evidence = dict(
             goal_xy_m=goal_xy.tolist(),
             arrival_goal_m=settings.position_tolerance_m * arrival_scale,
@@ -1143,6 +1157,10 @@ class StockingScript(SelectedFingerInsertion):
             integral_gain_s2=0.25 if self.config.ungrasped_insertion else 0.0,
             integral_velocity_bound_m_s=0.2 * settings.max_speed_m_s,
             velocity_filter_seconds=0.1 if self.config.ungrasped_insertion else 0.0,
+            stop_entry_radius_m=min(settings.position_tolerance_m * arrival_scale, 0.0015),
+            native_dwell_radius_m=settings.position_tolerance_m,
+            maximum_seconds=settings.motion_timeout_s,
+            stop_transitions=[],
             sample_columns=[
                 "sim_time_s",
                 "base_x_m",
@@ -1185,7 +1203,31 @@ class StockingScript(SelectedFingerInsertion):
                 1.2 * error - 0.3 * feedback_velocity[3:5] + integral,
                 2 * yaw_error - 0.4 * feedback_velocity[2],
             ]
-            if arrived and not self.config.ungrasped_insertion:
+            if self.config.ungrasped_insertion:
+                previous_settling = settling
+                inside_native = (
+                    np.linalg.norm(error) <= settings.position_tolerance_m
+                    and abs(yaw_error) <= settings.yaw_tolerance_rad
+                )
+                if settling and not inside_native:
+                    settling = False
+                elif (
+                    np.linalg.norm(error)
+                    <= min(settings.position_tolerance_m * arrival_scale, 0.0015)
+                    and abs(yaw_error) <= settings.yaw_tolerance_rad
+                ):
+                    settling = True
+                if settling != previous_settling:
+                    waypoint_evidence["stop_transitions"].append(
+                        dict(
+                            sim_time=float(env.data.time),
+                            hold=settling,
+                            error_m=float(np.linalg.norm(error)),
+                        )
+                    )
+                if settling:
+                    twist[:] = 0
+            elif arrived:
                 twist[:] = 0
             if tick % 5 == 0:
                 waypoint_evidence["samples"].append(
@@ -1205,7 +1247,20 @@ class StockingScript(SelectedFingerInsertion):
                 env.model, env.data, mujoco.mjtObj.mjOBJ_BODY, body, velocity, 0
             )
             stopped = np.linalg.norm(velocity[3:5]) < 0.003 and abs(velocity[2]) < 0.01
-            held = held + env.dt if arrived and stopped else 0.0
+            accepted = arrived
+            if self.config.ungrasped_insertion:
+                after = env.data.xmat[body].reshape(3, 3)
+                after_yaw = float(np.arctan2(after[1, 0], after[0, 0]))
+                after_error = float(
+                    np.arctan2(np.sin(reference_yaw - after_yaw), np.cos(reference_yaw - after_yaw))
+                )
+                accepted = (
+                    settling
+                    and np.linalg.norm(goal_xy - env.data.xpos[body, :2])
+                    <= settings.position_tolerance_m
+                    and abs(after_error) <= settings.yaw_tolerance_rad
+                )
+            held = held + env.dt if accepted and stopped else 0.0
             if held >= 0.3:
                 break
         else:
@@ -1242,11 +1297,14 @@ class StockingScript(SelectedFingerInsertion):
             BaseMotionConfig,
             NativeSwerve,
         )
-        from abstract_stack.navigation import plan_base_path
+        from abstract_stack.navigation import bounded_waypoint_segments, plan_base_path
 
         env = self.env
         displacement = np.asarray(displacement, dtype=float)
-        settings = BaseMotionConfig(fixture_force_limit_N=min(25.0, self.config.max_force))
+        settings = BaseMotionConfig(
+            fixture_force_limit_N=min(25.0, self.config.max_force),
+            motion_timeout_s=30.0 if reason == "inventory_grasp_workspace" else 20.0,
+        )
         self._stow_right_arm()
         body = env.model.body("mabel_chassis").id
         start = env.data.xpos[body].copy()
@@ -1292,6 +1350,7 @@ class StockingScript(SelectedFingerInsertion):
         )
         if path is None:
             raise InteractionFailure("base_reposition: no navigable base route")
+        path = bounded_waypoint_segments(path)
         guard = BaseContactGuard(
             env,
             config=settings,
@@ -1388,6 +1447,13 @@ class StockingScript(SelectedFingerInsertion):
             decision="no_reachable_grasp_base_candidate",
             base_search_candidates=candidates,
         )
+        if self.config.paired_finger_insertion:
+            from abstract_stack.grasp_skill import navigate_to_inventory
+
+            if not navigate_to_inventory(
+                self, [self.product], pregrasp=pregrasp, rotation=grasp_rotation
+            ):
+                raise InteractionFailure("grasp_workspace: no checked base/pregrasp combination")
 
     def _ensure_loaded_reachable(self, grasp_grip):
         """Reposition (possibly loaded) when the loaded shelf route is unreachable.
@@ -1436,9 +1502,18 @@ class StockingScript(SelectedFingerInsertion):
         """Regenerate object/height choices before committing to an approach."""
         self._restore_grasp_hand()
         if self.config.grasp_skill:
-            from abstract_stack.grasp_skill import select_grasp
+            from abstract_stack.grasp_skill import navigate_to_inventory, select_grasp
 
-            return select_grasp(self, pending)
+            try:
+                return select_grasp(self, pending)
+            except InteractionFailure:
+                if not self.config.paired_finger_insertion or not self.config.base_reposition:
+                    raise
+                if not navigate_to_inventory(self, pending):
+                    raise InteractionFailure(
+                        "grasp_workspace: no checked inventory approach"
+                    ) from None
+                return select_grasp(self, pending)
         base = self.env.data.body("mabel_chassis").xpos
         for product in sorted(
             pending, key=lambda p: np.linalg.norm(self.env.data.body(p.name).xpos[:2] - base[:2])
@@ -1472,7 +1547,10 @@ class StockingScript(SelectedFingerInsertion):
             self._stage("insertion_mode")
             self.events[-1].update(
                 protocol=(
-                    "released_paired_fingertips"
+                    "released_outer_finger_after_sidewall_bracing"
+                    if self.config.paired_finger_insertion
+                    and self._wall_front_staging_y() != self.product.target[1]
+                    else "released_paired_fingertips"
                     if self.config.paired_finger_insertion
                     else "released_selected_finger"
                 )
@@ -1532,8 +1610,15 @@ class StockingScript(SelectedFingerInsertion):
         self.events[-1]["decision"] = "accept_grasp_candidate"
         grasp_rotation = grasp.requested_rotation.copy()
         self._ensure_grasp_reachable(grasp_target, grasp_rotation)
-        self._move("retract", [-0.44, -0.20, 1.00])
-        self._move("raise", [-0.44, -0.20, box[2] + config.pregrasp_height])
+        current = self.controller.position()
+        already_clear = (
+            config.paired_finger_insertion
+            and current[0] >= env.config.front_x + 0.08
+            and current[2] >= box[2] + config.pregrasp_height - 0.03
+        )
+        if not already_clear:
+            self._move("retract", [-0.44, -0.20, 1.00])
+            self._move("raise", [-0.44, -0.20, box[2] + config.pregrasp_height])
         if config.grasp_skill:
             self.controller.active_rotation = grasp_rotation.copy()
             from abstract_stack.grasp_skill import plan_pregrasp_route

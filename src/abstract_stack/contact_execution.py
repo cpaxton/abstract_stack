@@ -25,6 +25,9 @@ def sync_tracking_state(script):
         if name in nominal:
             tracker.nominal[index] = nominal[name]
     tracker.applied = script.env.data.ctrl[tracker.ids].copy()
+    finger_tracker = getattr(hand, "finger_load_compensation", None)
+    if finger_tracker is not None:
+        finger_tracker.acknowledge(script.env.data.ctrl)
     hand.last_target = hand.ik.forward(hand.command, script.env.data.qpos.copy())[0]
     tracker.last_report = dict(
         nominal=dict(zip(tracker.NAMES, tracker.nominal.tolist(), strict=True)),

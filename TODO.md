@@ -25,14 +25,28 @@ trials, not a generalization success rate.
   prefills/incidents, 208.198 simulated seconds (`tight-three-14`). This has
   spacious walls and 3 mm target inter-carton gaps; it is not the whole-row test.
 - [ ] Complete four cartons without restarting between objects.
+- [x] Recover the ten-carton edge-slot transfer from a saved native state:
+  interior front handoff, measured sidewall bracing, outer-finger insertion,
+  backstop contact and full shelf exit. Final yaw -0.07586 degrees; zero
+  tip/drop incidents; zero fresh-task credit (`ten-edge-transfer-11`).
+- [x] Preserve intermediate front-registration checkpoints and exact tool/
+  finger-controller state, so insertion can be retried without replaying grasp
+  and transfer. Empty navigation checks the supply workspace and keeps long
+  base segments inside their motion budget.
 - [x] Test two native fingertip pads through insertion, backstop squaring,
   unloading and retreat from saved four-/ten-carton skill entries. These are
   zero-credit continuations, not fresh episodes. Check partial thumb extension
   against both walls and the planned departure before opening.
-- [ ] Close lateral registration under load: the ten-carton entry finishes
-  square but drifts 8.6 mm sideways. Measure the actual pad plane, including
-  native finger-servo deflection; keep its reference bias within three degrees. Retain
-  the 25 N guards and unchanged final geometry criteria.
+- [x] Close lateral registration on the retained interior insertion: bounded
+  fingertip load compensation and midpoint integral feedback reduce the latest
+  12.03 mm release error to 0.179 mm (`ten-finger-load-insert-02`). Final yaw
+  -0.0265 degrees, complete withdrawal, no incidents; zero fresh-task credit.
+  Repeat in a fresh episode and retain the wall-side regression: the single-pad
+  wall skill must rank squaring references, while paired pads can rank lateral
+  registration. Do not relax the 25 N guards or task geometry criteria.
+- [x] Verify hysteretic base stopping on the retained inventory route: all five
+  waypoints pass, final position error 1.33 mm inside the original 2 mm bound.
+  This continuation earns no fresh-task credit.
 - [ ] Complete ten cartons, zero prefills, 10 mm **total** row free space. Both
   sidewalls participate in planning and native summed-force guards. Then 5 mm.
 - [ ] Freeze the successful controller, validate untouched scenes, and generate

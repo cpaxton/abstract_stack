@@ -199,6 +199,23 @@ def coalesce_collinear_path(path):
     return result
 
 
+def bounded_waypoint_segments(path, maximum_distance_m=0.30):
+    """Preserve the polyline while keeping stops inside the native time budget."""
+    if not np.isfinite(maximum_distance_m) or maximum_distance_m <= 0:
+        raise ValueError("Waypoint distance must be finite and positive")
+    result = []
+    for point in path:
+        point = np.asarray(point, dtype=float)
+        if point.shape != (2,) or not np.isfinite(point).all():
+            raise ValueError("Base path points must be finite XY pairs")
+        if result:
+            start = np.asarray(result[-1])
+            count = max(1, int(np.ceil(np.linalg.norm(point - start) / maximum_distance_m)))
+            result.extend(tuple(start + (point - start) * i / count) for i in range(1, count))
+        result.append(tuple(point))
+    return result
+
+
 def plan_base_path(
     env,
     start_xy,
