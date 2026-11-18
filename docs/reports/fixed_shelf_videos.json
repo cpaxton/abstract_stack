@@ -1,0 +1,428 @@
+{
+  "kind": "fixed_single_shelf_video_development",
+  "date": "2026-11-17",
+  "world_state": "privileged_perfect_state",
+  "randomized_evaluation": false,
+  "unchanged_force_abort_N": 25.0,
+  "cases": [
+    {
+      "case": "fresh_spacious_two_carton",
+      "process": {
+        "returncode": 2,
+        "timeout": false,
+        "wall_seconds": 47.52549392599758,
+        "wall_budget_seconds": 240,
+        "outcome": "completed_native_episode",
+        "task_success": false,
+        "failure": "approach: contact force exceeded 25.0 N",
+        "stage_evaluation": {
+          "products": {
+            "carton_0": {
+              "initially_stocked": false,
+              "attempted": true,
+              "pick": false,
+              "place": false,
+              "final_position": false,
+              "retreat": false,
+              "retreat_evidence": null
+            },
+            "carton_1": {
+              "initially_stocked": false,
+              "attempted": true,
+              "pick": true,
+              "place": true,
+              "final_position": true,
+              "retreat": true,
+              "retreat_evidence": {
+                "product": "carton_1",
+                "before": {
+                  "carton_0": {
+                    "pose": [
+                      -0.40730765412445735,
+                      -0.43745138646648035,
+                      0.9198922445778833,
+                      0.8512677103615262,
+                      1.5605493664991668e-17,
+                      9.562576201114128e-18,
+                      0.524731631689804
+                    ],
+                    "placement_conditions": false,
+                    "stocked": false
+                  },
+                  "carton_1": {
+                    "pose": [
+                      -0.7250342463169043,
+                      -0.07315094664341727,
+                      0.9210739376020273,
+                      0.999992764424933,
+                      -0.0025409983031511245,
+                      -0.0004364499876514895,
+                      -0.0027971301029327115
+                    ],
+                    "placement_conditions": false,
+                    "stocked": false
+                  }
+                },
+                "max_displacement_m": {
+                  "carton_0": 1.6076029396572267e-13,
+                  "carton_1": 0.002795378357432813
+                },
+                "after": {
+                  "carton_0": {
+                    "pose": [
+                      -0.40730765412445735,
+                      -0.43745138646648035,
+                      0.9198922445779102,
+                      0.8512677103615262,
+                      1.732265514378534e-17,
+                      1.0803878416702382e-17,
+                      0.524731631689804
+                    ],
+                    "placement_conditions": false,
+                    "stocked": false
+                  },
+                  "carton_1": {
+                    "pose": [
+                      -0.7234887892489358,
+                      -0.07471148947549369,
+                      0.9198922445779373,
+                      0.9998379894174745,
+                      2.0458941699220805e-17,
+                      2.841971593436412e-19,
+                      0.017999858822268733
+                    ],
+                    "placement_conditions": true,
+                    "stocked": true
+                  }
+                },
+                "incidents": [],
+                "verified": true
+              }
+            }
+          },
+          "incidents": [],
+          "no_knockovers": true,
+          "unfinished_retreat": null,
+          "final_state": {
+            "carton_0": {
+              "pose": [
+                -0.40897527626117125,
+                -0.4563825295564752,
+                0.9205150017827802,
+                0.933696427134624,
+                0.005020386326888603,
+                -0.03097179819167546,
+                0.3566882748198233
+              ],
+              "placement_conditions": false,
+              "stocked": false
+            },
+            "carton_1": {
+              "pose": [
+                -0.7234887892489358,
+                -0.07471148947549369,
+                0.9198922445778925,
+                0.9998379894174745,
+                1.9364647005763118e-17,
+                3.7433295079858595e-19,
+                0.017999858822268733
+              ],
+              "placement_conditions": true,
+              "stocked": true
+            }
+          },
+          "initial_state": {
+            "carton_0": {
+              "pose": [
+                -0.4144521532507142,
+                -0.4809208531449445,
+                0.9198922445816137,
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "placement_conditions": false,
+              "stocked": false
+            },
+            "carton_1": {
+              "pose": [
+                -0.2668361059265136,
+                -0.4819338895007935,
+                0.9198922445816158,
+                1.0,
+                2.3537336514525758e-17,
+                1.895847912764455e-19,
+                6.102317897264003e-10
+              ],
+              "placement_conditions": false,
+              "stocked": false
+            }
+          },
+          "maximum_displacement_from_start_m": {
+            "carton_0": 0.04768537912714191,
+            "carton_1": 0.6141893056974501
+          }
+        }
+      },
+      "source_content_id": "8e7b30a31ac10f893b3f9caa3f13fce1e6e90e50b506dc1daf7b282ebb8cd174",
+      "evidence": [
+        {
+          "path": "outputs/fixed-shelf-video-v1/fresh-two-carton/manifest.json",
+          "sha256": "08f7da8b23592cf311ac524a14b4c21791996c4f0c6a5d4cbc1e2866cbd50890"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/fresh-two-carton/source_ref.json",
+          "sha256": "cf4dc43a969e21396361e30c3aef1c2f0f1316c2fa781bab30d1657a24b9364e"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/fresh-two-carton/process.json",
+          "sha256": "8c80d230aaccab3e54f6f822ae4e17a6762dfca70c8bb9912f643ae3aac37562"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/fresh-two-carton/episode/summary.json",
+          "sha256": "b4ad28cd25441ad45bfa35313f151df51a9595af3b6732092a5f5961c5c2beaa"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/fresh-two-carton/episode/videos/video.json",
+          "sha256": "6f03ea612666479b432a927b96d86daafa5a749e68c753e3b4d53a7f96212e70"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1"
+      ],
+      "prefilled_products": [],
+      "stage_totals": {
+        "pick": 1,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "task_success": false,
+      "incidents": [],
+      "peak_forces_N": {
+        "hand": 25.166728498855527,
+        "support": 26.870924849632544,
+        "back": 3.08001655693387,
+        "arm_fixture": 8.784177845663168,
+        "other_product": 3.0434689852967294,
+        "arm_product": 0.0,
+        "robot_product": 25.166728498855527
+      },
+      "simulation_terminal_time_s": 57.52400000002434,
+      "video_first_physics_time_s": 1.0000000000000007,
+      "video_last_physics_time_s": 57.50000000002431,
+      "physics_frames": 1357,
+      "paused_end_frames": 24,
+      "failure": "approach: contact force exceeded 25.0 N",
+      "dense_packing_benchmark": false
+    },
+    {
+      "case": "square-and-retreat",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 15.597172576002777,
+        "wall_budget_seconds": 180.0,
+        "outcome": "verified_replay",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "source_content_id": "f98a669a4b8d6ced5720164778da05f7172a35ad805c549da1fb6bd2217ab437",
+      "evidence": [
+        {
+          "path": "outputs/fixed-shelf-video-v1/square-and-retreat/manifest.json",
+          "sha256": "a7babe330dcabbed32f2dda1490954da3439733e6cdbbddcc1a2ac9f93e703a6"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/square-and-retreat/source_ref.json",
+          "sha256": "f202177c5c0fc7c2afdecb6b6ea3462293ebf00855bd10b44be98e7ae9512051"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/square-and-retreat/process.json",
+          "sha256": "bc955f7a0a2e0eb7c650cd9b730b24994ce981972a448b20f641a8263a72d8c6"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/square-and-retreat/result.json",
+          "sha256": "1d1291ce8b271cc58de10561ce64de240f0c7496bfb6f15d82b1699819638997"
+        }
+      ],
+      "simulated_seconds": 20.16600000009629,
+      "segments": [
+        {
+          "segment": 0,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 1,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 2,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 845
+        },
+        {
+          "segment": 3,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3238
+        }
+      ],
+      "render_integration_state_unchanged": true,
+      "ending_controller_failure": null,
+      "release_retreat_verified": true,
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    {
+      "case": "long-sequence",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 109.10666804199718,
+        "wall_budget_seconds": 300.0,
+        "outcome": "verified_replay",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "source_content_id": "f98a669a4b8d6ced5720164778da05f7172a35ad805c549da1fb6bd2217ab437",
+      "evidence": [
+        {
+          "path": "outputs/fixed-shelf-video-v1/long-sequence/manifest.json",
+          "sha256": "9d2f982089b8a26b23371dbdc08772814704f43446e20b476a799ef08181b33a"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/long-sequence/source_ref.json",
+          "sha256": "f202177c5c0fc7c2afdecb6b6ea3462293ebf00855bd10b44be98e7ae9512051"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/long-sequence/process.json",
+          "sha256": "170690650c55a03b653d501afeae5bb44b9d5e751c86a7fa0385fc5fdd47db61"
+        },
+        {
+          "path": "outputs/fixed-shelf-video-v1/long-sequence/result.json",
+          "sha256": "4c852d3c0d0bc810a78abb17b5dc8ba4371d170503e0491f652ce6fd549e0df2"
+        }
+      ],
+      "simulated_seconds": 153.3860000007324,
+      "segments": [
+        {
+          "segment": 0,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 1,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 2,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 845
+        },
+        {
+          "segment": 3,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3238
+        },
+        {
+          "segment": 4,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 19250
+        },
+        {
+          "segment": 5,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 39360
+        },
+        {
+          "segment": 6,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 8000
+        }
+      ],
+      "render_integration_state_unchanged": true,
+      "ending_controller_failure": "backstop_dwell_decision_budget_exhausted",
+      "release_retreat_verified": false,
+      "fresh_task_credit": 0,
+      "task_success": false
+    }
+  ],
+  "scope": "Two fixed scenarios, not a combined success-rate campaign",
+  "outer_long_render_tool_session": {
+    "returncode": 143,
+    "observed_after": "worker wrote successful native replay result and complete videos",
+    "worker_process_outcome": "verified_replay",
+    "fresh_task_credit": 0
+  },
+  "video_files": [
+    {
+      "path": "outputs/fixed-shelf-video-v1/fresh-two-carton/overview.mp4",
+      "sha256": "90586b27f383817a6ecdbb98d1e607ab8131539281cf62ac6a969d7813faf893",
+      "metadata": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 480,
+            "r_frame_rate": "24/1",
+            "nb_frames": "1381"
+          }
+        ],
+        "format": {
+          "duration": "57.542000",
+          "size": "2983072"
+        }
+      },
+      "complete_decode_passed": true
+    },
+    {
+      "path": "outputs/fixed-shelf-video-v1/square-and-retreat/overview.mp4",
+      "sha256": "7e49e53176492720510c8f4de7bf3d5bdc6dc704d444ee1d6cef41c2eb9c074c",
+      "metadata": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 720,
+            "r_frame_rate": "24/1",
+            "nb_frames": "485"
+          }
+        ],
+        "format": {
+          "duration": "20.209000",
+          "size": "703816"
+        }
+      },
+      "complete_decode_passed": true
+    },
+    {
+      "path": "outputs/fixed-shelf-video-v1/long-sequence/overview.mp4",
+      "sha256": "479ecade8e1eaefc84b90a02a4bc27ba695564b3004129b6601659bd6af557b4",
+      "metadata": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 720,
+            "r_frame_rate": "24/1",
+            "nb_frames": "3683"
+          }
+        ],
+        "format": {
+          "duration": "153.459000",
+          "size": "7054542"
+        }
+      },
+      "complete_decode_passed": true
+    }
+  ],
+  "loose_python_files_in_run_directories": 0
+}

@@ -5,6 +5,69 @@ continuous native-MABEL episode. Use privileged world state initially. Begin
 with 10 mm total unused shelf width, then 5 mm. The width budget includes both
 walls and every inter-carton gap. We do not yet have a working ten-carton baseline.
 
+## Fixed-shelf two-layer controller
+
+Current development uses perfect object/robot state, one fixed shelf level and
+unchanged carton geometry/reset seed. Keep randomized evaluation parked until a
+fresh fixed-scene sequence works. The immediate baseline is two consecutive
+complete stocks; the ten-carton episode remains the longer goal.
+
+The proposed system-2 layer chooses the next primitive and predicts short object
+motions. It uses measured poses/velocities, support and contact state to select
+pick, carry, insert, square, register laterally, unload or retreat. Geometric
+screening precedes a small number of guarded native-physics forecasts. Execute
+only a short prefix, then re-estimate and replan rather than committing to a
+whole-shelf trajectory. The remaining object order can survive replanning;
+state-dependent motion certificates cannot.
+
+The system-1 layer tracks the accepted reference with measured tool/object and
+wrench feedback. It preserves native position servos, gravity/load compensation,
+nominal versus applied targets, coupled hand geometry, anti-windup and final
+motion bounds. This is compliance through servo targets, not direct torque
+control. Existing control updates are 20 ms and physics steps are 2 ms; the
+contact forecast prototype executes 100 ms prefixes. These are simulation
+intervals, not evidence that planning meets a real-time wall-clock deadline.
+
+The shared reference packet should make the prediction/execution boundary
+explicit:
+
+| Field | Purpose |
+| --- | --- |
+| Measured-state identity, timestamp, primitive and expiry | Reject stale state, wrong phase and expired plans before actuation |
+| Object goal pose and predicted pose/velocity sequence | Distinguish desired, predicted and actual object motion |
+| Tool/contact target, contact normal and nominal joint/finger posture | Give the tracker a feasible, geometrically checked reference |
+| Force target and permitted contact partners | Specify the intended contact interaction without changing abort limits |
+| Pose corridor and linear/angular/joint rate bounds | Apply final limits after every feedback/compensation correction |
+| Completion and replan triggers | Require measured support/alignment/release; replan on contact changes, tracking error or stalled progress |
+
+The current code contains pieces of this interface, not yet one common packet:
+`receding_stocking.py` selects objects/routes; `compliant_lookahead.py` generates
+bounded nominal/applied contact trajectories; guarded native forecasts predict
+the resulting object motion; and `probe_compliant_lookahead.py` executes short
+prefixes from the exact admitted state. `withdrawal.py` then uses measured
+Cartesian feedback to unload and clear the hand. The contact forecasts currently
+freeze the initial compensation offsets within each forecast. A common feedback
+controller in prediction and execution remains work to do.
+
+A fresh fixed `pick_place` seed-0 episode now completes the first carton but
+aborts the second approach at 25.17 N against the unchanged 25 N guard. The
+remaining carton had translated and rotated during the earlier manipulation.
+Its next approach passed kinematic endpoint/path checks, illustrating why those
+checks cannot substitute for intended-contact prediction. This spacious
+two-carton baseline is separate from the retained dense-row fixture below.
+
+Next, combine lateral registration and yaw/contact control into that reference
+contract. The current next-carton continuation reaches shelf support but ends
+about 50 mm off its lateral target and at 3.228 degrees yaw. A successful saved
+squaring fixture does not close that gap. Evaluate prediction error, tool
+tracking, measured object motion and final task gates separately, retaining the
+unchanged force limits and acceptance criteria. Learning can later replace the
+predictor or fast policy under the same contracts; no learned policy is needed
+to establish this perfect-state baseline.
+
+For current videos and their scope, see the
+[fixed-shelf video report](reports/fixed_shelf_videos.md).
+
 ## Planning and replanning
 
 Plan a task-level suffix to the goal; refine only the next action, execute it,
