@@ -25,6 +25,7 @@ import logging
 import re
 import secrets
 import socket
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -399,6 +400,17 @@ class TeleopServer:
             await self._stream(websocket, session_id, "video")
 
 
+def print_qr(url: str) -> None:
+    """Show ``url`` as a terminal QR code so a phone can open it without typing."""
+    try:
+        import segno
+    except ImportError:
+        return
+    print("Scan with the phone camera:", flush=True)
+    segno.make(url, error="m").terminal(compact=True, border=2)
+    sys.stdout.flush()
+
+
 def lan_addresses() -> list[str]:
     """IPv4 addresses other devices on the local network can use to reach this host."""
     found: list[str] = []
@@ -483,7 +495,9 @@ def serve(
         addresses = lan_addresses()
         for address in addresses:
             print(f"Web teleop (LAN, phone/tablet): http://{address}:{port}/{query}", flush=True)
-        if not addresses:
+        if addresses:
+            print_qr(f"http://{addresses[0]}:{port}/{query}")
+        else:
             print("No LAN address found; check the network connection.", flush=True)
     else:
         print(f"Web teleop: http://{host}:{port}/{query}", flush=True)

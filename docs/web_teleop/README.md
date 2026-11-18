@@ -27,7 +27,8 @@ abstract-stack teleop --host 0.0.0.0 --port 8080
 # → also prints  Web teleop (LAN, phone/tablet): http://192.168.x.y:8080/?token=<token>
 ```
 
-Open the printed LAN URL on the phone. On macOS, allow incoming connections for
+Scan the QR code the host prints with the phone camera, or open the printed
+LAN URL. On macOS, allow incoming connections for
 Python if the firewall asks; otherwise the phone cannot connect. On headless
 Linux, set `MUJOCO_GL=egl` so the video thread can render offscreen.
 
