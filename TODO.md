@@ -4,6 +4,32 @@ Agreed scope: ten rigid cartons start on the supply table; zero prefills; one
 uninterrupted native-MABEL episode. Start with 10 mm total unused row width, then
 5 mm. World-state access is allowed. Delay modeling and RL are deferred.
 
+## Current focus: fixed shelf and perfect state
+
+Keep one fixed single-level shelf, carton geometry and reset seed while closing
+the manipulation loop. The randomized suite remains available for later testing;
+do not tune on its private held-out cases. Use a predictive planner for short
+object/contact references and a faster compliant controller for execution; see
+the [two-layer contract](docs/receding_horizon_stocking.md#fixed-shelf-two-layer-controller).
+
+- [x] Re-run the saved single-shelf contact finish with the current source:
+  squared support, unloading and measured retreat pass. Generate synchronized
+  third-/first-person videos and retain exact native replay checks.
+- [ ] Emit a common reference packet with measured-state identity, object goal,
+  tool/contact target, nominal posture, force target, motion limits, expiry and
+  predicted object poses. Reject stale references before commanding motion.
+- [ ] Admit the second pickup after earlier motions disturb the remaining
+  inventory. A fresh fixed `pick_place` seed-0 attempt completes carton 1, then
+  aborts carton 0's approach at 25.17 N despite accepted kinematic IK/path checks.
+  Forecast intended hand contact and replan the grasp from measured object pose;
+  preserve the 25 N guard. See [video evidence](docs/reports/fixed_shelf_videos.md).
+- [ ] Close the next carton's lateral registration and squaring together, then
+  verify release/retreat. Retain the current 3.228-degree/50-mm failure.
+- [ ] Connect those primitives in one fresh fixed-shelf episode, initially two
+  cartons, before increasing toward ten. Record causal nominal/applied actions.
+- [ ] Measure prediction versus execution error and planner/controller timing
+  separately; freeze this baseline before introducing scene or sensor variation.
+
 ## 1. Receding-horizon task and motion planning — in progress
 
 - [x] Review SS-Replan: reuse the remaining discrete plan, re-estimate continuous

@@ -1,5 +1,11 @@
 # Stocking workflows and experiment index
 
+Current fixed-shelf focus: [new videos and fresh two-carton attempt](reports/fixed_shelf_videos.md)
+and the [predictive/compliant two-layer plan](receding_horizon_stocking.md#fixed-shelf-two-layer-controller).
+Perfect state is used initially. The fresh attempt completes one of two cartons;
+saved dense-fixture videos demonstrate contact finishing and longer unfinished
+stocking separately. Randomized evaluation remains parked while those gaps close.
+
 New development: [CPU/GPU rollout evaluation](backend_evaluation.md),
 [measured throughput report](reports/rollout_backend_development.md), and
 [stationary bimanual/shared-lift control](whole_body_control.md). These prototypes
