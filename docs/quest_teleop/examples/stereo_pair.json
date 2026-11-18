@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "type": "stereo_pair",
+  "session_id": "fixture-session",
+  "calibration_generation": 1,
+  "pair_id": 30,
+  "sim_time_s": 0,
+  "capture_host_monotonic_s": 3.0,
+  "codec": "jpeg",
+  "pixel_format": "rgb8",
+  "frame": "mabel_chassis_native",
+  "width": 640,
+  "height": 480,
+  "eye_order": [
+    "left",
+    "right"
+  ],
+  "cameras": {
+    "left": {
+      "name": "zed_left",
+      "position_m": [
+        -0.18182085182411598,
+        -0.032517873863587864,
+        1.2345402262453895
+      ],
+      "quaternion_wxyz": [
+        0.4999984948095356,
+        0.500000012664697,
+        0.4999996686716205,
+        0.5000018238484453
+      ],
+      "vertical_fov_deg": 83.3
+    },
+    "right": {
+      "name": "zed_right",
+      "position_m": [
+        -0.1817706398982203,
+        0.030482086151312114,
+        1.2344900576944462
+      ],
+      "quaternion_wxyz": [
+        0.4999984948095356,
+        0.500000012664697,
+        0.4999996686716205,
+        0.5000018238484453
+      ],
+      "vertical_fov_deg": 83.3
+    }
+  }
+}
