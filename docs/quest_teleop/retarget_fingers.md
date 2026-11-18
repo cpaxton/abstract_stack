@@ -56,7 +56,7 @@ anatomical commands in the native mirrored hands.
 | --- | --- |
 | Index/Middle/Ring/Pinky MCP | Proximal1→2 flexion in the palm forward/normal plane |
 | Index/Middle/Ring/Pinky PIP | 0.7 × hinge flexion at joint2 +0.3 × hinge flexion at joint3; the native distal/IP unit has one actuator |
-| Index/Middle/Ring/Pinky Abd | Proximal1→2 radial/forward angle, added to the native open reference with gain0.7 |
+| Index/Middle/Ring/Pinky Abd | Signed angle of proximal1→2 out of the forward/normal plane, added to the native open reference with gain0.7 |
 | Thumb MCP/PIP/DIP | Segment bend angles at Thumb1/2/3 respectively |
 | Thumb Abd | Radial→forward sweep of Thumb0→1, mapped to a bounded native opposition reference |
 

@@ -59,6 +59,36 @@ def test_anatomical_features_are_mirrored_and_rigid_motion_invariant():
     assert plain["Index PIP"] == pytest.approx(0.645)
 
 
+@pytest.mark.parametrize("spread", [0.0, 0.12])
+@pytest.mark.mabel
+def test_index_flexion_through_right_angle_preserves_bilateral_abduction(mapper, spread):
+    def hand(side, flexion):
+        source = synthetic_hand(side, abduction_rad=spread)
+        points = {joint["name"]: joint for joint in source["joints"]}
+        pivot = np.asarray(points["Hand_Index1"]["position_m"])
+        c, s = math.cos(flexion), math.sin(flexion)
+        bend = np.array([[1, 0, 0], [0, c, s], [0, -s, c]])
+        for suffix in ("2", "3", "Tip"):
+            joint = points[f"Hand_Index{suffix}"]
+            joint["position_m"] = (pivot + bend @ (joint["position_m"] - pivot)).tolist()
+        return source
+
+    abduction = ("Left Index Abd", "Right Index Abd")
+    baseline = mapper.propose(hand("Left", 0), hand("Right", 0), 0.02)
+    assert baseline.valid, baseline.reason
+    for degrees in (89.9, 90.0, 90.1):
+        flexion = math.radians(degrees)
+        left, right = hand("Left", flexion), hand("Right", flexion)
+        for side, source in (("Left", left), ("Right", right)):
+            features = hand_features(source, side)
+            assert features["Index MCP"] == pytest.approx(flexion)
+            assert features["Index Abd"] == pytest.approx(spread, abs=1e-12)
+        proposed = mapper.propose(left, right, 0.02)
+        assert proposed.valid, proposed.reason
+        for channel in abduction:
+            assert proposed.nominal[channel] == pytest.approx(baseline.nominal[channel])
+
+
 @pytest.mark.mabel
 def test_complete_ownership_nominal_side_identity_and_native_transmissions(mapper, adapter):
     result = mapper.propose(synthetic_hand("Left", 1), synthetic_hand("Right", 0), 0.02)
