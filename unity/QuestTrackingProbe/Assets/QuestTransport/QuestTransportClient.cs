@@ -38,8 +38,11 @@ namespace QuestTeleop.Transport
             while (received.TryDequeue(out var message))
             {
                 if ((string)message["session_id"] != SessionId) continue;
-                if (message["calibration_generation"] != null)
-                    CalibrationGeneration = (long)message["calibration_generation"];
+                // An exact retry can replay an ACK from an earlier generation.
+                // Deliver the ACK unchanged without moving the current session backwards.
+                if ((long?)message["calibration_generation"] is long generation &&
+                    generation > CalibrationGeneration)
+                    CalibrationGeneration = generation;
                 if ((string)message["type"] == "control_ack" && referenceChangePending && (long?)message["event_id"] == referenceEventId) referenceChangePending = false;
                 MessageReceived?.Invoke(message);
             }

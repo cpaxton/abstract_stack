@@ -107,6 +107,11 @@ messages. A stalled status consumer or reliable queue fails closed. Reconnect
 uses exponential delay capped at4 seconds and a new UUID, clearing queued state.
 Application suspend cancels the connection; reactivation reconnects and resyncs.
 Recenter discards queued motion and suppresses new submissions until an ack.
+The client keeps its current calibration generation monotonic within each
+session. Cached acknowledgements still reach `MessageReceived` with their
+original event ID and generation. Consumers should use
+`QuestTransportClient.CalibrationGeneration` for current session state and
+the acknowledgement fields for the event being confirmed.
 
 `CanonicalReplaySource` accepts canonical JSONL, not RawTrackingRecorder files.
 By default it preserves recorded source and observation timestamps so an old
