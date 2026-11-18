@@ -95,9 +95,9 @@ def _capture(args):
     mujoco.mj_forward(model, data)
     selected = next(
         (
-            e["selected"]
+            e.get("selected")
             for e in reversed(summary.get("events", []))
-            if e.get("phase") == "pusher_plan"
+            if e.get("phase") == "pusher_plan" and e.get("selected") is not None
         ),
         None,
     )

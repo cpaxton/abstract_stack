@@ -472,7 +472,16 @@ def evaluate_batch(model, initial_state, candidates, scene, *, rates, workers=1)
 
 
 def evaluate_screened_batch(
-    model, initial_state, candidates, scene, *, rates, workers=4, shortlist=4, objective="advance"
+    model,
+    initial_state,
+    candidates,
+    scene,
+    *,
+    rates,
+    workers=4,
+    shortlist=4,
+    objective="advance",
+    yaw_target_rad=0.0,
 ):
     """Rank with C++ trajectories, then guard a bounded shortlist from reset.
 
@@ -486,14 +495,17 @@ def evaluate_screened_batch(
         raise ValueError("Shortlist must be between one and the bounded candidate count")
     if objective not in ("advance", "square_backstop", "lateral_left", "lateral_right"):
         raise ValueError("Unknown contact forecast objective")
+    if not np.isfinite(yaw_target_rad) or abs(yaw_target_rad) > np.pi:
+        raise ValueError("Yaw reference must be a finite angle inside +/-pi")
     direction = -1 if objective == "lateral_left" else 1
 
     def score(progress, yaw, lateral):
+        error = float(np.arctan2(np.sin(yaw - yaw_target_rad), np.cos(yaw - yaw_target_rad)))
         if objective == "advance":
             return (progress,)
         if objective == "square_backstop":
-            return (-abs(yaw), progress)
-        return (direction * lateral, -abs(yaw))
+            return (-abs(error), progress)
+        return (direction * lateral, -abs(error))
 
     # Validate every complete applied-target sequence before launching the
     # screen. Neither ranking nor finite endpoint state establishes force safety.
@@ -633,6 +645,7 @@ def evaluate_screened_batch(
     return dict(
         kind="screen_then_guard_forecast_zero_task_credit",
         objective=objective,
+        yaw_target_rad=float(yaw_target_rad),
         candidates=rows,
         selected_name=None if best is None else best["name"],
         screen_seconds=screen_seconds,

@@ -80,3 +80,25 @@ def test_excluded_products_are_not_obstacles(pick_place_env):
     pt = base_grid.to_pt(env.data.body(carried.name).xpos[:2])
     assert base_grid.obs[pt]
     assert not excluded_grid.obs[pt]
+
+
+def test_snapped_grid_goal_requires_explicit_caller_admission(pick_place_env, monkeypatch):
+    from types import SimpleNamespace
+
+    from emet.motion.algo.a_star import AStar
+
+    result = SimpleNamespace(
+        success=True,
+        trajectory=[SimpleNamespace(state=np.array(p)) for p in [(0, 0, 0), (0, 0.05, 0)]],
+    )
+    monkeypatch.setattr(AStar, "plan", lambda *args, **kwargs: result)
+    assert plan_base_path(pick_place_env, (0, 0), (0, 0.12)) is None
+    path = plan_base_path(pick_place_env, (0, 0), (0, 0.12), allow_goal_snap=True)
+    np.testing.assert_array_equal(path[-1], (0, 0.05))
+
+
+def test_coalescing_keeps_corners_and_reversals_and_removes_only_straight_stops():
+    from abstract_stack.navigation import coalesce_collinear_path
+
+    path = [(0, 0), (0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (2, 1)]
+    assert coalesce_collinear_path(path) == [(0, 0), (2, 0), (2, 2), (2, 1)]

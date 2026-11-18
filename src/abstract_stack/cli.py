@@ -126,6 +126,22 @@ def _parser():
                 help="Experimental object-aligned grasp with checked Cartesian entry",
             )
             sub.add_argument(
+                "--ungrasped-insertion",
+                action="store_true",
+                help="Use released-carton finger insertion beside stocked neighbors",
+            )
+            sub.add_argument(
+                "--paired-finger-insertion",
+                action="store_true",
+                help="Experimental two-fingertip squaring surface for released insertion",
+            )
+            sub.add_argument(
+                "--payload-wrist-compensation",
+                action="store_true",
+                help="Use measured payload wrist load, reserved references "
+                "and applied geometry checks",
+            )
+            sub.add_argument(
                 "--record-skill-starts",
                 action="store_true",
                 help="Save measured per-skill entry distributions and native checkpoints",
@@ -403,7 +419,7 @@ def main(argv=None):
                 from abstract_stack.interactions import ScriptConfig, StockingScript
 
                 solver = StockingScript
-                if config.row_free_space is not None:
+                if config.row_free_space is not None and not args.ungrasped_insertion:
                     from abstract_stack.dense_interactions import DenseStockingScript
 
                     solver = DenseStockingScript
@@ -421,6 +437,9 @@ def main(argv=None):
                         contact_aware=not args.legacy_contact_control,
                         guarded_approach=args.guarded_approach,
                         grasp_skill=args.grasp_skill,
+                        ungrasped_insertion=args.ungrasped_insertion,
+                        payload_wrist_compensation=args.payload_wrist_compensation,
+                        paired_finger_insertion=args.paired_finger_insertion,
                         record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,

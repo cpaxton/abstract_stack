@@ -147,17 +147,10 @@ class RecedingStockingScript(DenseStockingScript):
 
     def _configure_grasp_hand(self, hand):
         if self.payload_load_compensation:
-            wrist = hand.ik.names.index("Left Wrist")
-            hand.ik.constrain_reference_range(
-                "Left Wrist",
-                hand.ik.original_lower[wrist] + self.payload_wrist_reserve,
-                hand.ik.original_upper[wrist] - self.payload_wrist_reserve,
-            )
-            lift = hand.ik.names.index("Lift")
-            hand.ik.constrain_reference_range(
-                "Lift",
-                hand.ik.original_lower[lift],
-                hand.ik.original_upper[lift] - self._tracking_config().lift_offset_limit,
+            from abstract_stack.payload_control import reserve_payload_references
+
+            reserve_payload_references(
+                hand, self.payload_wrist_reserve, self._tracking_config().lift_offset_limit
             )
         if self.grasp_wrist_posture is not None:
             hand.ik.constrain_posture("Left Wrist", self.grasp_wrist_posture)
@@ -177,48 +170,18 @@ class RecedingStockingScript(DenseStockingScript):
 
     def _load_feedforward(self):
         if self.payload_load_compensation and not isinstance(self.controller, FingerPusher):
-            result = self._wrist_contact_load()
-            if self.events:
-                self.events[-1].setdefault("payload_wrist_load_samples", []).append(
-                    [
-                        float(self.env.data.time),
-                        self.wrist_load_last_requested,
-                        self.wrist_load,
-                    ]
-                )
-            return result
+            from abstract_stack.payload_control import measured_payload_load
+
+            return measured_payload_load(self)
         return super()._load_feedforward()
 
     def _check_tracked_targets(self, targets):
         super()._check_tracked_targets(targets)
         if not self.payload_load_compensation or isinstance(self.controller, FingerPusher):
             return
-        model, hand = self.env.model, self.controller
-        applied_q = np.array([targets[model.actuator(name).id] for name in [*hand.names, "Lift"]])
-        fingers = {}
-        for aid in range(model.nu):
-            if model.actuator_trntype[aid] != mujoco.mjtTrn.mjTRN_JOINT:
-                continue
-            jid = int(model.actuator_trnid[aid, 0])
-            if int(model.jnt_bodyid[jid]) in self.hand_bodies:
-                fingers[model.actuator(aid).name] = float(targets[aid])
-        intended_contact = self.active_grip is not None or self.phase in (
-            "approach",
-            "close",
-            "place",
-            "stage_align",
-            "release_unload",
-            "release_front",
-        )
-        errors = hand.check_hand_step(
-            SimpleNamespace(q=applied_q),
-            0,
-            self.product.name if intended_contact else None,
-            targets=fingers,
-        )
-        if errors:
-            self.events[-1]["applied_tracking_geometry_rejection"] = errors
-            raise InteractionFailure("payload_load: compensated arm/finger geometry rejected")
+        from abstract_stack.payload_control import guard_payload_targets
+
+        guard_payload_targets(self, targets)
 
     def _change_hand(self, kind, **kwargs):
         if kind is FingerPusher:

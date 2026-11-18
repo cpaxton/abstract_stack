@@ -15,6 +15,19 @@ class WithdrawalFeedbackConfig:
     servo_speed_m_s: float = 0.02
     contact_effort_limit_Nm: float = 0.3
     wrist_offset_limit_rad: float = 0.5
+    yaw_feedback: bool = False
+    yaw_lever_gain_m_rad: float = 0.12
+    yaw_lever_damping_m_s_rad: float = 0.01
+    yaw_moment_admittance_m_Nms: float = 1.0
+    unload_force_goal_N: float = 0.03
+    unload_dwell_s: float = 0.2
+    unload_speed_m_s: float = 0.004
+    unload_seconds: float = 5.0
+    yaw_moment_stiffness_Nm_rad: float = 1.0
+    yaw_moment_damping_Nms_rad: float = 0.1
+    straight_retreat_first: bool = True
+    yaw_reference_deg: float = 0.0
+    paired_plane_feedback: bool = False
 
     def __post_init__(self):
         if (
@@ -22,6 +35,19 @@ class WithdrawalFeedbackConfig:
             or not 0 < self.servo_speed_m_s <= 0.025
             or not 0 < self.contact_effort_limit_Nm <= 0.3
             or not 0 < self.wrist_offset_limit_rad <= 0.5
+            or type(self.yaw_feedback) is not bool
+            or type(self.straight_retreat_first) is not bool
+            or type(self.paired_plane_feedback) is not bool
+            or abs(self.yaw_reference_deg) > 0.13
+            or not 0 < self.yaw_lever_gain_m_rad <= 0.2
+            or not 0 < self.yaw_lever_damping_m_s_rad <= 0.05
+            or not 0 < self.yaw_moment_admittance_m_Nms <= 2.0
+            or not 0 < self.unload_force_goal_N <= 0.2
+            or not 0.12 <= self.unload_dwell_s <= 0.5
+            or not 0.001 <= self.unload_speed_m_s <= 0.004
+            or not 5 <= self.unload_seconds <= 10
+            or not 0.25 <= self.yaw_moment_stiffness_Nm_rad <= 2
+            or not 0 < self.yaw_moment_damping_Nms_rad <= 0.2
         ):
             raise ValueError("Withdrawal compensation settings exceed bounded development limits")
 
@@ -119,6 +145,50 @@ class WithdrawalTracker:
             requested_tracker=self.tracker.last_report,
         )
         return targets
+
+    def contact_center(self):
+        points, weights = [], []
+        wrench = np.empty(6)
+        for index, contact in enumerate(self.hand.data.contact):
+            if contact.efc_address < 0:
+                continue
+            b1, b2 = (int(self.hand.model.geom_bodyid[g]) for g in (contact.geom1, contact.geom2))
+            if not (
+                b1 in self.descendants
+                and b2 == self.product
+                or b2 in self.descendants
+                and b1 == self.product
+            ):
+                continue
+            mujoco.mj_contactForce(self.hand.model, self.hand.data, index, wrench)
+            if wrench[0] > 0:
+                points.append(contact.pos.copy())
+                weights.append(float(wrench[0]))
+        return None if not weights else np.average(points, axis=0, weights=weights)
+
+    def contact_wrench_on_product(self):
+        """World wrench ON carton about its measured origin; force then moment."""
+        result = np.zeros(6)
+        wrench = np.empty(6)
+        model, data = self.hand.model, self.hand.data
+        for index, contact in enumerate(data.contact):
+            if contact.efc_address < 0:
+                continue
+            b1, b2 = (int(model.geom_bodyid[g]) for g in (contact.geom1, contact.geom2))
+            if b1 == self.product and b2 in self.descendants:
+                sign = -1
+            elif b2 == self.product and b1 in self.descendants:
+                sign = 1
+            else:
+                continue
+            mujoco.mj_contactForce(model, data, index, wrench)
+            rotation = contact.frame.reshape(3, 3).T
+            force = sign * rotation @ wrench[:3]
+            result[:3] += force
+            result[3:] += sign * rotation @ wrench[3:] + np.cross(
+                contact.pos - data.xpos[self.product], force
+            )
+        return result
 
     def acknowledge(self, nominal, applied):
         # MabelController orders the known subset by its own canonical names.
