@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import time
@@ -105,6 +106,13 @@ def _parser():
                 action="append",
                 default=[],
                 help="Extra browser origin allowed to open sockets (e.g. a Vite dev server)",
+            )
+            sub.add_argument(
+                "--spawn-backoff",
+                type=float,
+                default=0.15,
+                help="Start MABEL this many metres further back from the shelf: the bundled "
+                "scenes spawn its fingers inside the shelf front (0 keeps the scene as is)",
             )
             sub.add_argument(
                 "--input-timeout",
@@ -442,6 +450,19 @@ def main(argv=None):
         if args.command == "teleop":
             # An operator keeps working after success; the long cap only bounds a run.
             config = replace(config, terminate_on_success=False, time_limit=args.time_limit)
+            if not 0 <= args.spawn_backoff <= 1.0:
+                raise ValueError("--spawn-backoff must be between 0 and 1 m")
+            if args.spawn_backoff:
+                # Explicit teleop-only placement change (scenes stay unchanged): MABEL
+                # faces -X in its own frame, so "back" is +X rotated by the spawn yaw.
+                x, y = config.robot_xy
+                config = replace(
+                    config,
+                    robot_xy=(
+                        x + args.spawn_backoff * math.cos(config.robot_yaw),
+                        y + args.spawn_backoff * math.sin(config.robot_yaw),
+                    ),
+                )
         if args.command == "script":
             # Keep checking geometric success while the physical protocol
             # verifies final contact/release and retreat; retain the time cap.

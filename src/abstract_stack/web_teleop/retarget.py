@@ -10,6 +10,7 @@ robot-gravity feedforward) and ``validate_targets``. Nothing here writes live
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import mujoco
@@ -18,6 +19,7 @@ import numpy as np
 from abstract_stack.control import validate_targets
 from abstract_stack.ik import PoseIK, rotation_error
 from abstract_stack.mabel_controller import MabelController, TrackingConfig
+from abstract_stack.web_teleop.base import BaseConfig, SwerveBase
 
 SIDES = ("left", "right")
 # Palm-frame control point used by the scripted stocking controller (interactions.py).
@@ -59,6 +61,8 @@ class RetargetConfig:
     head_rate: float = 1.5  # rad/s
     torso_rate: float = 0.5  # rad/s
     tracking: TrackingConfig = TrackingConfig()
+    base: BaseConfig = BaseConfig()
+    tilt_guard_rad: float = 0.14  # ~8 deg chassis tilt brakes the base
 
 
 def _quat_to_mat(quat: np.ndarray) -> np.ndarray:
@@ -91,6 +95,7 @@ class WebRetargeter:
                 min(joint.range[1], actuator.ctrlrange[1]),
             )
         self._ranges["Lift"] = tuple(model.actuator("Lift").ctrlrange)
+        self.base = SwerveBase(model, data, self.config.base)
         self.fingers = {
             side: {
                 f"{side.title()} {suffix}": tuple(
@@ -135,6 +140,9 @@ class WebRetargeter:
         self._ik_cache = {side: None for side in SIDES}
         self.arm_report = {side: None for side in SIDES}
         self.target_epoch = getattr(self, "target_epoch", 0) + 1
+        if hasattr(self, "base"):
+            self.base.reset()
+        self.tilt_guard = False
 
     def resync(self) -> None:
         """Invalidate client arm targets: commands must be rebased on ``arm_targets``."""
@@ -237,6 +245,18 @@ class WebRetargeter:
             "ik_orientation_error_rad": orientation_error,
         }
 
+    def tilt(self) -> float:
+        """Chassis tilt from vertical in radians."""
+        return float(math.acos(min(1.0, max(-1.0, self.data.xmat[self.chassis][8]))))
+
+    def drive(self, base: dict | None, dt: float) -> None:
+        """Ramp the base toward a velocity intent, or brake when ``None`` / tilting."""
+        self.tilt_guard = self.tilt() > self.config.tilt_guard_rad
+        if base is None or self.tilt_guard:
+            self.base.stop(dt)
+        else:
+            self.base.command(base["forward_mps"], base["left_mps"], base["turn_radps"], dt)
+
     def apply_intent(self, intent: dict, dt: float) -> None:
         """Update nominal references from one validated command (see protocol.parse_command)."""
         cfg = self.config
@@ -265,6 +285,7 @@ class WebRetargeter:
             for name, (low, high) in self.fingers[side].items():
                 requested[name] = min(high, max(low, low + self.grip[side] * (high - low)))
             requested[f"{side.title()} Thumb MCP"] = THUMB_PRESHAPE
+        requested.update(self.base.targets(dt))
         desired = self.controller.targets(requested, dt=dt)
         return validate_targets(self.model, self.data.ctrl, desired)
 
@@ -281,6 +302,11 @@ class WebRetargeter:
                 for side in SIDES
             },
             "channels": self.channel_state(),
+            "base": {
+                **self.base.report(),
+                "tilt_deg": round(math.degrees(self.tilt()), 1),
+                "tilt_guard": self.tilt_guard,
+            },
             "limits": {
                 key: list(last.get(key, []))
                 for key in ("rate_limited", "target_limited", "force_limited")

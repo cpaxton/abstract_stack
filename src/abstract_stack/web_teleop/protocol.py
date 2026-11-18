@@ -145,11 +145,32 @@ def _parse_arm(value: Any, side: str) -> dict | None:
     }
 
 
+MAX_BASE_LINEAR = 2.0  # m/s accepted on the wire; the controller clamps further
+MAX_BASE_ANGULAR = 3.0  # rad/s
+
+
+def _parse_base(value: Any) -> dict | None:
+    """Velocity intent in the robot's own frame; null (or omitted) means stop."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ProtocolError("base must be an object or null")
+    _require_keys(value, {"forward_mps", "left_mps", "turn_radps"})
+    out = {key: _finite(value[key], f"base.{key}") for key in value}
+    if max(abs(out["forward_mps"]), abs(out["left_mps"])) > MAX_BASE_LINEAR:
+        raise ProtocolError(f"base speed must be within {MAX_BASE_LINEAR} m/s")
+    if abs(out["turn_radps"]) > MAX_BASE_ANGULAR:
+        raise ProtocolError(f"base.turn_radps must be within {MAX_BASE_ANGULAR} rad/s")
+    return out
+
+
 def parse_command(message: Mapping) -> dict:
     """Absolute operator intents in the ``mabel_chassis`` root frame.
 
     ``arms.<side>`` null holds that arm; ``head``/``lift_m``/``torso_rad`` null hold
-    those channels. Absolute targets make each message self-contained, so a dropped
+    those channels. Optional ``base`` is a velocity intent (forward/left m/s,
+    turn-left rad/s) that the host ramps and stops whenever input is stale or control
+    pauses. Absolute pose targets make each message self-contained, so a dropped
     message never accumulates as drift.
     """
     _require_keys(
@@ -167,6 +188,7 @@ def parse_command(message: Mapping) -> dict:
             "lift_m",
             "torso_rad",
         },
+        {"base"},
     )
     arms = message["arms"]
     if not isinstance(arms, dict):
@@ -189,6 +211,7 @@ def parse_command(message: Mapping) -> dict:
         "sent_monotonic_s": _finite(message["sent_monotonic_s"], "sent_monotonic_s"),
         "arms": {side: _parse_arm(arms.get(side), side) for side in SIDES},
         "head": head,
+        "base": _parse_base(message.get("base")),
         "lift": None if message["lift_m"] is None else _finite(message["lift_m"], "lift_m"),
         "torso": None
         if message["torso_rad"] is None

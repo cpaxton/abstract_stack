@@ -295,6 +295,10 @@ class TeleopCore:
         try:
             if state is State.ENGAGED and command is not None:
                 self.retargeter.apply_intent(command, dt)
+            # Velocity intents only count while engaged with fresh input; otherwise
+            # the base brakes on its deceleration ramp (pause, timeout, disconnect).
+            engaged_base = command["base"] if state is State.ENGAGED and command else None
+            self.retargeter.drive(engaged_base, dt)
             targets = self.retargeter.targets(dt)
             started = time.perf_counter()
             _, _, terminated, truncated, _ = self.env.step(targets)

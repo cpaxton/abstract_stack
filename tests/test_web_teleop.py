@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -153,6 +154,7 @@ def _arm_command(core, sequence, offset, grip=0.0):
             for side in ("left", "right")
         },
         "head": None,
+        "base": None,
         "lift": None,
         "torso": None,
     }
@@ -392,3 +394,73 @@ def test_persistent_token_survives_restarts_and_rotates(tmp_path):
     assert path.stat().st_mode & 0o077 == 0  # private to the user
     rotated = persistent_token(path, rotate=True)
     assert rotated != first and persistent_token(path) == rotated
+
+
+def test_base_velocity_intent_is_validated():
+    base = {"forward_mps": 0.2, "left_mps": -0.1, "turn_radps": 0.3}
+    parsed = protocol.parse_command(protocol.decode_json(json.dumps(_command(base=base))))
+    assert parsed["base"] == base
+    assert protocol.parse_command(protocol.decode_json(json.dumps(_command())))["base"] is None
+    for bad, match in (
+        ({**base, "forward_mps": 5.0}, "base speed"),
+        ({**base, "turn_radps": 9.0}, "turn_radps"),
+        ({"forward_mps": 0.1}, "missing fields"),
+    ):
+        with pytest.raises(protocol.ProtocolError, match=match):
+            protocol.parse_command(protocol.decode_json(json.dumps(_command(base=bad))))
+
+
+def _base_command(core, sequence, forward=0.0, left=0.0, turn=0.0):
+    command = _arm_command(core, sequence, np.zeros(3))
+    command["arms"] = {"left": None, "right": None}
+    command["base"] = {"forward_mps": forward, "left_mps": left, "turn_radps": turn}
+    return command
+
+
+def _chassis_speed(env):
+    velocity = np.zeros(6)
+    chassis = env.model.body("mabel_chassis").id
+    mujoco.mj_objectVelocity(env.model, env.data, mujoco.mjtObj.mjOBJ_BODY, chassis, velocity, 0)
+    return float(np.linalg.norm(velocity[3:5]))
+
+
+@pytest.mark.mabel
+def test_engaged_base_drives_forward_and_brakes_on_pause(clear_env):
+    core = _core(clear_env, input_timeout_s=10.0)
+    operator = str(uuid.uuid4())
+    core.open_session(operator, "operator")
+    assert _event(core, operator, "engage", 1)["accepted"]
+    chassis = clear_env.model.body("mabel_chassis").id
+    start = clear_env.data.xpos[chassis].copy()
+    heading = clear_env.data.xmat[chassis].reshape(3, 3)[:, 0] * -1  # MABEL faces -X
+    for sequence in range(1, 101):  # 2 s at 0.3 m/s forward
+        core.submit_command(
+            operator, _base_command(core, sequence, forward=0.3) | {"session_id": operator}
+        )
+        core._tick_once(clear_env.dt)
+    moved = clear_env.data.xpos[chassis] - start
+    assert moved @ heading > 0.35  # measured forward travel, not commanded
+    assert abs(moved @ np.cross([0, 0, 1], heading)) < 0.03  # no sideways drift
+    assert core.retargeter.tilt() < np.radians(2)
+    assert _event(core, operator, "pause", 2)["accepted"]
+    for _ in range(50):
+        core._tick_once(clear_env.dt)
+    assert _chassis_speed(clear_env) < 0.02  # braked to a stop within 1 s
+
+
+@pytest.mark.mabel
+def test_base_stops_when_operator_input_goes_stale(clear_env):
+    core = _core(clear_env, input_timeout_s=0.03)
+    operator = str(uuid.uuid4())
+    core.open_session(operator, "operator")
+    assert _event(core, operator, "engage", 1)["accepted"]
+    for sequence in range(1, 51):
+        core.submit_command(
+            operator, _base_command(core, sequence, turn=0.6) | {"session_id": operator}
+        )
+        core._tick_once(clear_env.dt)
+    assert core.retargeter.base.moving
+    time.sleep(0.05)  # input goes stale: host pauses and brakes
+    for _ in range(50):
+        core._tick_once(clear_env.dt)
+    assert core._state.value == "paused" and not core.retargeter.base.moving
