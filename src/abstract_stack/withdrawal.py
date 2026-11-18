@@ -9,7 +9,18 @@ from abstract_stack.cartesian_feedback import bounded_contact_prediction
 from abstract_stack.ik import rotation_error
 
 
-def supported_withdrawal(hand, nominal, monitor, dwell):
+def supported_withdrawal(
+    hand,
+    nominal,
+    monitor,
+    dwell,
+    *,
+    clear_distance_m=0.04,
+    clear_height_m=0.02,
+    clear_speed_m_s=0.01,
+    resume_withdrawal=False,
+    on_physics_step=None,
+):
     """Unload toward 6 mm, clear 40 mm/+20 mm, measure released squared support.
 
     Keep native finger commands and initial applied-minus-nominal servo offsets.
@@ -18,8 +29,22 @@ def supported_withdrawal(hand, nominal, monitor, dwell):
     never write poses or claim a pick/fresh stocking episode.
     """
     model, data = hand.model, hand.data
+    if (
+        not np.isfinite([clear_distance_m, clear_height_m, clear_speed_m_s]).all()
+        or not 0.04 <= clear_distance_m <= 0.25
+        or not 0.02 <= clear_height_m <= 0.08
+        or not 0 < clear_speed_m_s <= 0.025
+    ):
+        raise ValueError("Keep clearance goals and physical motion bounded")
     nominal = np.array(nominal, float, copy=True)
-    monitor.begin_withdrawal(data, dwell)
+    if resume_withdrawal:
+        if monitor.phase != "withdrawal" or monitor.withdrawal_started_s is None:
+            raise ValueError("Extended clearance needs a previously admitted withdrawal phase")
+        failure = monitor.sample(data, elapsed=0)
+        if failure or monitor.last["robot_product_N"] > 0.2 or monitor.last["support_N"] <= 0.2:
+            raise ValueError("Extended clearance requires fresh unloaded surface support")
+    else:
+        monitor.begin_withdrawal(data, dwell)
     interval = int(round(hand.env.dt / model.opt.timestep))
     if interval < 1 or not np.isclose(interval * model.opt.timestep, hand.env.dt):
         raise ValueError("Withdrawal needs whole native control intervals")
@@ -34,7 +59,7 @@ def supported_withdrawal(hand, nominal, monitor, dwell):
     applied_origin, _ = hand.ik.forward(applied[aids])
     tolerance = hand.config.ik_position_tolerance
     lower = origin - tolerance
-    upper = origin + [0.04 + tolerance, tolerance, 0.02 + tolerance]
+    upper = origin + [clear_distance_m + tolerance, tolerance, clear_height_m + tolerance]
     applied_lower, applied_upper = lower + applied_origin - origin, upper + applied_origin - origin
     measured_lower, measured_upper = (
         lower + measured_origin - origin,
@@ -62,6 +87,8 @@ def supported_withdrawal(hand, nominal, monitor, dwell):
     def record_step():
         nonlocal failure, max_tracking, release_held
         failure = monitor.sample(data, elapsed=model.opt.timestep)
+        if on_physics_step is not None:
+            on_physics_step(hand.env)
         r = data.xmat[active].reshape(3, 3)
         yaw = float(np.degrees(np.arctan2(r[1, 0], r[0, 0])))
         traces.append(
@@ -98,10 +125,17 @@ def supported_withdrawal(hand, nominal, monitor, dwell):
         )
         release_held = release_held + model.opt.timestep if released else 0.0
 
-    for stage, displacement, speed, seconds in (
-        ("unload", np.array([0.006, 0, 0]), 0.004, 3.0),
-        ("retreat", np.array([0.04, 0, 0.02]), 0.01, 7.0),
-    ):
+    stages = [] if resume_withdrawal else [("unload", np.array([0.006, 0, 0]), 0.004, 3.0)]
+    displacement = np.array([clear_distance_m, 0, clear_height_m])
+    stages.append(
+        (
+            "retreat",
+            displacement,
+            clear_speed_m_s,
+            max(7.0, 1.5 * float(np.linalg.norm(displacement)) / clear_speed_m_s),
+        )
+    )
+    for stage, displacement, speed, seconds in stages:
         goal = measured_origin + displacement
         reached = False
         for tick in range(int(seconds / hand.env.dt)):
@@ -246,8 +280,8 @@ def supported_withdrawal(hand, nominal, monitor, dwell):
     verified = (
         failure is None
         and release_held + 1e-12 >= 0.12
-        and measured_delta[0] >= 0.035
-        and measured_delta[2] >= 0.015
+        and measured_delta[0] >= clear_distance_m - 0.005
+        and measured_delta[2] >= clear_height_m - 0.005
         and np.max(np.abs(data.xpos[active] - active_origin)) <= 0.005
     )
     if not verified and failure is None:
@@ -255,6 +289,12 @@ def supported_withdrawal(hand, nominal, monitor, dwell):
     return (
         dict(
             kind="supported_withdrawal_continuation",
+            resumed_withdrawal=resume_withdrawal,
+            settings=dict(
+                clear_distance_m=clear_distance_m,
+                clear_height_m=clear_height_m,
+                clear_speed_m_s=clear_speed_m_s,
+            ),
             failure=failure,
             release_retreat_verified=bool(verified),
             fresh_task_credit=0,

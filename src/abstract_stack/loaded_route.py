@@ -146,6 +146,7 @@ def plan_loaded_route(
     start_state=None,
     front_offset=None,
     product_clearance_m=0.0,
+    transit_yaws_degrees=(0, -20, 20),
 ):
     """Search a low front corridor; refine every stage from fresh measured state.
 
@@ -154,13 +155,19 @@ def plan_loaded_route(
     each segment again; returned poses are not cached execution certificates.
     """
     reports = []
+    if (
+        not 1 <= len(transit_yaws_degrees) <= 7
+        or not np.isfinite(transit_yaws_degrees).all()
+        or any(abs(yaw) > 60 for yaw in transit_yaws_degrees)
+    ):
+        raise ValueError("Use at most seven bounded carried-object yaw alternatives")
     if not np.isfinite(product_clearance_m) or not 0 <= product_clearance_m <= 0.03:
         raise ValueError("Loaded route product margin must be between zero and 30 mm")
     front_offset = -config.front_staging_depth if front_offset is None else front_offset
     middle_offset = (
         (0.10 + front_offset) / 2 if front_offset >= 0 else -min(0.04, -front_offset * 0.6)
     )
-    for yaw_degrees, clearance in combinations((0, -20, 20), (0.03, 0.01, 0.06)):
+    for yaw_degrees, clearance in combinations(transit_yaws_degrees, (0.03, 0.01, 0.06)):
         snapshot = env.clone_for_planning()
         if start_state is not None:
             mujoco.mj_copyData(snapshot.data, snapshot.model, start_state.data)
@@ -252,6 +259,7 @@ def admit_loaded_route(
     allow_lower_clearance=False,
     home_displacement_xy=None,
     product_clearance_m=0.0,
+    transit_yaws_degrees=(0, -20, 20),
 ):
     """Necessary geometric forecast before pickup; no grasp/contact guarantee.
 
@@ -358,6 +366,7 @@ def admit_loaded_route(
         start_state=hand.env,
         front_offset=front_offset,
         product_clearance_m=product_clearance_m,
+        transit_yaws_degrees=transit_yaws_degrees,
     )
     return {
         "accepted": route.accepted,

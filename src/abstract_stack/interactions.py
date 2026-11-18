@@ -1116,6 +1116,12 @@ class StockingScript:
         transfer = placement + offset + [0, 0, config.lift_height]
         transfer[2] = max(transfer[2], staging[2])
         self._move("transfer", transfer, grasp_grip)
+        return self._seat_front(grasp_grip)
+
+    def _seat_front(self, grasp_grip):
+        """Seat an already carried carton from its current measured transform."""
+        env, product = self.env, self.product
+        placement = np.array(product.target)
         body = env.data.body(product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.array(product.half_size)
         # Use the measured rotated box bounds and grasp offset; nominal carton

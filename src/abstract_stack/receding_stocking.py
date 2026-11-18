@@ -79,9 +79,11 @@ class RecedingStockingScript(DenseStockingScript):
         payload_load_compensation=False,
         payload_wrist_reserve=0.4,
         split_insertion=False,
+        loaded_transit_yaws=(0, -20, 20),
         **kwargs,
     ):
         self.grasp_wrist_posture = grasp_wrist_posture
+        self.loaded_transit_yaws = tuple(loaded_transit_yaws)
         if not isinstance(payload_load_compensation, bool) or not (
             np.isfinite(payload_wrist_reserve) and 0.15 <= payload_wrist_reserve <= 0.5
         ):
@@ -335,6 +337,7 @@ class RecedingStockingScript(DenseStockingScript):
                 grip=grip,
                 front_offset=0.06 if self.table_front else None,
                 product_clearance_m=self.loaded_product_clearance_m,
+                transit_yaws_degrees=self.loaded_transit_yaws,
             )
             self._stage("loaded_route_plan")
             self.events[-1].update(
@@ -835,6 +838,7 @@ class RecedingStockingScript(DenseStockingScript):
                             prediction,
                             front_offset=0.06 if self.table_front else None,
                             product_clearance_m=self.loaded_product_clearance_m,
+                            transit_yaws_degrees=self.loaded_transit_yaws,
                             allow_lower_clearance=bool(
                                 self.observer is not None and self.observer.completed
                             ),
@@ -892,6 +896,7 @@ class RecedingStockingScript(DenseStockingScript):
                 "primitive_recovery_scope": "released_supported_contact_reacquisition_only",
                 "task_level_jam_recovery_implemented": False,
                 "loaded_corridor_enabled": self.loaded_route_enabled,
+                "loaded_transit_yaws_degrees": self.loaded_transit_yaws,
                 "grasp_wrist_posture_rad": self.grasp_wrist_posture,
                 "payload_wrist_load_compensation_enabled": self.payload_load_compensation,
                 "payload_wrist_reference_reserve_rad": (

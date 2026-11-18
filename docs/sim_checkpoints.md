@@ -8,6 +8,8 @@ fixture lineage and earn no new pick or stocking credit.
 
 For synchronized MP4s of a continuous checkpoint/control chain and the longer
 square/unload/retreat probe, see [video replay and withdrawal](reports/squaring_withdrawal_development.md).
+The [continuous next-carton example](reports/continuous_stocking_development.md)
+adds a real pickup, loaded transfer, shelf support and unfinished contact recovery.
 
 Use a native checkpoint to repeat a difficult insertion state without repeating
 the pickup. Checkpoints contain the **compiled model and complete integration

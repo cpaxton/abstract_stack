@@ -8,7 +8,6 @@ import json
 import os
 import runpy
 import shutil
-import subprocess
 import sys
 import time
 from dataclasses import asdict
@@ -42,7 +41,16 @@ def worker(args):
 
     started = time.monotonic()
     source = args.output / "inputs"
-    restored = load_checkpoint(source / "checkpoint") if args.checkpoint else None
+    checkpoint = source / "checkpoint"
+    if args.checkpoint and (source / "checkpoint_ref.json").exists():
+        reference = json.loads((source / "checkpoint_ref.json").read_text())
+        checkpoint = Path(reference["path"])
+        if (
+            hashlib.sha256((checkpoint / "manifest.json").read_bytes()).hexdigest()
+            != reference["sha256"]
+        ):
+            raise ValueError("Checkpoint reference changed")
+    restored = load_checkpoint(checkpoint) if args.checkpoint else None
     if restored is not None:
         if restored.controller.get("kind") != "retained_finger_push":
             raise ValueError("Checkpoint lacks the explicit finger-push controller contract")
@@ -650,7 +658,11 @@ def main():
         and (not args.sweep_side or args.require_dwell)
         and (args.normal_target is None or 0 < args.normal_target < 25)
         and 0 <= args.wrist_freedom_deg <= 20
-        and (not args.front_face_sweep or args.sweep_side and args.require_dwell)
+        and (
+            not args.front_face_sweep
+            or (args.sweep_side or args.square_feedback)
+            and args.require_dwell
+        )
         and (not args.withdraw or args.require_dwell)
         and (not args.withdraw_only or args.checkpoint)
         and (
@@ -670,6 +682,8 @@ def main():
     if args.episode is None and args.checkpoint is None:
         parser.error("--episode or --checkpoint is required")
     root = Path(__file__).resolve().parents[1]
+    from abstract_stack.source_store import freeze_source
+
     args.output.mkdir(parents=True, exist_ok=False)
     inputs = args.output / "inputs"
     inputs.mkdir()
@@ -677,7 +691,15 @@ def main():
         from abstract_stack.checkpoint_manifest import inspect_checkpoint
 
         checkpoint_directory, _ = inspect_checkpoint(args.checkpoint)
-        shutil.copytree(checkpoint_directory, inputs / "checkpoint")
+        write(
+            inputs / "checkpoint_ref.json",
+            dict(
+                path=str(checkpoint_directory.resolve()),
+                sha256=hashlib.sha256(
+                    (checkpoint_directory / "manifest.json").read_bytes()
+                ).hexdigest(),
+            ),
+        )
     else:
         for src, name in (
             (args.episode / "summary.json", "summary.json"),
@@ -686,38 +708,40 @@ def main():
             (args.episode / "rollout_terminal.npz", "rollout_terminal.npz"),
         ):
             shutil.copy2(src, inputs / name)
-    snapshot = args.output / "source_snapshot"
-    snapshot.mkdir()
-    shutil.copytree(
-        root / "src/abstract_stack",
-        snapshot / "src/abstract_stack",
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    frozen = freeze_source(
+        root,
+        paths=[
+            "src/abstract_stack",
+            "scripts/probe_compliant_lookahead.py",
+            "scripts/run_frozen_replanning.py",
+            "uv.lock",
+            "pyproject.toml",
+        ],
     )
-    for src, name in (
-        (Path(__file__), "probe.py"),
-        (root / "scripts/run_frozen_replanning.py", "supervisor.py"),
-        (root / "uv.lock", "uv.lock"),
-    ):
-        shutil.copy2(src, snapshot / name)
+    frozen.write_reference(args.output / "source_ref.json")
+    snapshot = frozen.runtime_root
     write(
         args.output / "manifest.json",
         dict(
-            source_revision=subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], text=True
-            ).strip(),
+            source_revision=frozen.git["revision"],
+            source_content_id=frozen.content_id,
             versions={n: importlib.metadata.version(n) for n in ("mujoco", "numpy")},
             settings={k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
             sha256={
-                str(p.relative_to(args.output)): hashlib.sha256(p.read_bytes()).hexdigest()
-                for d in (inputs, snapshot)
-                for p in d.rglob("*")
-                if p.is_file()
+                "source_ref.json": hashlib.sha256(
+                    (args.output / "source_ref.json").read_bytes()
+                ).hexdigest(),
+                **{
+                    str(p.relative_to(args.output)): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in inputs.rglob("*")
+                    if p.is_file()
+                },
             },
         ),
     )
     command = [
         sys.executable,
-        str(snapshot / "probe.py"),
+        str(snapshot / "scripts/probe_compliant_lookahead.py"),
         "--worker",
         "--output",
         str(args.output),
@@ -762,11 +786,18 @@ def main():
         args.output / "process.json",
         dict(returncode=None, verification_status="unknown", fresh_task_credit=0),
     )
-    supervisor = runpy.run_path(str(snapshot / "supervisor.py"))["supervise"]
+    supervisor = runpy.run_path(str(snapshot / "scripts/run_frozen_replanning.py"))["supervise"]
     result = supervisor(
         command,
         cwd=root,
-        environment=dict(os.environ, PYTHONPATH=str(snapshot / "src"), PYTHONFAULTHANDLER="1"),
+        environment=dict(
+            os.environ,
+            PYTHONPATH=str(snapshot / "src"),
+            PYTHONFAULTHANDLER="1",
+            PYTHONDONTWRITEBYTECODE="1",
+            ABSTRACT_STACK_SOURCE_REFERENCE=str(args.output / "source_ref.json"),
+            ABSTRACT_STACK_SOURCE_STORE=str(frozen.archive.parent),
+        ),
         log=args.output / "run.log",
         wall_seconds=args.wall_seconds,
     )
