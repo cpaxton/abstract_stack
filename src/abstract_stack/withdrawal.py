@@ -60,6 +60,14 @@ def supported_withdrawal(
         if feedback is not None
         else None
     )
+    finger_tracker = (
+        getattr(hand, "finger_load_compensation", None) if tracker is not None else None
+    )
+    selected_finger_ids = (
+        []
+        if finger_tracker is None
+        else [state["actuator"] for state in finger_tracker.joints.values()]
+    )
     hand.command = nominal.copy()
     origin, rotation = hand.ik.forward(nominal)
     plane_bias = 0.0
@@ -353,6 +361,7 @@ def supported_withdrawal(
                 # rejected tracker proposal. Preserve the nominal prediction.
                 offsets = applied[aids] - nominal
                 refreshed = tracker.propose(prediction.q)
+                wanted[selected_finger_ids] = refreshed[selected_finger_ids]
             wanted[aids] = prediction.q + offsets
             requested = wanted.copy()
             limited = model.actuator_ctrllimited != 0
@@ -378,6 +387,7 @@ def supported_withdrawal(
                     model.actuator_ctrlrange[limited, 1],
                 )
                 bounded = applied.copy()
+                bounded[selected_finger_ids] = candidate[selected_finger_ids]
                 bounded[aids] += np.clip(
                     candidate[aids] - applied[aids], -rates * hand.env.dt, rates * hand.env.dt
                 )
@@ -418,7 +428,10 @@ def supported_withdrawal(
                 max_applied_step, float(np.linalg.norm(applied_point - previous_point))
             )
             collision = hand.check_hand_step(
-                SimpleNamespace(q=bounded[aids]), 0, monitor.scene.active, targets=finger_targets
+                SimpleNamespace(q=bounded[aids]),
+                0,
+                monitor.scene.active,
+                targets={name: float(bounded[model.actuator(name).id]) for name in finger_targets},
             )
             if (
                 collision

@@ -26,7 +26,7 @@ class FingerPusher(CartesianHand):
         return targets
 
     def __init__(self, env, config, *, finger="Middle", tilt_degrees=20, wrist_posture=0.4):
-        if finger not in ("Index", "Middle", "Ring"):
+        if finger not in ("Index", "Middle", "Ring", "Pinky"):
             raise ValueError("Unsupported native pushing finger")
         if not np.isfinite(tilt_degrees) or not 0 <= tilt_degrees <= 60:
             raise ValueError("Pusher tilt must be within 0–60 degrees")
@@ -54,6 +54,11 @@ class FingerPusher(CartesianHand):
         self.OFFSET = self.native_tip_offset(finger)
         self.ik.offset = self.OFFSET.copy()
         self.last_target = self.position().copy()
+        self.finger_load_compensation = None
+        if config.ungrasped_insertion:
+            from abstract_stack.finger_control import FingerLoadCompensation
+
+            self.finger_load_compensation = FingerLoadCompensation(self)
 
     def native_tip_offset(self, finger):
         return self.native_tip_reference(finger)[0]
@@ -95,6 +100,7 @@ class PairedFingerPusher(FingerPusher):
     """Two native fingertip contacts form a wider, compliant squaring surface."""
 
     fingers = ("Index", "Ring")
+    WRISTS = (0.2, 0.0)
 
     def finger_targets(self, grip):
         targets = super().finger_targets(0)
@@ -110,7 +116,12 @@ class PairedFingerPusher(FingerPusher):
         return targets
 
     def __init__(self, env, config, **kwargs):
+        kwargs.setdefault("wrist_posture", 0.2)
         super().__init__(env, config, **kwargs)
+        index = self.ik.names.index("Left Wrist")
+        self.ik.constrain_reference_range(
+            "Left Wrist", self.ik.original_lower[index], self.ik.original_upper[index] - 0.35
+        )
         references = [self.native_tip_reference(finger) for finger in self.fingers]
         tips = np.array([reference[0] for reference in references])
         self.tip_body_references = {
@@ -137,3 +148,24 @@ class PairedFingerPusher(FingerPusher):
             points.append(self.data.xpos[body] + self.data.xmat[body].reshape(3, 3) @ offset)
         delta = points[1] - points[0]
         return float((-np.arctan2(delta[0], delta[1]) + np.pi / 2) % np.pi - np.pi / 2)
+
+
+class WallFingerPusher(FingerPusher):
+    """Use an outer native finger while keeping the palm inside a sidewall."""
+
+    WRISTS = (0.2, 0.0)
+
+    def finger_targets(self, grip):
+        targets = super().finger_targets(grip)
+        for finger in ("Index", "Middle", "Ring", "Pinky"):
+            if finger != self.finger:
+                for joint in ("MCP", "PIP"):
+                    targets[f"Left {finger} {joint}"] = 1.5
+        return targets
+
+    def __init__(self, env, config, **kwargs):
+        super().__init__(env, config, **kwargs)
+        index = self.ik.names.index("Left Wrist")
+        self.ik.constrain_reference_range(
+            "Left Wrist", self.ik.original_lower[index], self.ik.original_upper[index] - 0.35
+        )

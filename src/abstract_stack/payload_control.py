@@ -29,7 +29,7 @@ def measured_payload_load(script):
     return result
 
 
-def guard_payload_targets(script, targets):
+def guard_payload_targets(script, targets, *, intended_contact=None):
     """Check final compensated arm and proposed fingers together before stepping."""
     from abstract_stack.interactions import InteractionFailure
 
@@ -42,14 +42,15 @@ def guard_payload_targets(script, targets):
         jid = int(model.actuator_trnid[aid, 0])
         if int(model.jnt_bodyid[jid]) in script.hand_bodies:
             fingers[model.actuator(aid).name] = float(targets[aid])
-    intended_contact = script.active_grip is not None or script.phase in (
-        "approach",
-        "close",
-        "place",
-        "stage_align",
-        "release_unload",
-        "release_front",
-    )
+    if intended_contact is None:
+        intended_contact = script.active_grip is not None or script.phase in (
+            "approach",
+            "close",
+            "place",
+            "stage_align",
+            "release_unload",
+            "release_front",
+        )
     errors = hand.check_hand_step(
         SimpleNamespace(q=applied_q),
         0,

@@ -37,6 +37,7 @@ class ReleaseForecast:
             update_task_state=lambda dt: None,
         )
         self.config, self.product = script.config, script.product
+        self.lateral_goal_y = float(script.lateral_goal_y)
         live = script.controller
         settings = dict(
             finger=live.finger, tilt_degrees=live.tilt_degrees, wrist_posture=live.wrist_posture
@@ -173,6 +174,12 @@ def choose_release_reference(script, monitor, dwell):
             p.name: bool(good[i]) for i, p in enumerate(env.products) if p.name in required
         }
         eligible = bool(report and report["release_retreat_verified"] and all(placements.values()))
+        registration_budget = None
+        registration_error = abs(float(env.data.xpos[guarded.active, 1]) - script.product.target[1])
+        if env.config.row_free_space is not None and script.config.paired_finger_insertion:
+            count = sum(p.level == script.product.level for p in env.products)
+            registration_budget = min(0.001, env.config.row_free_space / count)
+            eligible = eligible and registration_error <= registration_budget
         if (
             eligible
             and env.config.row_free_space is not None
@@ -190,6 +197,8 @@ def choose_release_reference(script, monitor, dwell):
             required_placement_conditions=placements,
             failure=failure,
             terminal_yaw_deg=yaw,
+            active_lateral_error_m=registration_error,
+            controller_lateral_admission_budget_m=registration_budget,
             simulated_seconds=float(env.data.time - script.env.data.time),
             artifact=str(artifact.relative_to(script.directory)),
             sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),

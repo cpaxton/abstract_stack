@@ -144,6 +144,10 @@ class WithdrawalTracker:
             contact_effort_limited=bool(abs(load + effort) > 1e-9),
             requested_tracker=self.tracker.last_report,
         )
+        fingers = getattr(self.hand, "finger_load_compensation", None)
+        if fingers is not None:
+            targets, report = fingers.propose(targets, self.hand.model.body(self.product).name)
+            self.last_report["selected_finger_tracking"] = report
         return targets
 
     def contact_center(self):
@@ -195,6 +199,9 @@ class WithdrawalTracker:
         lookup = dict(zip(self.names, nominal, strict=True))
         self.tracker.nominal = np.array([lookup[n] for n in self.tracker.NAMES])
         self.tracker.applied = np.array(applied[self.tracker.ids], copy=True)
+        fingers = getattr(self.hand, "finger_load_compensation", None)
+        if fingers is not None:
+            fingers.acknowledge(applied)
         self.last_report["accepted_nominal"] = lookup
         self.last_report["accepted_servo_targets"] = dict(
             zip(self.tracker.NAMES, self.tracker.applied.tolist(), strict=True)

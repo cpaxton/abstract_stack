@@ -16,9 +16,14 @@ SKILL_PHASES = {
     "finger_push": "contact_finish",
     "release": "release_retreat",
     "stage_align": "front_release",
+    "front_registered": "front_insertion",
 }
 
 SKILL_CONTRACTS = {
+    "front_insertion": {
+        "entry": "Released shelf-front carton after optional lateral registration; empty hand",
+        "success": "Native insertion, squared contact, unloaded release and complete shelf exit",
+    },
     "front_release": {
         "entry": "Shelf-front supported carton; retained wrapping grip before pressure unload",
         "success": "Measured unloaded support with pose/velocity recorded before pusher approach",
@@ -144,6 +149,13 @@ def record_skill_entry(script, phase):
         controller=dict(
             kind="stocking_skill_entry",
             tool_class=type(script.controller).__name__,
+            tool_parameters=dict(getattr(script.controller, "tool_parameters", {})),
+            finger_compensation_applied={
+                k: v["previous"]
+                for k, v in getattr(
+                    getattr(script.controller, "finger_load_compensation", None), "joints", {}
+                ).items()
+            },
             tool_offset_m=script.controller.OFFSET.tolist(),
             tool_preferred_rotation_world=script.controller.ROTATION.tolist(),
             grasp_abduction_targets=dict(script.grasp_abduction_targets),
@@ -158,6 +170,7 @@ def record_skill_entry(script, phase):
                 for i, value in script.controller.ik.posture_constraints.items()
             },
             settings=asdict(script.config),
+            tool_settings=asdict(script.controller.config),
             nominal_subset=nominal,
             hand_nominal_subset=dict(
                 zip(
@@ -170,6 +183,10 @@ def record_skill_entry(script, phase):
             active_rotation_world=script.controller.active_rotation.tolist(),
             nominal_cartesian_target_m=script.controller.last_target.tolist(),
             active_grip=script.active_grip,
+            base_translation_origin_xy_m=None
+            if script._base_translation_origin is None
+            else script._base_translation_origin.tolist(),
+            wrist_load_state_Nm=float(script.wrist_load),
             carry_reference=None
             if script.carry_reference is None
             else script.carry_reference.tolist(),
