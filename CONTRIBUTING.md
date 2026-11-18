@@ -128,6 +128,13 @@ source fingerprints in every episode bundle. If child source fingerprints
 differ, preserve the outcomes and report the mismatch as development evidence;
 do not combine them into a frozen-policy success rate.
 
+For new launchers, use [shared source bundles](docs/experiment_sources.md): record
+Git HEAD and scoped dirty metadata, capture exact selected source bytes once,
+and reference that content ID from each run. Keep runnable extractions in the
+shared cache rather than copying Python trees into every output directory.
+Portable checkpoints embed a compressed archive. Do not rewrite historical
+manifests or discard failed experiment evidence during this migration.
+
 The benchmark baseline uses `--force-profile legacy --legacy-contact-control`;
 the selected script
 enables checked alternate withdrawal paths and wrist/board clearance feedback.

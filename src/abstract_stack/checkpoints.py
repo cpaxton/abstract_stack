@@ -9,7 +9,6 @@ import hashlib
 import json
 import platform
 import random
-import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,6 +20,7 @@ from abstract_stack.checkpoint_manifest import SCHEMA, inspect_checkpoint
 from abstract_stack.checkpoint_manifest import sha256_file as _sha
 from abstract_stack.native_views import retain_data_views, retain_model_views
 from abstract_stack.provenance import policy_provenance
+from abstract_stack.source_store import freeze_source
 
 STATE = mujoco.mjtState.mjSTATE_INTEGRATION
 
@@ -205,6 +205,7 @@ def save_checkpoint(
     scene_xml=None,
     validation_controls=None,
     generator_states=None,
+    portable_source=True,
 ):
     """Capture a paused control boundary and a short scratch-only replay witness.
 
@@ -213,6 +214,8 @@ def save_checkpoint(
     automatically resumed. All task outcomes remain inherited continuations.
     """
     directory = Path(directory)
+    if type(portable_source) is not bool:
+        raise ValueError("Checkpoint source portability must be an explicit boolean")
     # Validate JSON before creating a bundle, and refuse overwrite.
     scene, controller, context = (_json(x) for x in (scene, controller, context))
     if not all(isinstance(x, dict) and x for x in (scene, controller, context)):
@@ -253,11 +256,13 @@ def save_checkpoint(
     if scene_xml is not None:
         (directory / "scene.xml").write_text(scene_xml)
     source = Path(__file__).resolve().parent
-    shutil.copytree(
-        source,
-        directory / "source_snapshot/abstract_stack",
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    source_root = source.parents[1] if source.parent.name == "src" else source.parent
+    source_paths = [source.relative_to(source_root).as_posix()]
+    source_paths.extend(
+        name for name in ("pyproject.toml", "uv.lock") if (source_root / name).is_file()
     )
+    frozen = freeze_source(source_root, paths=source_paths, materialize=False)
+    frozen.write_reference(directory / "source_ref.json", portable=portable_source)
     controls = np.tile(data.ctrl, (50, 1)) if validation_controls is None else validation_controls
     witness = replay_witness(model, data, controls)
     np.savez_compressed(directory / "witness.npz", **witness)
@@ -280,6 +285,9 @@ def save_checkpoint(
         ],
         model_signature=signature,
         policy_source=policy_provenance(),
+        source_capture=dict(
+            format="source_bundle_zip", portable=portable_source, content_id=frozen.content_id
+        ),
         controller_restore=(
             "explicit caller-owned controller/observer state; no arbitrary Python resume"
         ),

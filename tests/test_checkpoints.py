@@ -172,6 +172,65 @@ def test_manifest_inspection_has_no_native_simulator_import(tmp_path, world):
     assert result.returncode == 0, result.stderr
 
 
+def test_new_checkpoint_keeps_portable_compressed_sources_without_python_tree(
+    tmp_path, world, monkeypatch
+):
+    from abstract_stack.checkpoint_manifest import inspect_checkpoint
+
+    monkeypatch.setenv("ABSTRACT_STACK_SOURCE_STORE", str(tmp_path / "source_bundles"))
+    path = capture(tmp_path / "checkpoint", *world)
+    _, manifest = inspect_checkpoint(path)
+    assert manifest["source_capture"]["portable"]
+    assert (path / "source_bundle.zip").is_file() and (path / "source_ref.json").is_file()
+    assert not list(path.rglob("*.py")) and not (path / "source_snapshot").exists()
+    for archived in (tmp_path / "source_bundles").glob("*.zip"):
+        archived.unlink()
+    relocated = tmp_path / "relocated"
+    path.rename(relocated)
+    assert verify_checkpoint(relocated)["verified"]
+
+
+def test_reference_only_checkpoint_requires_its_shared_source_archive(tmp_path, world, monkeypatch):
+    monkeypatch.setenv("ABSTRACT_STACK_SOURCE_STORE", str(tmp_path / "source_bundles"))
+    model, data = world
+    path = save_checkpoint(
+        tmp_path / "checkpoint",
+        model,
+        data,
+        scene=dict(seed=123),
+        controller=dict(kind="fixture"),
+        context=dict(kind="continuation"),
+        portable_source=False,
+    )
+    assert not (path / "source_bundle.zip").exists()
+    assert load_checkpoint(path).model.nu == model.nu
+    reference = json.loads((path / "source_ref.json").read_text())
+    from pathlib import Path
+
+    Path(reference["archive"]).unlink()
+    with pytest.raises(ValueError, match="Source archive missing"):
+        load_checkpoint(path)
+
+
+def test_legacy_embedded_python_source_checkpoint_remains_loadable(tmp_path, world):
+    import hashlib
+
+    path = capture(tmp_path / "checkpoint", *world)
+    manifest = json.loads((path / "manifest.json").read_text())
+    manifest.pop("source_capture")
+    for name in ("source_ref.json", "source_bundle.zip"):
+        (path / name).unlink()
+        manifest["hashes"].pop(name)
+    legacy = path / "source_snapshot/abstract_stack/legacy.py"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# Legacy source fixture\n")
+    manifest["hashes"][legacy.relative_to(path).as_posix()] = hashlib.sha256(
+        legacy.read_bytes()
+    ).hexdigest()
+    (path / "manifest.json").write_text(json.dumps(manifest))
+    assert verify_checkpoint(path)["verified"]
+
+
 def test_inconsistent_applied_metadata_cannot_be_captured(tmp_path, world):
     model, data = world
     with pytest.raises(ValueError, match="applied references"):
