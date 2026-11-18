@@ -7,6 +7,7 @@ import numpy as np
 
 from abstract_stack.cartesian_feedback import bounded_contact_prediction
 from abstract_stack.ik import rotation_error
+from abstract_stack.withdrawal_feedback import WithdrawalTracker, compensation_translation
 
 
 def supported_withdrawal(
@@ -20,10 +21,12 @@ def supported_withdrawal(
     clear_speed_m_s=0.01,
     resume_withdrawal=False,
     on_physics_step=None,
+    feedback=None,
 ):
     """Unload toward 6 mm, clear 40 mm/+20 mm, measure released squared support.
 
-    Keep native finger commands and initial applied-minus-nominal servo offsets.
+    Keep native finger commands. Default to frozen servo offsets; explicit
+    feedback refreshes robot gravity, wrist damping and measured contact torque.
     Replan every 20 ms, check nominal/applied geometry after final projection,
     and guard every 2 ms physics step. Return failures with partial controls;
     never write poses or claim a pick/fresh stocking episode.
@@ -52,6 +55,11 @@ def supported_withdrawal(
     rates = np.r_[np.full(len(hand.names), hand.config.max_joint_speed), 0.08]
     applied = data.ctrl.copy()
     offsets = applied[aids] - nominal
+    tracker = (
+        WithdrawalTracker(hand, nominal, monitor.scene.active, feedback)
+        if feedback is not None
+        else None
+    )
     hand.command = nominal.copy()
     origin, rotation = hand.ik.forward(nominal)
     hand.active_rotation = rotation.copy()
@@ -83,6 +91,7 @@ def supported_withdrawal(
     joint_limits, rate_limits = set(), set()
     native_projection_count = rate_projection_count = 0
     max_ik_position = max_ik_orientation = max_applied_step = 0.0
+    feedback_trace = []
 
     def record_step():
         nonlocal failure, max_tracking, release_held
@@ -188,6 +197,11 @@ def supported_withdrawal(
                 failure = "withdrawal_bounded_nominal_geometry_or_motion"
                 break
             wanted = applied.copy()
+            if tracker is not None:
+                # Recompute offsets from the last admitted pair, never from a
+                # rejected tracker proposal. Preserve the nominal prediction.
+                offsets = applied[aids] - nominal
+                refreshed = tracker.propose(prediction.q)
             wanted[aids] = prediction.q + offsets
             requested = wanted.copy()
             limited = model.actuator_ctrllimited != 0
@@ -196,12 +210,53 @@ def supported_withdrawal(
                 model.actuator_ctrlrange[limited, 0],
                 model.actuator_ctrlrange[limited, 1],
             )
-            bounded = applied.copy()
-            bounded[aids] += np.clip(
-                wanted[aids] - applied[aids], -rates * hand.env.dt, rates * hand.env.dt
+            servo_bound = (
+                tracker.config.servo_speed_m_s * hand.env.dt + 1e-6
+                if tracker is not None
+                else linear_bound
             )
-            native_projection_count += int(np.any(wanted != requested))
-            rate_projection_count += int(np.any(bounded != wanted))
+            alphas = [2.0**-i for i in range(11)] + [0.0] if tracker is not None else [0.0]
+            for alpha in alphas:
+                candidate = wanted.copy()
+                if tracker is not None:
+                    candidate[aids] += alpha * (refreshed[aids] - wanted[aids])
+                candidate_requested = candidate.copy()
+                candidate[limited] = np.clip(
+                    candidate[limited],
+                    model.actuator_ctrlrange[limited, 0],
+                    model.actuator_ctrlrange[limited, 1],
+                )
+                bounded = applied.copy()
+                bounded[aids] += np.clip(
+                    candidate[aids] - applied[aids], -rates * hand.env.dt, rates * hand.env.dt
+                )
+                applied_point, applied_rotation = hand.ik.forward(
+                    bounded[aids], proposal.reference_qpos
+                )
+                previous_point, previous_rotation = hand.ik.forward(
+                    applied[aids], proposal.reference_qpos
+                )
+                if tracker is not None:
+                    shift = compensation_translation(
+                        hand.ik,
+                        source_nominal,
+                        prediction.q,
+                        bounded[aids],
+                        proposal.reference_qpos,
+                    )
+                    applied_lower, applied_upper = lower + shift, upper + shift
+                if (
+                    np.all(applied_point >= applied_lower)
+                    and np.all(applied_point <= applied_upper)
+                    and np.linalg.norm(applied_point - previous_point) <= servo_bound
+                    and np.linalg.norm(rotation_error(previous_rotation, applied_rotation))
+                    <= angular_bound
+                ):
+                    break
+            native_projection_count += int(
+                np.any(wanted != requested) or np.any(candidate != candidate_requested)
+            )
+            rate_projection_count += int(np.any(bounded != candidate))
             applied_point, applied_rotation = hand.ik.forward(
                 bounded[aids], proposal.reference_qpos
             )
@@ -218,7 +273,7 @@ def supported_withdrawal(
                 collision
                 or np.any(applied_point < applied_lower)
                 or np.any(applied_point > applied_upper)
-                or np.linalg.norm(applied_point - previous_point) > linear_bound
+                or np.linalg.norm(applied_point - previous_point) > servo_bound
                 or np.linalg.norm(rotation_error(previous_rotation, applied_rotation))
                 > angular_bound
             ):
@@ -232,6 +287,25 @@ def supported_withdrawal(
                 )
                 failure = "withdrawal_final_applied_geometry_or_motion"
                 break
+            if tracker is not None:
+                feedback_trace.append(
+                    dict(
+                        time_s=float(data.time),
+                        stage=stage,
+                        compensation_fraction=alpha,
+                        nominal_tool_step_m=float(np.linalg.norm(prediction.position - old_point)),
+                        applied_virtual_tool_step_m=float(
+                            np.linalg.norm(applied_point - previous_point)
+                        ),
+                        applied_virtual_lower_m=applied_lower.tolist(),
+                        applied_virtual_upper_m=applied_upper.tolist(),
+                        admitted_nominal_endpoint=dict(
+                            zip((*hand.names, "Lift"), prediction.q.tolist(), strict=True)
+                        ),
+                        admitted_servo_endpoint=bounded[aids].tolist(),
+                        **tracker.last_report,
+                    )
+                )
             previous_nominal = nominal.copy()
             for part in range(1, interval + 1):
                 control = applied + (bounded - applied) * (part / interval)
@@ -245,6 +319,12 @@ def supported_withdrawal(
                 if failure:
                     break
             applied = data.ctrl.copy()
+            if tracker is not None:
+                tracker.acknowledge(nominal, applied)
+                feedback_trace[-1].update(
+                    executed_nominal=tracker.last_report["accepted_nominal"],
+                    executed_servo_targets=tracker.last_report["accepted_servo_targets"],
+                )
             if failure:
                 break
         plans.append(
@@ -277,6 +357,7 @@ def supported_withdrawal(
             if failure:
                 break
     measured_delta = hand.position() - measured_origin
+    terminal_nominal_point, _ = hand.ik.forward(nominal, data.qpos.copy())
     verified = (
         failure is None
         and release_held + 1e-12 >= 0.12
@@ -294,6 +375,12 @@ def supported_withdrawal(
                 clear_distance_m=clear_distance_m,
                 clear_height_m=clear_height_m,
                 clear_speed_m_s=clear_speed_m_s,
+                feedback=None if tracker is None else vars(tracker.config),
+                applied_envelope_frame=(
+                    "entry_nominal_with_admitted_compensation_translation"
+                    if tracker is not None
+                    else "fixed_entry_compensation_translation"
+                ),
             ),
             failure=failure,
             release_retreat_verified=bool(verified),
@@ -304,6 +391,9 @@ def supported_withdrawal(
             release_held_seconds=release_held,
             measured_tool_displacement_m=measured_delta.tolist(),
             measured_base_nominal_fk_tracking_peak_m=max_tracking,
+            measured_base_nominal_fk_tracking_terminal_m=float(
+                np.linalg.norm(hand.position() - terminal_nominal_point)
+            ),
             initial_nominal=source_nominal.tolist(),
             terminal_nominal=nominal.tolist(),
             active_displacement_m=(data.xpos[active] - active_origin).tolist(),
@@ -326,6 +416,7 @@ def supported_withdrawal(
                 measured_lower_m=measured_lower.tolist(),
                 measured_upper_m=measured_upper.tolist(),
             ),
+            feedback_trace=feedback_trace,
         ),
         np.asarray(controls).reshape(-1, model.nu),
         np.asarray(traces).reshape(-1, 9),

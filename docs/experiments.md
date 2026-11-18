@@ -23,8 +23,11 @@ distinguishes backstop contact from squaring: bounded continuations reduce yaw
 but do not pass the unchanged placement gate or earn new task credit.
 The newer [bounded-reference study](reports/compliance_reference_projection.md)
 removes a local proposal stall and passes squaring/contact dwell from two related
-saved states at a 2 N development target. Unloading still fails; there is no
-fresh stocking credit or default controller promotion.
+saved states at a 2 N development target. The
+[load-aware withdrawal follow-up](reports/compliance_unload_feedback.md) completes
+square–release–retreat from both, retaining the earlier frozen-compensation
+failures. Final yaw margin is small; there is no fresh stocking credit or default
+controller promotion.
 Use [simulation checkpoints](sim_checkpoints.md) and the
 [focus-bank report](reports/checkpoint_focus_development.md) to repeat the final
 millimeters without repeating pickup. The
