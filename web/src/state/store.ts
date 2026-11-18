@@ -41,6 +41,8 @@ interface UiState {
   eyes: Eyes;
   videoAvailable: boolean;
   pipVisible: boolean;
+  /** Set when the host rejects the access token; shows the access screen. */
+  authError: string | null;
   helpOpen: boolean;
   toasts: Toast[];
   /** Mirrors of intent values shown by sliders (updated at ≤ 15 Hz). */
@@ -72,6 +74,7 @@ export const useUi = create<UiState>((set, get) => ({
   eyes: "left",
   videoAvailable: false,
   pipVisible: true,
+  authError: null,
   toasts: [],
   mirror: { grip: { left: 0, right: 0 }, lift: 0.3175, torso: 0, yaw: 0, pitch: 0 },
   set: (patch) => set(patch),

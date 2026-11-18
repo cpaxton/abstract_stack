@@ -13,6 +13,10 @@ import {
   type Status,
 } from "./protocol";
 
+// Application close codes sent by the host (see web_teleop/server.py).
+const CLOSE_UNAUTHORISED = 4401;
+const CLOSE_FORBIDDEN_ORIGIN = 4403;
+
 export type ConnectionState = "idle" | "connecting" | "open" | "reconnecting" | "closed";
 
 export interface TeleopClientOptions {
@@ -31,6 +35,8 @@ export interface TeleopClientEvents {
   rtt: (ms: number) => void;
   error: (message: string) => void;
   video: () => void;
+  /** The host rejected our credentials; retrying cannot help until they change. */
+  auth: (message: string) => void;
 }
 
 /** RFC 4122 v4 UUID that also works in insecure (plain-HTTP LAN) contexts. */
@@ -70,6 +76,7 @@ export class TeleopClient {
     rtt: new Set(),
     error: new Set(),
     video: new Set(),
+    auth: new Set(),
   };
   private pending = new Map<number, (ack: ControlAck) => void>();
   private eventId = 0;
@@ -95,6 +102,14 @@ export class TeleopClient {
     ...args: Parameters<TeleopClientEvents[K]>
   ): void {
     for (const fn of this.listeners[event]) (fn as (...a: unknown[]) => void)(...args);
+  }
+
+  get token(): string | null {
+    return this.options.token;
+  }
+
+  setToken(token: string | null): void {
+    this.options.token = token;
   }
 
   private url(path: string): string {
@@ -138,6 +153,18 @@ export class TeleopClient {
     control.onclose = (event) => {
       if (this.control !== control) return;
       this.teardown();
+      if (event.code === CLOSE_UNAUTHORISED || event.code === CLOSE_FORBIDDEN_ORIGIN) {
+        this.stopped = true;
+        this.retries = 0;
+        this.emit("connection", "closed", event.reason);
+        this.emit(
+          "auth",
+          event.code === CLOSE_UNAUTHORISED
+            ? "This link's access token is not valid for the running host."
+            : "This page's address is not allowed to control the host.",
+        );
+        return;
+      }
       if (event.code === 1008) this.emit("error", event.reason || "connection refused by host");
       this.scheduleRetry();
     };

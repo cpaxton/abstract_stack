@@ -7,29 +7,13 @@ import { TwinView } from "./scene/TwinView";
 import { buildCommand, intent, rebaseFromStatus } from "./state/intent";
 import { useUi, type CameraPreset } from "./state/store";
 import { runAction, togglePrimary } from "./ui/actions";
+import { storeToken, takeToken } from "./state/token";
+import { AccessScreen } from "./ui/AccessScreen";
 import { HelpOverlay, Hud, KeyHints, StatusBanner, Toasts } from "./ui/Overlays";
 import { SidePanel, syncMirror } from "./ui/SidePanel";
 import { TopBar } from "./ui/TopBar";
 import { TouchControls } from "./ui/TouchControls";
 import { ViewLayers } from "./ui/ViewLayers";
-
-/** Read the access token once from `?token=`, keep it for this tab, and strip it from the URL. */
-function takeToken(): string | null {
-  const url = new URL(window.location.href);
-  const fromUrl = url.searchParams.get("token");
-  let stored: string | null = null;
-  try {
-    if (fromUrl) sessionStorage.setItem("teleop-token", fromUrl);
-    stored = sessionStorage.getItem("teleop-token");
-  } catch {
-    // Storage can be unavailable (private mode); fall back to the URL value.
-  }
-  if (fromUrl) {
-    url.searchParams.delete("token");
-    window.history.replaceState(null, "", url.toString());
-  }
-  return fromUrl ?? stored;
-}
 
 const CAMERA_KEYS: Record<string, CameraPreset> = {
   Digit1: "operator",
@@ -91,6 +75,10 @@ export function App() {
         ui.set({ rttMs: prev === null ? ms : prev * 0.7 + ms * 0.3 });
       }),
       client.on("error", (message) => ui.toast("error", message)),
+      client.on("auth", (message) => {
+        storeToken(null);
+        ui.set({ authError: message });
+      }),
     ];
     client.start();
     return () => {
@@ -106,7 +94,7 @@ export function App() {
     let result: RobotModel | undefined;
     // Mesh detail is chosen once per load: full resolution unless low quality was requested.
     const detail = useUi.getState().quality === "low" ? "low" : "full";
-    loadRobotModel(window.location.origin, takeToken(), abort.signal, detail)
+    loadRobotModel(window.location.origin, client.token, abort.signal, detail)
       .then((model) => {
         result = model;
         setLoaded({ hash: modelHash, model });
@@ -123,7 +111,7 @@ export function App() {
       abort.abort();
       result?.dispose();
     };
-  }, [modelHash]);
+  }, [client, modelHash]);
   const current = loaded && loaded.hash === modelHash ? loaded : undefined;
   const model = current?.model ?? null;
   const modelError = current?.error ?? null;
@@ -247,6 +235,7 @@ export function App() {
       <KeyHints />
       <TouchControls />
       <HelpOverlay />
+      <AccessScreen />
     </div>
   );
 }

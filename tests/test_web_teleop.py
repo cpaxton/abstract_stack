@@ -292,8 +292,10 @@ def test_websocket_handshake_auth_and_state_stream(clear_env, tmp_path, monkeypa
         assert client.get("/api/model").status_code == 401
         manifest = client.get("/api/model?token=secret").json()
         assert manifest["format"] == "web_teleop_model_v2"
-        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/teleop/control"):
-            pass
+        with client.websocket_connect("/teleop/control?token=wrong") as rejected:
+            with pytest.raises(WebSocketDisconnect) as closed:
+                rejected.receive_text()
+            assert closed.value.code == 4401  # explicit: client stops retrying
         session = str(uuid.uuid4())
         with client.websocket_connect("/teleop/control?token=secret") as control:
             hello = {
@@ -374,3 +376,14 @@ def test_video_socket_streams_stereo_head_camera_pairs(clear_env, tmp_path, monk
     assert all(eye.shape == (120, 160, 3) for eye in eyes)
     # 63 mm stereo baseline: the two eyes see measurably different images.
     assert np.abs(eyes[0].astype(int) - eyes[1].astype(int)).mean() > 1.0
+
+
+def test_persistent_token_survives_restarts_and_rotates(tmp_path):
+    from abstract_stack.web_teleop.server import persistent_token
+
+    path = tmp_path / "token"
+    first = persistent_token(path)
+    assert persistent_token(path) == first and len(first) >= 16
+    assert path.stat().st_mode & 0o077 == 0  # private to the user
+    rotated = persistent_token(path, rotate=True)
+    assert rotated != first and persistent_token(path) == rotated

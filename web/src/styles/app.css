@@ -1060,3 +1060,31 @@ input[type="range"]:disabled {
     transition: none !important;
   }
 }
+
+/* ---- Access screen ----------------------------------------------------------------- */
+.access {
+  z-index: 50;
+  background: rgba(5, 7, 10, 0.72);
+}
+.access-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  max-width: 460px;
+  user-select: text;
+}
+.access-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.access-card p {
+  margin: 0;
+}
+.access-card code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+}

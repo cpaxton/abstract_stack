@@ -45,6 +45,8 @@ from abstract_stack.web_teleop.geometry import load_model_export
 log = logging.getLogger(__name__)
 MAX_PROTOCOL_ERRORS = 20
 LOW_DETAIL_FACE_BUDGET = 800
+CLOSE_UNAUTHORISED = 4401  # application close codes (4000-4999)
+CLOSE_FORBIDDEN_ORIGIN = 4403
 HELLO_TIMEOUT_S = 5.0
 
 
@@ -214,13 +216,16 @@ class TeleopServer:
 
     # -- WebSockets -------------------------------------------------------------------
     async def _accept(self, websocket: WebSocket) -> bool:
+        # Accept, then close with an application code: a handshake-time rejection
+        # reaches browsers only as an anonymous 1006, so the client could not tell
+        # "wrong token" (stop and ask) from "host restarting" (retry).
+        await websocket.accept()
         if not self._origin_ok(websocket):
-            await websocket.close(code=1008, reason="origin not allowed")
+            await websocket.close(code=CLOSE_FORBIDDEN_ORIGIN, reason="origin not allowed")
             return False
         if not self._authorised(websocket.query_params.get("token")):
-            await websocket.close(code=1008, reason="unauthorised")
+            await websocket.close(code=CLOSE_UNAUTHORISED, reason="invalid access token")
             return False
-        await websocket.accept()
         return True
 
     async def control_socket(self, websocket: WebSocket) -> None:
@@ -410,6 +415,32 @@ def lan_addresses() -> list[str]:
 
 def generate_token() -> str:
     return secrets.token_urlsafe(18)
+
+
+def persistent_token(path: Path | None = None, *, rotate: bool = False) -> str:
+    """Token kept across runs so saved links keep working; ``rotate`` issues a new one."""
+    path = path or token_path()
+    if not rotate:
+        with contextlib.suppress(OSError):
+            token = path.read_text().strip()
+            if len(token) >= 16:
+                return token
+    token = generate_token()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch(mode=0o600, exist_ok=True)
+        path.chmod(0o600)
+        path.write_text(token + "\n")
+    except OSError as error:
+        log.warning("could not store access token (%s); it will change next run", error)
+    return token
+
+
+def token_path() -> Path:
+    import os
+
+    root = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
+    return Path(root) / "abstract_stack" / "web_teleop_token"
 
 
 def serve(

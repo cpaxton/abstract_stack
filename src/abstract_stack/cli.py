@@ -87,7 +87,14 @@ def _parser():
         if command == "teleop":
             sub.add_argument("--host", default="127.0.0.1", help="Bind address (0.0.0.0 for LAN)")
             sub.add_argument("--port", type=int, default=8080)
-            sub.add_argument("--token", help="Access token (default: generated per run)")
+            sub.add_argument(
+                "--token", help="Access token (default: stored in ~/.config/abstract_stack)"
+            )
+            sub.add_argument(
+                "--new-token",
+                action="store_true",
+                help="Rotate the stored access token (invalidates saved links)",
+            )
             sub.add_argument(
                 "--insecure-no-token",
                 action="store_true",
@@ -297,7 +304,7 @@ def _teleop(env, args):
         raise ValueError("--input-timeout must be between 0.02 and 2.0 seconds")
     try:
         from abstract_stack.web_teleop.core import CoreConfig, TeleopCore
-        from abstract_stack.web_teleop.server import generate_token, serve
+        from abstract_stack.web_teleop.server import persistent_token, serve
     except ImportError as error:
         raise RuntimeError(
             f"web teleop needs the 'teleop' extra ({error.name} missing): uv sync --extra teleop"
@@ -329,7 +336,9 @@ def _teleop(env, args):
     web_dir = args.web_dir or Path(__file__).resolve().parents[2] / "web" / "dist"
     if not web_dir.is_dir():
         print(f"Web client not built at {web_dir}; serving the API only.", flush=True)
-    token = None if args.insecure_no_token else (args.token or generate_token())
+    token = (
+        None if args.insecure_no_token else (args.token or persistent_token(rotate=args.new_token))
+    )
     serve(
         TeleopCore(env, config=CoreConfig(input_timeout_s=args.input_timeout), video=video),
         host=args.host,

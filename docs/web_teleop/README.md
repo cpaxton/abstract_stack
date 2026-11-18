@@ -31,8 +31,11 @@ Open the printed LAN URL on the phone. On macOS, allow incoming connections for
 Python if the firewall asks; otherwise the phone cannot connect. On headless
 Linux, set `MUJOCO_GL=egl` so the video thread can render offscreen.
 
-The token is generated per run unless `--token` is given. The client stores it
-for the tab and strips it from the address bar. `--insecure-no-token` disables
+The access token is created once and stored in
+`~/.config/abstract_stack/web_teleop_token`, so saved links and home-screen
+shortcuts keep working across restarts. Use `--new-token` to rotate it, or
+`--token` to set one. The client remembers the token and strips it from the
+address bar. A wrong token shows "Access needed" instead of reconnecting. `--insecure-no-token` disables
 it on a trusted development machine. A second browser joins as a view-only
 spectator while an operator holds control; `?role=spectator` requests that
 explicitly. `?quality=low` forces the light render path, which the client also

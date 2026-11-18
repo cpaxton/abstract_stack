@@ -96,3 +96,9 @@ test("head camera streams both stereo eyes", async ({ page }, info) => {
   }
   await page.screenshot({ path: "test-results/camera-desktop.png" });
 });
+
+test("a wrong token says so instead of retrying silently", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "same flow on all devices");
+  await page.goto("/?token=stale-token-from-an-old-run&quality=low");
+  await expect(page.getByRole("heading", { name: "Access needed" })).toBeVisible();
+});
