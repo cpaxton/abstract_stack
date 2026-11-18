@@ -5,7 +5,7 @@ interface Debug {
     state: string;
     target_epoch: number;
     base: { forward_mps: number };
-    channels: { head: { yaw_rad: number }; head_mode: string };
+    channels: { head: { yaw_rad: number }; head_mode: string; lift_m: number };
     arms: Record<string, { palm: { position_m: [number, number, number] } }>;
   } | null;
   poseAgeMs: () => number;
@@ -128,6 +128,24 @@ test("drive mode moves the base and the head follows clicks on the video", async
   const frame = page.locator(".camera-layer.main .eye-frame.aimable").first();
   await expect(frame).toBeVisible();
   const box = (await frame.boundingBox())!;
-  await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.5); // look right
+  await page.mouse.click(box.x + box.width * 0.75, box.y + box.height * 0.5); // look right
   await expect.poll(async () => (await status(page))!.channels.head.yaw_rad).toBeLessThan(-0.2);
+});
+
+test("body rails raise the lift and Turn switches to drive", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "pointer flow");
+  await open(page);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toContainText("Engaged");
+  const height = page.locator(".body-rails").getByRole("slider", { name: "Height" });
+  const box = (await height.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.1, { steps: 4 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await status(page))!.channels.lift_m, { timeout: 8000 })
+    .toBeGreaterThan(0.45);
+  await page.getByRole("button", { name: "Turn → Drive" }).click();
+  await expect(page.locator(".key-hints")).toContainText("Drive");
 });

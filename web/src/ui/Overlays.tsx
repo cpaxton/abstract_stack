@@ -120,7 +120,7 @@ const SHORTCUTS: [string, string][] = [
   ["F", "Head follows the hand again"],
   ["Click the 3D view", "Look at that spot"],
   ["Drag / click video", "Look around / look at a point"],
-  ["PgUp / PgDn", "Lift up / down"],
+  ["PgUp / PgDn", "Height (lift) up / down"],
   ["R", "Ready pose"],
   ["1 – 4", "Camera presets"],
   ["P", "Toggle panel"],

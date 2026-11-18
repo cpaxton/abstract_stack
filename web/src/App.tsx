@@ -10,8 +10,10 @@ import { useUi, type CameraPreset } from "./state/store";
 import { runAction, togglePrimary } from "./ui/actions";
 import { storeToken, takeToken } from "./state/token";
 import { AccessScreen } from "./ui/AccessScreen";
+import { BodyRails } from "./ui/BodyRails";
 import { HelpOverlay, Hud, KeyHints, StatusBanner, Toasts } from "./ui/Overlays";
-import { SidePanel, syncMirror } from "./ui/SidePanel";
+import { syncMirror } from "./state/mirror";
+import { SidePanel } from "./ui/SidePanel";
 import { TopBar } from "./ui/TopBar";
 import { TouchControls } from "./ui/TouchControls";
 import { ViewLayers } from "./ui/ViewLayers";
@@ -244,6 +246,7 @@ export function App() {
       <Hud client={client} />
       <KeyHints />
       <TouchControls />
+      <BodyRails />
       <HelpOverlay />
       <AccessScreen />
     </div>

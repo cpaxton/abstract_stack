@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { lookAt, panBy, recentreHead } from "../input/headLook";
 import type { TeleopClient } from "../net/TeleopClient";
 import { useUi, type Eyes } from "../state/store";
-import { syncMirror } from "./SidePanel";
+import { syncMirror } from "../state/mirror";
 
 const DRAG_START_PX = 6;
 const DOUBLE_TAP_MS = 320;

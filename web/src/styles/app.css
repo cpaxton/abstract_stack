@@ -1225,3 +1225,126 @@ input[type="range"]:disabled {
     background: var(--glass-strong);
   }
 }
+
+/* ---- Body rails (height / lean) ------------------------------------------------------ */
+.body-rails {
+  position: absolute;
+  right: calc(10px + var(--safe-right));
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  grid-template-columns: repeat(2, 56px);
+  grid-template-rows: auto auto;
+  gap: 8px 4px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  z-index: 11;
+  transition: right 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.app:has(.side-panel.open) .body-rails {
+  right: calc(342px + var(--safe-right));
+}
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.rail.disabled {
+  opacity: 0.45;
+}
+.rail-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rail-track {
+  position: relative;
+  width: 36px;
+  height: clamp(110px, 24vh, 210px);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.rail.disabled .rail-track {
+  cursor: not-allowed;
+}
+.rail-track:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rail-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to top, rgba(76, 194, 255, 0.55), rgba(76, 194, 255, 0.2));
+}
+.rail-thumb {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 6px;
+  margin-bottom: -3px;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.rail-value {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.rail-turn {
+  grid-column: 1 / -1;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: rgba(183, 140, 255, 0.12);
+  color: #d8c4ff;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.rail-turn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (pointer: coarse) {
+  /* Touch: left edge, between the status row and the drive/move stick. */
+  .body-rails {
+    right: auto;
+    left: calc(10px + var(--safe-left));
+    top: calc(170px + var(--safe-top));
+    transform: none;
+  }
+  .app:has(.side-panel.open) .body-rails {
+    right: auto;
+  }
+  .rail-track {
+    height: clamp(90px, 15vh, 160px);
+  }
+}
+@media (pointer: coarse) and (max-height: 480px) {
+  /* Phone landscape: HUD moves up beside the view switch to make room. */
+  .app .hud,
+  .app:has(.view-switch) .hud {
+    top: calc(60px + var(--safe-top));
+  }
+  .body-rails {
+    top: calc(100px + var(--safe-top));
+    gap: 4px;
+    padding: 6px;
+  }
+  .rail-track {
+    height: max(60px, calc(100vh - 340px));
+  }
+  .rail-turn {
+    display: none;
+  }
+}

@@ -1,6 +1,8 @@
 import { SIDES, type Side } from "../net/protocol";
 import { clampChannels, intent, takeManualHead } from "../state/intent";
+import { syncMirror } from "../state/mirror";
 import { useUi, type CameraPreset } from "../state/store";
+import { formatLean } from "./BodyRails";
 import { Icon } from "./Icon";
 
 const deg = (rad: number) => (rad * 180) / Math.PI;
@@ -74,19 +76,6 @@ function Segmented<T extends string>({
       ))}
     </div>
   );
-}
-
-function syncMirror() {
-  const set = useUi.getState().set;
-  set({
-    mirror: {
-      grip: { left: intent.arms.left.grip, right: intent.arms.right.grip },
-      lift: intent.lift,
-      torso: intent.torso,
-      yaw: intent.head.yaw,
-      pitch: intent.head.pitch,
-    },
-  });
 }
 
 function update(fn: () => void) {
@@ -269,7 +258,7 @@ export function SidePanel() {
           <section className="card">
             <div className="card-title">Body &amp; head</div>
             <Slider
-              label="Lift"
+              label="Height"
               value={mirror.lift}
               min={ranges.lift_m[0]}
               max={ranges.lift_m[1]}
@@ -279,12 +268,12 @@ export function SidePanel() {
               onChange={(v) => update(() => (intent.lift = v))}
             />
             <Slider
-              label="Torso"
+              label="Lean"
               value={mirror.torso}
               min={ranges.torso_rad[0]}
               max={ranges.torso_rad[1]}
               step={0.01}
-              format={(v) => `${deg(v).toFixed(0)}°`}
+              format={formatLean}
               disabled={!editable}
               onChange={(v) => update(() => (intent.torso = v))}
             />
@@ -343,5 +332,3 @@ export function SidePanel() {
     </aside>
   );
 }
-
-export { syncMirror };
