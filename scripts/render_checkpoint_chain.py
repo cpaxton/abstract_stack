@@ -16,6 +16,17 @@ def write(path, value):
     path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
 
 
+def referenced_checkpoint(path):
+    reference = json.loads(path.read_text())
+    directory = Path(reference["path"])
+    if (
+        hashlib.sha256((directory / "manifest.json").read_bytes()).hexdigest()
+        != reference["sha256"]
+    ):
+        raise ValueError("Referenced checkpoint manifest changed")
+    return directory
+
+
 def worker(args):
     import mujoco
     import numpy as np
@@ -24,11 +35,16 @@ def worker(args):
     from abstract_stack.checkpoints import load_checkpoint, model_signature, native_state
 
     inputs = args.output / "inputs"
-    restored = load_checkpoint(inputs / "checkpoint")
+    restored = load_checkpoint(
+        referenced_checkpoint(inputs / "checkpoint_ref.json")
+        if (inputs / "checkpoint_ref.json").exists()
+        else inputs / "checkpoint"
+    )
     model, data = restored.model, restored.data
     physical_model = model_signature(model)
     active = restored.context["source_summary"]["events"][-1]["product"]
     body = model.body(active).id
+    current_active = active
     debug = mujoco.MjvCamera()
     debug.type = mujoco.mjtCamera.mjCAMERA_FREE
     debug.lookat[:] = data.xpos[body]
@@ -93,12 +109,15 @@ def worker(args):
         with mujoco.Renderer(model, width=480, height=360) as renderer:
 
             def capture(trace):
+                body = model.body(current_active).id
                 before = native_state(model, data)
                 rotation = data.xmat[body].reshape(3, 3)
                 yaw = float(np.degrees(np.arctan2(rotation[1, 0], rotation[0, 0])))
                 elapsed = float(data.time) - start
                 frames = {}
                 for name, camera in cameras.items():
+                    if name == "overhead_debug":
+                        debug.lookat[:] = data.xpos[body]
                     renderer.update_scene(data, camera=camera)
                     if name == "overhead_debug":
                         for eye in renderer.scene.camera:
@@ -122,21 +141,53 @@ def worker(args):
                     ("first_person", (0, 360)),
                 ):
                     overview.paste(frames[name], xy)
+                supports = {}
+                load = np.empty(6)
+                table = model.geom("supply_table").id
+                boards = {
+                    model.geom(f"shelf_board_{p['level']}").id for p in restored.scene["products"]
+                }
+                product_bodies = {model.body(p["name"]).id for p in restored.scene["products"]}
+                for i, contact in enumerate(data.contact):
+                    if contact.efc_address < 0:
+                        continue
+                    mujoco.mj_contactForce(model, data, i, load)
+                    for geom, other in (
+                        (contact.geom1, contact.geom2),
+                        (contact.geom2, contact.geom1),
+                    ):
+                        bid = int(model.geom_bodyid[geom])
+                        if bid in product_bodies and (other == table or other in boards):
+                            key = (bid, "table" if other == table else "shelf")
+                            supports[key] = supports.get(key, 0) + max(0.0, float(load[0]))
+                on_table = sum(k[1] == "table" and v > 0.2 for k, v in supports.items())
+                on_shelf = sum(k[1] == "shelf" and v > 0.2 for k, v in supports.items())
                 lines = [
-                    "SUPPORTED SQUARING DEVELOPMENT",
+                    "MABEL STOCKING DEVELOPMENT",
                     "",
                     f"Elapsed: {elapsed:.3f} s",
-                    f"Active carton yaw: {yaw:.4f} deg",
+                    f"{current_active} yaw: {yaw:.4f} deg",
                     "Yaw gate: 0.15 deg for 0.12 s",
                     "",
                     "One dynamic neighbor prefilled",
-                    "Eight cartons remain on table",
+                    f"Table-supported: {on_table}",
+                    f"Shelf-supported: {on_shelf}",
                     "No fresh pick / full-stock credit",
                     "Overhead is a debug view",
                 ]
+                phase = next(
+                    (
+                        e["phase"]
+                        for e in reversed(ending_summary.get("events", []))
+                        if e["sim_time"] <= data.time + 1e-9
+                    ),
+                    None,
+                )
                 lines += [
                     "",
-                    "Phase: unload / retreat"
+                    f"Phase: {phase}"
+                    if phase
+                    else "Phase: unload / retreat"
                     if withdrawal_time is not None and data.time > withdrawal_time
                     else "Phase: supported squaring",
                 ]
@@ -161,10 +212,16 @@ def worker(args):
             for index, directory in enumerate(segment_dirs):
                 source_summary = json.loads((directory / "summary.json").read_text())
                 ending_summary = source_summary["continuation"]
+                ending_summary = dict(ending_summary, events=source_summary.get("events", []))
+                withdrawal_time = None
                 if ending_summary.get("withdrawal"):
                     withdrawal_time = ending_summary["backstop_dwell"]["last_time_s"]
                 if index:
-                    boundary = load_checkpoint(directory / "boundary-checkpoint")
+                    boundary = load_checkpoint(
+                        referenced_checkpoint(directory / "boundary_ref.json")
+                        if (directory / "boundary_ref.json").exists()
+                        else directory / "boundary-checkpoint"
+                    )
                     if model_signature(boundary.model) != physical_model or not np.array_equal(
                         native_state(model, data), native_state(boundary.model, boundary.data)
                     ):
@@ -173,9 +230,18 @@ def worker(args):
                     controls = archive["controls"]
                     terminal = archive["terminal_state"]
                     traces = archive["contact_trace"]
+                    active_names = archive["active_names"] if "active_names" in archive else None
                 if controls.shape != (len(traces), model.nu) or not np.isfinite(controls).all():
                     raise ValueError("Invalid controls or missing step-aligned force trace")
-                for control, trace in zip(controls, traces, strict=True):
+                if active_names is not None and (
+                    len(active_names) != len(controls)
+                    or not set(active_names.tolist())
+                    <= {p["name"] for p in restored.scene["products"]}
+                ):
+                    raise ValueError("Invalid per-step active product identity")
+                for step, (control, trace) in enumerate(zip(controls, traces, strict=True)):
+                    if active_names is not None:
+                        current_active = str(active_names[step])
                     data.ctrl[:] = control
                     mujoco.mj_step(model, data)
                     mujoco.mj_forward(model, data)
@@ -234,6 +300,7 @@ def worker(args):
             cameras=[*cameras],
             overhead_scope="debug render only; not a student observation",
             render_integration_state_unchanged=True,
+            ending_controller_failure=ending_summary.get("failure"),
             release_retreat_verified=bool(
                 (ending_summary.get("withdrawal") or {}).get("release_retreat_verified", False)
             ),
@@ -261,37 +328,89 @@ def main():
         worker(args)
         return 0
     root = Path(__file__).resolve().parents[1]
+    from abstract_stack.checkpoint_manifest import inspect_checkpoint
+    from abstract_stack.source_store import freeze_source
+
     args.output.mkdir(parents=True, exist_ok=False)
     inputs = args.output / "inputs"
     inputs.mkdir()
     first = args.checkpoint or args.segments[0] / "fixture-checkpoint"
-    shutil.copytree(first, inputs / "checkpoint")
+    directory, _ = inspect_checkpoint(first)
+    write(
+        inputs / "checkpoint_ref.json",
+        dict(
+            path=str(directory.resolve()),
+            sha256=hashlib.sha256((directory / "manifest.json").read_bytes()).hexdigest(),
+        ),
+    )
     for index, segment in enumerate(args.segments):
         directory = inputs / f"segment-{index:02}"
         directory.mkdir()
         for name in ("continuation.npz", "summary.json", "manifest.json"):
             shutil.copy2(segment / name, directory / name)
         if index:
-            shutil.copytree(segment / "inputs/checkpoint", directory / "boundary-checkpoint")
-    snapshot = args.output / "source_snapshot"
-    shutil.copytree(
-        root / "src", snapshot / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+            reference = next(
+                (
+                    p
+                    for p in (
+                        segment / "checkpoint_ref.json",
+                        segment / "inputs/checkpoint_ref.json",
+                    )
+                    if p.exists()
+                ),
+                None,
+            )
+            if reference:
+                boundary = referenced_checkpoint(reference).resolve()
+                write(
+                    directory / "boundary_ref.json",
+                    dict(
+                        path=str(boundary),
+                        sha256=hashlib.sha256(
+                            (boundary / "manifest.json").read_bytes()
+                        ).hexdigest(),
+                    ),
+                )
+            else:
+                boundary, _ = inspect_checkpoint(segment / "inputs/checkpoint")
+                write(
+                    directory / "boundary_ref.json",
+                    dict(
+                        path=str(boundary.resolve()),
+                        sha256=hashlib.sha256(
+                            (boundary / "manifest.json").read_bytes()
+                        ).hexdigest(),
+                    ),
+                )
+    frozen = freeze_source(
+        root,
+        paths=[
+            "src/abstract_stack",
+            "scripts/render_checkpoint_chain.py",
+            "scripts/run_frozen_replanning.py",
+            "uv.lock",
+            "pyproject.toml",
+        ],
     )
-    shutil.copy2(__file__, snapshot / "render.py")
-    shutil.copy2(root / "uv.lock", snapshot / "uv.lock")
-    shutil.copy2(root / "scripts/run_frozen_replanning.py", snapshot / "supervisor.py")
+    frozen.write_reference(args.output / "source_ref.json")
+    snapshot = frozen.runtime_root
     write(
         args.output / "manifest.json",
         dict(
             command=sys.argv,
-            source_revision=subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=root, text=True
-            ).strip(),
+            source_revision=frozen.git["revision"],
+            source_content_id=frozen.content_id,
             sha256={
-                p.relative_to(args.output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-                for parent in (inputs, snapshot)
-                for p in parent.rglob("*")
-                if p.is_file()
+                "source_ref.json": hashlib.sha256(
+                    (args.output / "source_ref.json").read_bytes()
+                ).hexdigest(),
+                **{
+                    p.relative_to(args.output).as_posix(): hashlib.sha256(
+                        p.read_bytes()
+                    ).hexdigest()
+                    for p in inputs.rglob("*")
+                    if p.is_file()
+                },
             },
             fresh_task_credit=0,
             task_success=False,
@@ -300,7 +419,7 @@ def main():
     write(args.output / "process.json", dict(outcome="unknown", fresh_task_credit=0))
     command = [
         sys.executable,
-        str(snapshot / "render.py"),
+        str(snapshot / "scripts/render_checkpoint_chain.py"),
         "--worker",
         "--segments",
         ".",
@@ -309,11 +428,18 @@ def main():
         "--fps",
         str(args.fps),
     ]
-    supervise = runpy.run_path(str(snapshot / "supervisor.py"))["supervise"]
+    supervise = runpy.run_path(str(snapshot / "scripts/run_frozen_replanning.py"))["supervise"]
     result = supervise(
         command,
         cwd=root,
-        environment=dict(os.environ, PYTHONPATH=str(snapshot / "src"), PYTHONFAULTHANDLER="1"),
+        environment=dict(
+            os.environ,
+            PYTHONPATH=str(snapshot / "src"),
+            PYTHONFAULTHANDLER="1",
+            PYTHONDONTWRITEBYTECODE="1",
+            ABSTRACT_STACK_SOURCE_REFERENCE=str(args.output / "source_ref.json"),
+            ABSTRACT_STACK_SOURCE_STORE=str(frozen.archive.parent),
+        ),
         log=args.output / "run.log",
         wall_seconds=args.wall_seconds,
     )

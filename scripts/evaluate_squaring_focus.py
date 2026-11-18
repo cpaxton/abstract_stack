@@ -7,8 +7,6 @@ import json
 import math
 import os
 import runpy
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -43,29 +41,36 @@ def main():
         parser.error("Keep case names, settings and compute budgets bounded")
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
-    frozen = args.output / "frozen"
-    shutil.copytree(
-        root / "src", frozen / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+    from abstract_stack.source_store import freeze_source
+
+    source = freeze_source(
+        root,
+        paths=[
+            "src/abstract_stack",
+            "scripts/evaluate_squaring_focus.py",
+            "scripts/probe_compliant_lookahead.py",
+            "scripts/run_frozen_replanning.py",
+            "configs/squaring_focus.json",
+            "uv.lock",
+            "pyproject.toml",
+        ],
     )
-    (frozen / "scripts").mkdir()
-    for name in ("probe_compliant_lookahead.py", "run_frozen_replanning.py"):
-        shutil.copy2(root / "scripts" / name, frozen / "scripts" / name)
-    shutil.copy2(root / "uv.lock", frozen / "uv.lock")
-    shutil.copy2(args.config, frozen / "config.json")
-    shutil.copy2(__file__, frozen / "scripts/evaluate_squaring_focus.py")
+    source.write_reference(args.output / "source_ref.json")
+    frozen = source.runtime_root
+    write(args.output / "config.json", config)
     write(
         args.output / "manifest.json",
         dict(
-            source_revision=subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=root, text=True
-            ).strip(),
+            source_revision=source.git["revision"],
+            source_content_id=source.content_id,
+            git=source.git,
             config=config,
             checkpoint=str(args.checkpoint.resolve()),
             fresh_task_credit=0,
-            source_sha256={
-                p.relative_to(frozen).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-                for p in frozen.rglob("*")
-                if p.is_file()
+            source_sha256={name: record["sha256"] for name, record in source.files.items()},
+            input_sha256={
+                name: hashlib.sha256((args.output / name).read_bytes()).hexdigest()
+                for name in ("source_ref.json", "config.json")
             },
             limits="Unchanged native model, 25 N force guards, 0.15 degree source yaw gate",
         ),
@@ -107,7 +112,14 @@ def main():
         result = supervise(
             command,
             cwd=root,
-            environment=dict(os.environ, PYTHONPATH=str(frozen / "src"), PYTHONFAULTHANDLER="1"),
+            environment=dict(
+                os.environ,
+                PYTHONPATH=str(frozen / "src"),
+                PYTHONFAULTHANDLER="1",
+                PYTHONDONTWRITEBYTECODE="1",
+                ABSTRACT_STACK_SOURCE_STORE=str(source.archive.parent),
+                ABSTRACT_STACK_SOURCE_REFERENCE=str(args.output / "source_ref.json"),
+            ),
             log=args.output / f"{case['name']}.log",
             wall_seconds=config["case_wall_seconds"] + 5,
         )

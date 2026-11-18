@@ -1,0 +1,690 @@
+{
+  "kind": "continuous_stocking_development",
+  "fresh_task_credit": 0,
+  "fresh_episode_attempts": 0,
+  "task_success": false,
+  "complete_row_success": false,
+  "prefilled_products": [
+    "carton_7"
+  ],
+  "earlier_supported_carton": "carton_8",
+  "scheduled_new_manipulations": [
+    "carton_9"
+  ],
+  "stage_ledger": {
+    "pick": {
+      "verified": true,
+      "source": "outputs/continuous-next-stock-v5/summary.json"
+    },
+    "place": {
+      "verified": true,
+      "source": "outputs/continuous-next-stock-v8-direct/summary.json"
+    },
+    "final_position": {
+      "verified": false,
+      "final_yaw_deg": 3.2278883019437252,
+      "yaw_tolerance_deg": 0.15,
+      "lateral_target_error_m": 0.05032296133994138,
+      "target_tolerance_m": 0.035
+    },
+    "retreat": {
+      "verified": false,
+      "attempted": false
+    }
+  },
+  "placement_assignment": {
+    "kind": "explicit_interchangeable_carton_slot_permutation",
+    "swapped_products": [
+      "carton_9",
+      "carton_5"
+    ],
+    "original_targets": {
+      "carton_9": [
+        -0.728915706525719,
+        -0.02330280576281358,
+        0.9175018379574429
+      ],
+      "carton_5": [
+        -0.728915706525719,
+        -0.21592253397364594,
+        0.9175018379574429
+      ]
+    },
+    "physical_slots_unchanged": true,
+    "model_unchanged": true,
+    "reason": "Measured loaded-transfer replanning; destination verified empty"
+  },
+  "whole_row_free_space_m": 0.01,
+  "model_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+  "selected_chain": [
+    "outputs/squaring-focus-v3/left-front-face-recovery",
+    "outputs/squaring-focus-v3/left-front-face-continuation",
+    "outputs/squaring-focus-v3/left-front-face-last-mm",
+    "outputs/squaring-longer-v4/force-unload-measured-retreat",
+    "outputs/continuous-next-stock-v5",
+    "outputs/continuous-next-stock-v8-direct",
+    "outputs/continuous-next-stock-v10-compliant-square"
+  ],
+  "video": {
+    "artifact": "outputs/continuous-stocking-video-v2",
+    "manifest_sha256": "debb6e13d0c74fcdfe70474c0ce010a4611f9714546b64d8741e09c4fe512639",
+    "process": {
+      "returncode": 0,
+      "timeout": false,
+      "wall_seconds": 87.4743748250039,
+      "wall_budget_seconds": 300.0,
+      "outcome": "verified_replay",
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    "simulated_seconds": 153.3860000007324,
+    "fps": 15,
+    "frames": 2302,
+    "segments": [
+      {
+        "segment": 0,
+        "terminal_integration_bit_equal": true,
+        "physics_steps": 3000
+      },
+      {
+        "segment": 1,
+        "terminal_integration_bit_equal": true,
+        "physics_steps": 3000
+      },
+      {
+        "segment": 2,
+        "terminal_integration_bit_equal": true,
+        "physics_steps": 845
+      },
+      {
+        "segment": 3,
+        "terminal_integration_bit_equal": true,
+        "physics_steps": 3238
+      },
+      {
+        "segment": 4,
+        "terminal_integration_bit_equal": true,
+        "physics_steps": 19250
+      },
+      {
+        "segment": 5,
+        "terminal_integration_bit_equal": true,
+        "physics_steps": 39360
+      },
+      {
+        "segment": 6,
+        "terminal_integration_bit_equal": true,
+        "physics_steps": 8000
+      }
+    ],
+    "ending_controller_failure": "backstop_dwell_decision_budget_exhausted"
+  },
+  "attempts": [
+    {
+      "artifact": "outputs/continuous-next-stock-v1",
+      "process": {
+        "returncode": 1,
+        "timeout": false,
+        "wall_seconds": 0.7151570959977107,
+        "wall_budget_seconds": 180.0,
+        "outcome": "unknown",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "797dca346f11bdba63d9643fb0d1f992edebd929465f472fa1404df41ddb356c",
+      "source_content_id": "0acc0d950e5885b6a9618af7d7ee062c61aa4b9a8f210c6bf90710a02ad890ec",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/squaring-longer-v5/limit-diagnostics/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v1",
+        "product": "carton_9",
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": null,
+      "observed_stages_in_segment": null,
+      "simulated_seconds": null,
+      "last_trace": null,
+      "incidents": null,
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v2",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 26.655918361997465,
+        "wall_budget_seconds": 180.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "b60730286f23308b72f00405c78d50d5e895777115c14003bbf9af90413cc11a",
+      "source_content_id": "6fc3b843dce7afd21e416bc36ed034bffa9e9f4a362c30761e455c1775086f01",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/squaring-longer-v5/limit-diagnostics/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v2",
+        "product": "carton_9",
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": "payload_load: compensated arm/finger geometry rejected",
+      "observed_stages_in_segment": {
+        "pick": false,
+        "place": false,
+        "final_position": false,
+        "retreat": false
+      },
+      "simulated_seconds": 26.900000000128443,
+      "last_trace": [
+        200.94600000023138,
+        -0.4976684500093556,
+        -0.27030925103172554,
+        0.9173940825816884,
+        -1.3966475203309032e-07,
+        0.0,
+        0.0,
+        0.0,
+        1.7657999987988375
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v3",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 22.86063990600087,
+        "wall_budget_seconds": 180.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "c55cbd9f544d68135b41de8ecca387fc9fd779552a708d68ff2ef26d3163822b",
+      "source_content_id": "a25e48240315fe6c69eeb8422e07be7933a963a3d8ac8fb871c5e27cc1ff4f7c",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/squaring-longer-v5/limit-diagnostics/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v3",
+        "product": "carton_9",
+        "pregrasp_height": 0.25,
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": "payload_load: compensated arm/finger geometry rejected",
+      "observed_stages_in_segment": {
+        "pick": false,
+        "place": false,
+        "final_position": false,
+        "retreat": false
+      },
+      "simulated_seconds": 27.060000000129207,
+      "last_trace": [
+        201.10600000023214,
+        -0.4976684500093556,
+        -0.27030925103172554,
+        0.9173940825815624,
+        -1.3966475202137533e-07,
+        0.0,
+        0.0,
+        0.0,
+        1.7658000041021218
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v4",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 36.09915712899965,
+        "wall_budget_seconds": 180.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "48db32569c112db17e160298ab7c609da73bb61cdcdc167f2dedd38aff7a8b57",
+      "source_content_id": "2f6e3acca3b0b269a79974aa8370341442dda3bcf70cc2f936b6f81d8944ad47",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/squaring-longer-v5/limit-diagnostics/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v4",
+        "product": "carton_9",
+        "pregrasp_height": 0.18,
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": "loaded_route: bounded corridor search rejected",
+      "observed_stages_in_segment": {
+        "pick": true,
+        "place": false,
+        "final_position": false,
+        "retreat": false
+      },
+      "simulated_seconds": 38.50000000018383,
+      "last_trace": [
+        212.54600000028677,
+        -0.5104991221131253,
+        -0.24758823936867272,
+        1.0768712652539796,
+        0.37649656904373513,
+        6.016080141689196,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v5",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 37.81017370599875,
+        "wall_budget_seconds": 180.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "36a4c8579ad89aa7a06c8aa4716303b91e5994dd7382f8093ce777a514c22e20",
+      "source_content_id": "9f18de6bb08ba7d636cbada4300b80d5c813391ae0a7a257d51a6b983c281da9",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/squaring-longer-v5/limit-diagnostics/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v5",
+        "product": "carton_9",
+        "pregrasp_height": 0.18,
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": "loaded_route: bounded corridor search rejected",
+      "observed_stages_in_segment": {
+        "pick": true,
+        "place": false,
+        "final_position": false,
+        "retreat": false
+      },
+      "simulated_seconds": 38.50000000018383,
+      "last_trace": [
+        212.54600000028677,
+        -0.5104991221131253,
+        -0.24758823936867272,
+        1.0768712652539796,
+        0.37649656904373513,
+        6.016080141689196,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v6-resume",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 2.6683787490037503,
+        "wall_budget_seconds": 180.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "660ff108fd59e645f70c60b4355a0c715c48a8be09240e05748202bacb5a163a",
+      "source_content_id": "85ab04468be923bc06a61bbd85edb56b6d1091ed7e1d65d2309280c99781abf0",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/continuous-next-stock-v5/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v6-resume",
+        "product": "carton_9",
+        "pregrasp_height": 0.18,
+        "payload_wrist_reserve": 0.2,
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": "loaded_route: bounded corridor search rejected",
+      "observed_stages_in_segment": {
+        "pick": false,
+        "place": false,
+        "final_position": false,
+        "retreat": false
+      },
+      "simulated_seconds": 0.0,
+      "last_trace": null,
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v7-slot-replan",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 37.79647317999479,
+        "wall_budget_seconds": 180.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "21d6304530eb846fb10b9b85516d135f6ddc6d71a7652d922a72647351dea8f6",
+      "source_content_id": "a7389e4eef9b9a4a818aeb649a9456ffb94033883b3a54c8600cf745e7b6d7d0",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/continuous-next-stock-v5/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v7-slot-replan",
+        "product": "carton_9",
+        "pregrasp_height": 0.18,
+        "payload_wrist_reserve": 0.4,
+        "swap_slot_with": "carton_5",
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": "partial_clear: no checked empty-hand withdrawal",
+      "observed_stages_in_segment": {
+        "pick": false,
+        "place": true,
+        "final_position": false,
+        "retreat": false
+      },
+      "simulated_seconds": 44.16000000021086,
+      "last_trace": [
+        256.7060000004976,
+        -0.5926873234537625,
+        -0.2284528094571758,
+        0.9173940825779844,
+        3.8270952723293044,
+        0.0,
+        0.0,
+        0.0,
+        1.7657999956425117
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v8-direct",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 77.29018251399975,
+        "wall_budget_seconds": 180.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "68a0214354da7506362611d8fa15449c3dfcd9b6a438d797777ac688cc8bd68a",
+      "source_content_id": "17a0fbaa35008cb60f62614717cb33bd46e006561b089b009deba398070582ce",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/continuous-next-stock-v5/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v8-direct",
+        "product": "carton_9",
+        "pregrasp_height": 0.18,
+        "payload_wrist_reserve": 0.4,
+        "swap_slot_with": "carton_5",
+        "no_split_insertion": true,
+        "stop_after": "stock",
+        "wall_seconds": 180.0,
+        "worker": false
+      },
+      "failure": "finger_push: contact dwell timeout",
+      "observed_stages_in_segment": {
+        "pick": false,
+        "place": true,
+        "final_position": false,
+        "retreat": false
+      },
+      "simulated_seconds": 78.72000000037588,
+      "last_trace": [
+        291.26600000066264,
+        -0.7258083515030473,
+        -0.2535128301300983,
+        0.9173260460167242,
+        21.614544567413592,
+        4.160311420005888,
+        1.8562566060438312,
+        0.0,
+        2.8892484881885454
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v9-push-adoption",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 1.9674776920001023,
+        "wall_budget_seconds": 30.0,
+        "outcome": "completed_continuation",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "cba7cca97fddf42c6b6082ac95a3d330510bdbe68ad144eb7d95ecbb2aa20121",
+      "source_content_id": "3dbdfd21002b19e61eaf89f041327e9210cd7dd41ecd4991da00af9ef9395a0f",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "checkpoint": "outputs/continuous-next-stock-v8-direct/terminal-checkpoint",
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v9-push-adoption",
+        "product": "carton_9",
+        "pregrasp_height": 0.25,
+        "payload_wrist_reserve": 0.4,
+        "swap_slot_with": null,
+        "no_split_insertion": false,
+        "export_push_state": true,
+        "source_summary": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v8-direct/summary.json",
+        "stop_after": "stock",
+        "wall_seconds": 30.0,
+        "worker": false
+      },
+      "failure": null,
+      "observed_stages_in_segment": null,
+      "simulated_seconds": 0,
+      "last_trace": null,
+      "incidents": null,
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v10-compliant-square",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 64.51706676700269,
+        "wall_budget_seconds": 180.0,
+        "verification_status": "completed_forecast",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/home/cpaxton/src/abstract_stack/outputs/cache/source_runtime/be484b7f27e40bfabcbdc5e0648bcc51e58c30c44328cb40ac99ff7fc8adbe2c/scripts/probe_compliant_lookahead.py",
+          "--worker",
+          "--output",
+          "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v10-compliant-square",
+          "--horizon",
+          "0.4",
+          "--candidates",
+          "10",
+          "--shortlist",
+          "4",
+          "--generation-seconds",
+          "10",
+          "--execute-prefix",
+          "0.2",
+          "--replans",
+          "80",
+          "--require-dwell",
+          "--square-feedback",
+          "--front-face-sweep",
+          "--withdraw",
+          "--squaring-reserve-deg",
+          "0.05",
+          "--normal-target",
+          "1.0",
+          "--wrist-freedom-deg",
+          "15.0",
+          "--checkpoint",
+          "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v10-compliant-square/inputs/checkpoint",
+          "--save-checkpoint"
+        ],
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "b4c61cf356de16f3b1360401b1a0cf1cc098a086f3d72ae81b10578610bb001e",
+      "source_content_id": "be484b7f27e40bfabcbdc5e0648bcc51e58c30c44328cb40ac99ff7fc8adbe2c",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/continuous-next-stock-v9-push-adoption/push-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v10-compliant-square",
+        "horizon": 0.4,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 180.0,
+        "execute_prefix": 0.2,
+        "require_dwell": true,
+        "square_feedback": true,
+        "reset_neighbor": null,
+        "sweep_side": null,
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 15.0,
+        "front_face_sweep": true,
+        "withdraw": true,
+        "withdraw_only": false,
+        "squaring_reserve_deg": 0.05,
+        "replans": 80,
+        "worker": false
+      },
+      "failure": "backstop_dwell_decision_budget_exhausted",
+      "observed_stages_in_segment": null,
+      "simulated_seconds": 16.0,
+      "last_trace": [
+        307.26600000073904,
+        -0.7307148472642245,
+        -0.2662454953135873,
+        0.9175546203382511,
+        3.2278883019437252,
+        1.108659369024909,
+        0.682512543510162,
+        0.0,
+        0.7140358809286045
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    },
+    {
+      "artifact": "outputs/continuous-next-stock-v11-fine-square",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 25.12762898100482,
+        "wall_budget_seconds": 180.0,
+        "verification_status": "completed_forecast",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/home/cpaxton/src/abstract_stack/outputs/cache/source_runtime/be484b7f27e40bfabcbdc5e0648bcc51e58c30c44328cb40ac99ff7fc8adbe2c/scripts/probe_compliant_lookahead.py",
+          "--worker",
+          "--output",
+          "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v11-fine-square",
+          "--horizon",
+          "0.2",
+          "--candidates",
+          "10",
+          "--shortlist",
+          "4",
+          "--generation-seconds",
+          "10",
+          "--execute-prefix",
+          "0.2",
+          "--replans",
+          "80",
+          "--require-dwell",
+          "--front-face-sweep",
+          "--withdraw",
+          "--squaring-reserve-deg",
+          "0.05",
+          "--sweep-side",
+          "left",
+          "--normal-target",
+          "1.0",
+          "--wrist-freedom-deg",
+          "0",
+          "--checkpoint",
+          "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v11-fine-square/inputs/checkpoint",
+          "--save-checkpoint"
+        ],
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "34d88beb95b85b1c306f2a24e98955865e8d4c9355d86e453ac2a4bd516697a8",
+      "source_content_id": "be484b7f27e40bfabcbdc5e0648bcc51e58c30c44328cb40ac99ff7fc8adbe2c",
+      "git_revision": "70313f911eb4acffb1148350e1db34d8c4887169",
+      "git_dirty": true,
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/continuous-next-stock-v10-compliant-square/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/continuous-next-stock-v11-fine-square",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 180.0,
+        "execute_prefix": 0.2,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": true,
+        "withdraw": true,
+        "withdraw_only": false,
+        "squaring_reserve_deg": 0.05,
+        "replans": 80,
+        "worker": false
+      },
+      "failure": "backstop_dwell_decision_budget_exhausted",
+      "observed_stages_in_segment": null,
+      "simulated_seconds": 16.0,
+      "last_trace": [
+        323.26600000081544,
+        -0.730872054022893,
+        -0.26648622478699235,
+        0.9175476626158094,
+        2.8545958562674527,
+        1.291894840376551,
+        0.80333713397963,
+        0.0,
+        0.7809293582533748
+      ],
+      "incidents": [],
+      "fresh_task_credit": 0
+    }
+  ],
+  "storage": {
+    "new_run_directories": 11,
+    "python_files_inside_new_run_dirs": 0,
+    "last_two_probes_share_source_bundle": true
+  },
+  "evaluation_scope": "Tuned development continuations with original failures retained. One scheduled next pick across the selected lineage; not independent episodes or a frozen-policy success rate."
+}

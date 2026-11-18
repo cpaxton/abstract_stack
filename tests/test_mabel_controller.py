@@ -103,6 +103,39 @@ def test_invalid_tracking_configuration():
 
 
 @pytest.mark.mabel
+def test_known_nominal_subset_preserves_unknown_arm_and_existing_applied_targets(clear_robot):
+    env = clear_robot
+    nominal = {"Left Arm 1": 0.05, "Left Wrist": 0.02, "Lift": 0.32}
+    before = env.data.ctrl.copy()
+    tracker = MabelController(env.model, env.data, nominal_references=nominal)
+    np.testing.assert_array_equal(tracker.applied, before[tracker.ids])
+    action = tracker.targets({}, dt=env.dt)
+    assert dict(zip(tracker.NAMES, tracker.nominal, strict=True)) == nominal
+    unknown = [env.model.actuator(n).id for n in tracker.held_unknown_names]
+    np.testing.assert_array_equal(action[unknown], before[unknown])
+    assert "Right Arm 1" not in tracker.last_report["nominal"]
+    assert tracker.last_report["gravity_force"]["Lift"] > 200
+    with pytest.raises(ValueError, match="unknown nominal"):
+        tracker.targets(
+            {"Right Arm 1": before[env.model.actuator("Right Arm 1").id] + 0.01}, dt=env.dt
+        )
+    np.testing.assert_array_equal(env.data.ctrl, before)
+
+
+@pytest.mark.mabel
+def test_known_subset_without_lift_keeps_joint_rate_and_offset_units(clear_robot):
+    env = clear_robot
+    tracker = MabelController(env.model, env.data, nominal_references={"Left Arm 1": 0.05})
+    assert tracker.rates.tolist() == [tracker.config.joint_speed]
+    assert tracker.offset_limits.tolist() == [tracker.config.joint_offset_limit]
+    before = env.data.ctrl.copy()
+    action = tracker.targets({"Left Arm 1": 0.1}, dt=env.dt)
+    assert action[env.model.actuator("Lift").id] == before[env.model.actuator("Lift").id]
+    with pytest.raises(ValueError, match="known nominal"):
+        MabelController(env.model, env.data, nominal_references={"not a joint": 0})
+
+
+@pytest.mark.mabel
 def test_partial_update_validates_retained_nominal_instead_of_live_servo_target(clear_robot):
     env = clear_robot
     tracker = MabelController(env.model, env.data)

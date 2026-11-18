@@ -215,6 +215,11 @@ class DenseStockingScript(StockingScript):
                 self.tracker.config,
                 wrist_offset_limit=self._wrist_offset_limit(kind),
             ),
+            nominal_references=(
+                dict(zip(self.tracker.NAMES, self.tracker.nominal, strict=True))
+                if self.tracker.held_unknown_names
+                else None
+            ),
         )
         tracker.nominal = self.tracker.nominal.copy()
         tracker.applied = self.tracker.applied.copy()
@@ -253,6 +258,10 @@ class DenseStockingScript(StockingScript):
     def _one_box(self, selected=None):
         self._move("clear_high", [-0.30, -0.20, 1.35])
         grip = self._pick_and_place_front(selected)
+        self._release_and_insert_front(grip)
+
+    def _release_and_insert_front(self, grip):
+        """Finish a measured supported front placement, including checked retreat."""
         self.carry_reference = None
         self._precision_release(grip)
         self.payload_rotation_goal = None
