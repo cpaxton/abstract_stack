@@ -11,6 +11,13 @@ interface Debug {
   poseAgeMs: () => number;
 }
 
+// The first-run guide is covered by its own test; mark it seen everywhere else.
+test.beforeEach(async ({ page }, info) => {
+  if (!info.title.includes("first-run guide")) {
+    await page.addInitScript(() => localStorage.setItem("teleop-guide-v1", "1"));
+  }
+});
+
 const status = (page: Page) =>
   page.evaluate(() => (window as unknown as { __teleop: Debug }).__teleop.status());
 
@@ -148,4 +155,20 @@ test("body rails raise the lift and Turn switches to drive", async ({ page }, in
     .toBeGreaterThan(0.45);
   await page.getByRole("button", { name: "Turn → Drive" }).click();
   await expect(page.locator(".key-hints")).toContainText("Drive");
+});
+
+test("first-run guide introduces the controls once", async ({ page }) => {
+  await page.goto("/?token=e2e&quality=low");
+  const guide = page.getByRole("dialog", { name: "How to control MABEL" });
+  await expect(guide).toBeVisible({ timeout: 20000 });
+  for (const title of ["Hands", "Look", "Drive", "Body"]) {
+    await expect(guide.getByRole("heading", { name: title })).toBeVisible();
+  }
+  await guide.getByRole("button", { name: "Got it" }).click();
+  await expect(guide).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("status")).toContainText(/Ready|Paused/);
+  await expect(guide).toBeHidden(); // not shown again
+  await page.getByRole("button", { name: "Help" }).click();
+  await expect(guide).toBeVisible(); // reopened on demand
 });

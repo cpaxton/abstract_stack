@@ -52,6 +52,7 @@ interface UiState {
   /** Set when the host rejects the access token; shows the access screen. */
   authError: string | null;
   helpOpen: boolean;
+  guideOpen: boolean;
   toasts: Toast[];
   /** Mirrors of intent values shown by sliders (updated at ≤ 15 Hz). */
   mirror: { grip: Record<Side, number>; lift: number; torso: number; yaw: number; pitch: number };
@@ -85,6 +86,7 @@ export const useUi = create<UiState>((set, get) => ({
       ? true
       : window.innerWidth >= 900 && !window.matchMedia?.("(pointer: coarse)").matches,
   helpOpen: false,
+  guideOpen: false,
   quality: initialQuality(),
   mainView: "twin",
   eyes: "left",

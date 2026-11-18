@@ -11,6 +11,7 @@ import { runAction, togglePrimary } from "./ui/actions";
 import { storeToken, takeToken } from "./state/token";
 import { AccessScreen } from "./ui/AccessScreen";
 import { BodyRails } from "./ui/BodyRails";
+import { Guide } from "./ui/Guide";
 import { HelpOverlay, Hud, KeyHints, StatusBanner, Toasts } from "./ui/Overlays";
 import { syncMirror } from "./state/mirror";
 import { SidePanel } from "./ui/SidePanel";
@@ -145,7 +146,8 @@ export function App() {
         const engaged = ui.status?.state === "engaged";
         switch (code) {
           case "Escape":
-            if (ui.helpOpen) ui.set({ helpOpen: false });
+            if (ui.guideOpen) ui.set({ guideOpen: false });
+            else if (ui.helpOpen) ui.set({ helpOpen: false });
             else if (engaged) void runAction(client, "pause");
             return true;
           case "Space":
@@ -248,6 +250,7 @@ export function App() {
       <TouchControls />
       <BodyRails />
       <HelpOverlay />
+      <Guide />
       <AccessScreen />
     </div>
   );

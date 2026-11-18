@@ -128,6 +128,14 @@ export function TopBar({ client }: { client: TeleopClient }) {
         )}
         <button
           className="btn btn-icon btn-ghost"
+          onClick={() => set({ guideOpen: true })}
+          title="How to control MABEL"
+          aria-label="Help"
+        >
+          <Icon name="help" />
+        </button>
+        <button
+          className="btn btn-icon btn-ghost"
           onClick={() => set({ panelOpen: !panelOpen })}
           aria-pressed={panelOpen}
           title="Controls panel (P)"

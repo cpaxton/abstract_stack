@@ -159,6 +159,12 @@ export function HelpOverlay() {
             </div>
           ))}
         </dl>
+        <button
+          className="btn btn-ghost small"
+          onClick={() => set({ helpOpen: false, guideOpen: true })}
+        >
+          Show the control guide
+        </button>
         <p className="muted small">
           Drag the glowing target with the gizmo, or jog it with the keyboard. In drive mode the
           same keys drive the base; it brakes as soon as you let go or pause. The robot follows

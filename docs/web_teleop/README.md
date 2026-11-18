@@ -70,8 +70,8 @@ cd web && npm run dev                                    # terminal 2, open the 
 | Grip | <kbd>[</kbd>/<kbd>]</kbd>, <kbd>G</kbd> toggle, slider | **Open** / **Close** (hold) |
 | Switch hand / drive | <kbd>Tab</kbd> cycles left hand → right hand → drive | control chip |
 | Drive the base (drive mode) | <kbd>W A S D</kbd> relative to the robot, <kbd>Q</kbd>/<kbd>E</kbd> turn | left stick drives, right stick turns |
-| Head | arrows; drag the camera view to look around, click to look at a point, double-click or <kbd>Home</kbd> to re-centre | drag, tap, double-tap the camera view |
-| Lift, torso lean | <kbd>PgUp</kbd>/<kbd>PgDn</kbd>, sliders | panel sliders |
+| Head | follows the active hand automatically; arrows or drag/click the camera view for free look; click the 3D view to look at a spot; <kbd>F</kbd> or the Look chip follows again; <kbd>Home</kbd> re-centres | same gestures by touch; tap the Look chip to follow again |
+| Height (lift), Lean (torso) | Height/Lean rails on the right edge, <kbd>PgUp</kbd>/<kbd>PgDn</kbd> | rails on the left edge |
 | Fine motion | hold <kbd>Shift</kbd> | **Fine** toggle |
 | Ready pose | <kbd>R</kbd> | top-bar button |
 | Main view 3D ⇄ head camera | <kbd>V</kbd>, **3D / Camera** switch, click the PiP | switch, tap the PiP |
@@ -84,6 +84,21 @@ elbows and brings the palms about 0.4 m in front of the chassis. Each glowing
 target shows where that palm is commanded to go. A tether connects it to the
 measured palm, and the target turns red when IK cannot reach it. Leaving the
 tab pauses immediately.
+
+**First run.** A four-card guide (Hands, Look, Drive, Body) appears once for a
+new operator, with text for the device in use. The "?" button in the top bar
+reopens it.
+
+**Looking.** By default the head follows the hand you control, and looks ahead
+while driving. The host aims the head camera at the gaze point with the existing
+`HeadGaze` solver. Any manual input (arrows, dragging or tapping the camera view,
+the head sliders) switches to Free look, starting from the current angles.
+Clicking the 3D view looks at that spot, shown by a marker. The Look chip shows
+the mode, and tapping it (or pressing <kbd>F</kbd>) follows the hand again.
+
+**Body.** The Height and Lean rails stay at the screen edge while engaged. MABEL's
+torso only leans; the rails' "Turn → Drive" link switches to drive mode,
+because the robot turns by driving.
 
 **Driving.** In drive mode, movement input drives MABEL's swerve base relative to
 the robot's own heading; the 3D view follows the robot. The base ramps up gently
@@ -187,7 +202,9 @@ Implementations: `src/abstract_stack/web_teleop/protocol.py` and
 4. `command`: absolute intents with `calibration_generation`, `target_epoch`,
    `arms.{left,right}` (palm control-point `position_m` and `quaternion_wxyz`
    in the `mabel_chassis` frame, plus `grip` ∈ [0,1], or null to hold), and
-   `head`, `lift_m`, `torso_rad` (null holds). An optional `base`
+   `head`, `lift_m`, `torso_rad` (null holds). `head` is either
+   `{yaw_rad, pitch_rad}` or `{look_at_m: [x,y,z]}`, a chassis-frame gaze point
+   the host tracks. An optional `base`
    `{forward_mps, left_mps, turn_radps}` is a velocity intent: null stops the
    base, and it only applies while engaged with fresh input. Absolute targets make every
    message self-contained, so a lost message never accumulates drift.
