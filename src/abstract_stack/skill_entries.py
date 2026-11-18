@@ -1,0 +1,194 @@
+"""Measured skill-entry distributions and restorable native states, not BC records."""
+
+import json
+from dataclasses import asdict
+
+import mujoco
+import numpy as np
+
+from abstract_stack.checkpoints import save_checkpoint
+
+SKILL_PHASES = {
+    "grasp_precheck": "grasp_lift",
+    "carry_clear": "transfer",
+    "place": "shelf_place",
+    "push": "contact_finish",
+    "finger_push": "contact_finish",
+    "release": "release_retreat",
+}
+
+SKILL_CONTRACTS = {
+    "grasp_lift": {
+        "entry": "Upright table-supported carton; empty hand; measured inventory poses",
+        "success": "Opposing contacts, measured rise, retained hand contact and table support lost",
+    },
+    "transfer": {
+        "entry": "Verified lift; measured grasp transform and remaining inventory",
+        "success": "Load retained through checked route to the shelf approach",
+    },
+    "shelf_place": {
+        "entry": "Carried carton near shelf front; measured rotated extents and grasp transform",
+        "success": "Measured shelf support within the original bounded seating range",
+    },
+    "contact_finish": {
+        "entry": "Shelf-supported carton with measured lateral/yaw/depth error and contact forces",
+        "success": "Required final placement/contact gates under unchanged task criteria",
+    },
+    "release_retreat": {
+        "entry": "Supported completed contact skill; hand still loaded or touching",
+        "success": "Unloaded hand and verified retreat without disturbing any required product",
+    },
+}
+
+
+def entry_distribution(entries):
+    """Describe observed states only; min/max are not a proposed sampling prior."""
+    result = {}
+    for skill in SKILL_CONTRACTS:
+        own = [entry for entry in entries if entry["skill"] == skill]
+        samples = [entry["objects"][entry["active_product"]] for entry in own]
+        values = np.asarray([sample["position_world_m"] for sample in samples])
+        result[skill] = dict(
+            samples=len(samples),
+            active_position_min_m=values.min(axis=0).tolist() if samples else None,
+            active_position_max_m=values.max(axis=0).tolist() if samples else None,
+            active_yaw_degrees=[sample["yaw_deg"] for sample in samples],
+            entry_files=[entry["entry_file"] for entry in own],
+            sampling_scope="empirical reached states; includes previous-skill disturbances",
+            robustness_or_training_claim=False,
+        )
+    return result
+
+
+def record_skill_entry(script, phase):
+    skill = SKILL_PHASES.get(phase)
+    if skill is None or any(
+        entry["skill"] == skill and entry["active_product"] == script.product.name
+        for entry in script.skill_entries
+    ):
+        return
+    env = script.env
+    objects = {}
+    from abstract_stack.interactions import contact_forces
+
+    for product in env.products:
+        body = env.data.body(product.name)
+        velocity = np.empty(6)
+        mujoco.mj_objectVelocity(
+            env.model, env.data, mujoco.mjtObj.mjOBJ_BODY, body.id, velocity, 0
+        )
+        rotation = body.xmat.reshape(3, 3)
+        force = contact_forces(env, product.name, script.hand_bodies)
+        objects[product.name] = dict(
+            position_world_m=body.xpos.tolist(),
+            quaternion_wxyz=body.xquat.tolist(),
+            yaw_deg=float(np.degrees(np.arctan2(rotation[1, 0], rotation[0, 0]))),
+            tilt_deg=float(np.degrees(np.arccos(np.clip(rotation[2, 2], -1, 1)))),
+            angular_then_linear_velocity_world=velocity.tolist(),
+            half_size_m=list(product.half_size),
+            mass_kg=product.mass,
+            target_world_m=list(product.target),
+            table_normal_N=force["table"],
+            shelf_normal_N=force["shelf"],
+            hand_normal_N=force["hand"],
+            initially_stocked=product.initially_stocked,
+        )
+    directory = (
+        script.directory
+        / "skill-entries"
+        / (f"{len(script.skill_entries):03}-{script.product.name}-{skill}")
+    )
+    directory.mkdir(parents=True, exist_ok=False)
+    entry = dict(
+        kind="measured_skill_entry",
+        skill=skill,
+        contract=SKILL_CONTRACTS[skill],
+        phase=phase,
+        active_product=script.product.name,
+        sim_time_s=float(env.data.time),
+        reset_seed=env._seed,
+        objects=objects,
+        robot_base_position_world_m=env.data.body("mabel_chassis").xpos.tolist(),
+        tool_position_world_m=script.controller.position().tolist(),
+        checkpoint="checkpoint",
+        entry_file=str((directory / "entry.json").relative_to(script.directory)),
+        training_eligible=False,
+        scope="Privileged entry distribution/checkpoint; not a causal demonstration",
+    )
+    scene = json.loads((script.directory / "initial-scene/manifest.json").read_text())
+    nominal = dict(zip(script.tracker.NAMES, script.tracker.nominal.tolist(), strict=True))
+    observer = script.observer
+    history = (
+        dict(
+            initial=observer.initial,
+            incidents=observer.incidents,
+            seen=[list(value) for value in sorted(observer.seen)],
+            completed=sorted(observer.completed),
+            retreat=observer.retreat,
+            retreat_results=observer.retreat_results,
+            maximum_displacements=observer.maximum_displacements,
+        )
+        if observer is not None
+        else None
+    )
+    save_checkpoint(
+        directory / "checkpoint",
+        env.model,
+        env.data,
+        scene=scene,
+        controller=dict(
+            kind="stocking_skill_entry",
+            settings=asdict(script.config),
+            nominal_subset=nominal,
+            hand_nominal_subset=dict(
+                zip(
+                    [*script.controller.names, "Lift"],
+                    script.controller.command.tolist(),
+                    strict=True,
+                )
+            ),
+            applied_controls=env.data.ctrl.tolist(),
+            active_rotation_world=script.controller.active_rotation.tolist(),
+            active_grip=script.active_grip,
+            carry_reference=None
+            if script.carry_reference is None
+            else script.carry_reference.tolist(),
+            payload_rotation_goal=None
+            if script.payload_rotation_goal is None
+            else script.payload_rotation_goal.tolist(),
+            tracking_config=asdict(script.tracker.config),
+        ),
+        context=dict(
+            skill_entry=entry,
+            observer_history=history,
+            prior_events=script.events[:-1],
+            task_memory=dict(stable_time=env._stable_time.tolist(), stocked=env._stocked.tolist()),
+            fresh_task_credit=0,
+            resume_scope="Exact native state; arbitrary skill-controller resume is not automatic",
+        ),
+        validation_controls=np.tile(env.data.ctrl, (10, 1)),
+        portable_source=False,
+        shared_model_checkpoint=(script.directory / script.skill_entries[0]["entry_file"]).parent
+        / "checkpoint"
+        if script.skill_entries
+        else None,
+    )
+    (directory / "checkpoint/model.mjb").chmod(0o444)
+    (directory / "entry.json").write_text(json.dumps(entry, indent=2, allow_nan=False) + "\n")
+    script.skill_entries.append(entry)
+    script.events[-1]["skill_entry"] = entry["entry_file"]
+    (script.directory / "skill-entries/index.json").write_text(
+        json.dumps(
+            dict(
+                contracts=SKILL_CONTRACTS,
+                entries=[entry["entry_file"] for entry in script.skill_entries],
+                distribution=entry_distribution(script.skill_entries),
+                unreached_skills_count_as_unreached=True,
+                task_stage_denominators="summary.json includes all scheduled objects and failures",
+                training_eligible=False,
+            ),
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    )

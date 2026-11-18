@@ -61,6 +61,39 @@ def capture(path, model, data):
     )
 
 
+def test_shared_compiled_model_preserves_complete_checkpoint_and_rejects_differences(
+    tmp_path, world
+):
+    model, data = world
+    first = capture(tmp_path / "first", model, data)
+    before = native_state(model, data)
+    second = save_checkpoint(
+        tmp_path / "second",
+        model,
+        data,
+        scene=dict(seed=123),
+        controller=dict(kind="same-model"),
+        context=dict(kind="independent_state_checkpoint"),
+        shared_model_checkpoint=first,
+    )
+    assert (first / "model.mjb").stat().st_ino == (second / "model.mjb").stat().st_ino
+    loaded = load_checkpoint(second)
+    np.testing.assert_array_equal(native_state(loaded.model, loaded.data), before)
+    np.testing.assert_array_equal(native_state(model, data), before)
+    model.body_mass[1] *= 2
+    with pytest.raises(ValueError, match="different compiled model"):
+        save_checkpoint(
+            tmp_path / "changed",
+            model,
+            data,
+            scene=dict(seed=123),
+            controller=dict(kind="different-model"),
+            context=dict(kind="must_reject"),
+            shared_model_checkpoint=first,
+        )
+    assert not (tmp_path / "changed").exists()
+
+
 def test_contact_snapshot_and_replay_are_bit_equal_without_touching_live_world(tmp_path, world):
     model, data = world
     before, signature = native_state(model, data), model_signature(model)

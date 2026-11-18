@@ -11,6 +11,37 @@ import pytest
 from abstract_stack.assets import mabel_model_path
 
 
+@pytest.mark.parametrize("verified", [False, True])
+def test_isolated_grasp_video_verdict_does_not_claim_shelf_success(tmp_path, verified):
+    from abstract_stack.recording import DualVideoRecorder
+
+    recorder = DualVideoRecorder.__new__(DualVideoRecorder)
+    recorder.directory = tmp_path
+    recorder.fps, recorder.width, recorder.height = 1, 160, 120
+    recorder.times = [1.0]
+    recorder.cameras = {"first_person": "zed_left", "third_person": "stocking_third_person"}
+    recorder.paused_end_frames = 0
+    recorder.encoder_version = "test-only"
+    labels = []
+    recorder._frames = lambda label: labels.append(label) or {}
+    recorder._write = lambda frames: None
+    recorder.close = lambda: None
+    metadata = recorder.finish(
+        dict(
+            physical_success=False,
+            task_success=False,
+            task_scope="grasp_lift_hold",
+            failure=None,
+            controller_evidence=dict(grasp_skill_verified=verified),
+            events=[dict(verified_grasp_skill=verified)],
+        )
+    )
+    assert metadata["skill_success"] is verified
+    assert metadata["task_success"] is False
+    assert ("GRASP VERIFIED" in labels[0]) is verified
+    assert "SUCCESS" not in labels[0]
+
+
 @pytest.mark.mabel
 @pytest.mark.rendering
 def test_native_camera_mp4s_have_identical_frame_counts_and_timestamps(tmp_path):

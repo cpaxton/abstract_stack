@@ -51,6 +51,13 @@ every compensation path. Review videos and post-step diagnostic traces cannot
 substitute for causally aligned raw training observations. Keep privileged
 teacher context out of student features and preserve unknown/failed outcomes.
 
+For the opt-in grasp teacher and skill-entry checkpoints, follow the
+[skill curriculum](docs/skills.md). Evaluate isolated skills and complete task
+sequences separately, retaining blocked and unreached scheduled cases. Freeze
+the teacher before drawing private held-out seeds. A checkpoint retry earns no
+fresh episode credit, and unknown historical nominal references require explicit
+new-reference initialization. Entry snapshots alone are not BC demonstrations.
+
 ## Required checks
 
 ```bash

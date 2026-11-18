@@ -1,10 +1,13 @@
 # Stocking workflows and experiment index
 
-Current fixed-shelf focus: [new videos and fresh two-carton attempt](reports/fixed_shelf_videos.md)
-and the [predictive/compliant two-layer plan](receding_horizon_stocking.md#fixed-shelf-two-layer-controller).
-Perfect state is used initially. The fresh attempt completes one of two cartons;
-saved dense-fixture videos demonstrate contact finishing and longer unfinished
-stocking separately. Randomized evaluation remains parked while those gaps close.
+Current fixed-shelf focus: [grasp skills, held-out checks and longer execution](reports/grasp_skill_development.md),
+[skill entry distributions](skills.md), and the
+[predictive/compliant two-layer plan](receding_horizon_stocking.md#fixed-shelf-two-layer-controller).
+The opt-in teacher completes two fresh stocks in 90.7 simulated seconds and
+recovers the saved failed-plan pickup. Three-carton transfer and the separate
+rear-clearance task remain open. Perfect state is used; randomized geometry
+evaluation stays parked. The [earlier video report](reports/fixed_shelf_videos.md)
+retains the original one-of-two result and failed top-contact approach.
 
 New development: [CPU/GPU rollout evaluation](backend_evaluation.md),
 [measured throughput report](reports/rollout_backend_development.md), and
