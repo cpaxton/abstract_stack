@@ -4,6 +4,8 @@ interface Debug {
   status: () => {
     state: string;
     target_epoch: number;
+    base: { forward_mps: number };
+    channels: { head: { yaw_rad: number } };
     arms: Record<string, { palm: { position_m: [number, number, number] } }>;
   } | null;
   poseAgeMs: () => number;
@@ -101,4 +103,28 @@ test("a wrong token says so instead of retrying silently", async ({ page }, info
   test.skip(info.project.name !== "desktop", "same flow on all devices");
   await page.goto("/?token=stale-token-from-an-old-run&quality=low");
   await expect(page.getByRole("heading", { name: "Access needed" })).toBeVisible();
+});
+
+test("drive mode moves the base and the head follows clicks on the video", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "keyboard flow");
+  await open(page);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toContainText("Engaged");
+  await page.keyboard.press("Tab"); // right hand → drive
+  await expect(page.locator(".key-hints")).toContainText("Drive");
+  await page.keyboard.down("KeyW");
+  await expect
+    .poll(async () => (await status(page))!.base.forward_mps, { timeout: 5000 })
+    .toBeGreaterThan(0.05);
+  await page.keyboard.up("KeyW");
+  await expect.poll(async () => (await status(page))!.base.forward_mps).toBeLessThan(0.01);
+
+  await page.getByRole("radio", { name: "Camera" }).click();
+  const frame = page.locator(".camera-layer.main .eye-frame.aimable").first();
+  await expect(frame).toBeVisible();
+  const box = (await frame.boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.5); // look right
+  await expect.poll(async () => (await status(page))!.channels.head.yaw_rad).toBeLessThan(-0.2);
 });

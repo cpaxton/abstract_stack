@@ -69,6 +69,15 @@ export interface Status {
   arms: Record<Side, ArmStatus>;
   channels: Channels;
   limits: { rate_limited: string[]; target_limited: string[]; force_limited: string[] };
+  base: {
+    forward_mps: number;
+    left_mps: number;
+    turn_radps: number;
+    aligned: boolean;
+    tilt_deg: number;
+    tilt_guard: boolean;
+    limits: { linear_mps: number; angular_radps: number };
+  };
   video: {
     error: string | null;
     pair_id: number;
@@ -128,6 +137,14 @@ export interface CommandBody {
   head: { yaw_rad: number; pitch_rad: number } | null;
   lift_m: number | null;
   torso_rad: number | null;
+  /** Base velocity intent in the robot's frame; null stops the base. */
+  base: BaseIntent | null;
+}
+
+export interface BaseIntent {
+  forward_mps: number;
+  left_mps: number;
+  turn_radps: number;
 }
 
 // --- Binary state frames ("WTS1") -----------------------------------------------------

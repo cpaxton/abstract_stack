@@ -2,6 +2,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { touch } from "../input/touch";
 import { useUi } from "../state/store";
 import { haptic } from "./actions";
+import { ControlChip } from "./ControlChip";
 
 /** Pointer-captured virtual joystick writing normalised [-1, 1] values into `target`. */
 function Joystick({
@@ -88,24 +89,24 @@ function HoldButton({ label, value }: { label: string; value: number }) {
 /** On-screen controls for touch devices, shown only while engaged. */
 export function TouchControls() {
   const engaged = useUi((s) => s.status?.state === "engaged" && s.role === "operator");
-  const activeArm = useUi((s) => s.activeArm);
-  const set = useUi((s) => s.set);
+  const driveMode = useUi((s) => s.driveMode);
   const [fine, setFine] = useState(false);
   if (!engaged) return null;
   return (
     <div className="touch-controls show-touch">
-      <Joystick target={touch.planar} label="Move hand in the ground plane" hint="Move" />
+      <Joystick
+        target={touch.planar}
+        label={driveMode ? "Drive the robot" : "Move hand in the ground plane"}
+        hint={driveMode ? "Drive" : "Move"}
+      />
       <div className="touch-center">
-        <button
-          className={`arm-chip arm-${activeArm}`}
-          onClick={() => set({ activeArm: activeArm === "left" ? "right" : "left" })}
-        >
-          {activeArm === "left" ? "Left" : "Right"} arm ⇄
-        </button>
-        <div className="touch-row">
-          <HoldButton label="Open" value={-1} />
-          <HoldButton label="Close" value={1} />
-        </div>
+        <ControlChip />
+        {!driveMode && (
+          <div className="touch-row">
+            <HoldButton label="Open" value={-1} />
+            <HoldButton label="Close" value={1} />
+          </div>
+        )}
         <button
           className={`chip ${fine ? "chip-ok" : ""}`}
           onClick={() => {
@@ -116,7 +117,11 @@ export function TouchControls() {
           Fine {fine ? "on" : "off"}
         </button>
       </div>
-      <Joystick target={touch.vertical} label="Raise, lower and turn the hand" hint="Up · Turn" />
+      <Joystick
+        target={touch.vertical}
+        label={driveMode ? "Turn the robot" : "Raise, lower and turn the hand"}
+        hint={driveMode ? "Turn" : "Up · Turn"}
+      />
     </div>
   );
 }

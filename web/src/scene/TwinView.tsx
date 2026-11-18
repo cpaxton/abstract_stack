@@ -15,12 +15,12 @@ import {
   Vector3,
   type Object3D,
 } from "three";
-import { applyJog, emptyJog } from "../input/jog";
-import { readKeyboard } from "../input/keyboard";
+import { applyJog, emptyJog, RATES } from "../input/jog";
+import { keyboardTurn, readKeyboard } from "../input/keyboard";
 import { readTouch } from "../input/touch";
 import type { TeleopClient } from "../net/TeleopClient";
 import { SIDES, type Side } from "../net/protocol";
-import { intent } from "../state/intent";
+import { intent, stopBase } from "../state/intent";
 import { useUi, type CameraPreset } from "../state/store";
 import { applyPoses, type RobotModel } from "./robotModel";
 
@@ -230,14 +230,32 @@ function JogLoop({ frames, enabled }: { frames: Frames; enabled: boolean }) {
     }),
     [],
   );
+  useEffect(() => {
+    if (!enabled) stopBase();
+  }, [enabled]);
   useFrame((_, delta) => {
     if (!enabled || !intent.initialized) return;
+    const ui = useUi.getState();
     jog.move.set(0, 0, 0);
     jog.rotate.set(0, 0, 0);
     jog.grip = jog.headYaw = jog.headPitch = jog.lift = 0;
     jog.fine = false;
     readKeyboard(jog);
     readTouch(jog);
+    if (ui.driveMode) {
+      // Robot-centric driving: stick/WASD up = robot forward, Q/E or stick-x = turn.
+      const limits = ui.status?.base?.limits ?? { linear_mps: 0.45, angular_radps: 0.9 };
+      const scale = jog.fine ? RATES.fineScale : 1;
+      const clamp1 = (v: number) => Math.max(-1, Math.min(1, v));
+      intent.base.forward = clamp1(jog.move.y) * limits.linear_mps * scale;
+      intent.base.left = -clamp1(jog.move.x) * limits.linear_mps * scale;
+      intent.base.turn = clamp1(jog.rotate.z + keyboardTurn()) * limits.angular_radps * scale;
+      // Head, lift and grip keys keep working while driving.
+      jog.move.set(0, 0, 0);
+      jog.rotate.set(0, 0, 0);
+    } else {
+      stopBase();
+    }
     if (
       jog.move.lengthSq() === 0 &&
       jog.rotate.lengthSq() === 0 &&
@@ -273,7 +291,11 @@ function JogLoop({ frames, enabled }: { frames: Frames; enabled: boolean }) {
   return null;
 }
 
-function CameraRig() {
+/**
+ * Presets are placed relative to the robot (its current position and heading), and
+ * the orbit camera then follows the chassis as it drives so the robot stays framed.
+ */
+function CameraRig({ frames }: { frames: Frames }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as {
     target: Vector3;
@@ -281,16 +303,48 @@ function CameraRig() {
   } | null;
   const preset = useUi((s) => s.camera);
   const nonce = useUi((s) => s.cameraNonce);
+  const pending = useRef(true);
+  const last = useMemo(() => new Vector3(Number.NaN, 0, 0), []);
+  const tmp = useMemo(() => ({ v: new Vector3(), d: new Vector3() }), []);
   useEffect(() => {
-    const { eye, at } = PRESETS[preset];
-    camera.position.copy(toThree(...eye));
-    const target = toThree(...at);
-    camera.lookAt(target);
+    pending.current = true;
+  }, [preset, nonce]);
+  useFrame(() => {
+    const chassisKnown = frames.chassisPos.lengthSq() > 0 || frames.chassisPos.z !== 0;
+    if (pending.current && chassisKnown) {
+      pending.current = false;
+      const { eye, at } = PRESETS[preset];
+      const place = (p: [number, number, number]) =>
+        toThree(
+          ...(tmp.v
+            .set(p[0], p[1], p[2])
+            .applyQuaternion(frames.chassisQuat)
+            .add(frames.chassisPos)
+            .toArray() as [number, number, number]),
+        );
+      const target = place([at[0], at[1], at[2] - 0.078]);
+      camera.position.copy(place([eye[0], eye[1], eye[2] - 0.078]));
+      camera.lookAt(target);
+      if (controls) {
+        controls.target.copy(target);
+        controls.update();
+      }
+      last.copy(frames.chassisPos);
+      return;
+    }
+    if (!chassisKnown || Number.isNaN(last.x)) return;
+    // Follow chassis translation (MuJoCo → three.js), keeping the user's orbit.
+    const dx = frames.chassisPos.x - last.x;
+    const dy = frames.chassisPos.y - last.y;
+    if (dx * dx + dy * dy < 1e-10) return;
+    const delta = toThree(dx, dy, 0);
+    camera.position.add(delta);
     if (controls) {
-      controls.target.copy(target);
+      controls.target.add(delta);
       controls.update();
     }
-  }, [camera, controls, preset, nonce]);
+    last.copy(frames.chassisPos);
+  }, -1);
   return null;
 }
 
@@ -301,6 +355,7 @@ export function TwinView({ model, client }: { model: RobotModel | null; client: 
   const quality = useUi((s) => s.quality);
   const set = useUi((s) => s.set);
   const operating = role === "operator" && status?.state === "engaged";
+  const driveMode = useUi((s) => s.driveMode);
   const high = quality === "high";
   const dpr = high ? Math.min(2, window.devicePixelRatio || 1) : 1;
   const initial = PRESETS.operator;
@@ -342,7 +397,7 @@ export function TwinView({ model, client }: { model: RobotModel | null; client: 
         infiniteGrid
       />
       {model && <RobotTwin model={model} client={client} frames={frames} />}
-      {model && <Ghosts model={model} frames={frames} controlsEnabled={operating} />}
+      {model && <Ghosts model={model} frames={frames} controlsEnabled={operating && !driveMode} />}
       <JogLoop frames={frames} enabled={operating} />
       <OrbitControls
         makeDefault
@@ -351,7 +406,7 @@ export function TwinView({ model, client }: { model: RobotModel | null; client: 
         maxDistance={12}
         minDistance={0.3}
       />
-      <CameraRig />
+      <CameraRig frames={frames} />
     </Canvas>
   );
 }

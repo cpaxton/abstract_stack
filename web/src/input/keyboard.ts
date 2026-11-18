@@ -66,6 +66,11 @@ const JOG_KEYS = new Set<string>([
   ...KEYMAP.fine,
 ]);
 
+/** Drive-mode turn from the keyboard: Q turns left (+), E turns right. */
+export function keyboardTurn(): number {
+  return axis(KEYMAP.move.down, KEYMAP.move.up);
+}
+
 /** Accumulate held keys into `out` (adds to any existing touch input). */
 export function readKeyboard(out: JogInput): void {
   const m = KEYMAP.move;

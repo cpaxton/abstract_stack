@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { TeleopClient } from "../net/TeleopClient";
 import { useUi } from "../state/store";
 import { togglePrimary } from "./actions";
+import { ControlChip } from "./ControlChip";
 import { Icon } from "./Icon";
 
 export function Toasts() {
@@ -110,9 +111,12 @@ const SHORTCUTS: [string, string][] = [
   ["[ / ]", "Open / close grip"],
   ["G", "Toggle grip open/closed"],
   ["Shift", "Fine (slow) motion"],
-  ["Tab", "Switch active arm"],
+  ["Tab", "Cycle left hand → right hand → drive"],
+  ["WASD · Q/E (drive)", "Drive relative to the robot · turn"],
   ["T / Y", "Gizmo move / rotate"],
   ["← → ↑ ↓", "Head yaw / pitch"],
+  ["Home", "Re-centre the head"],
+  ["Drag / click video", "Look around / look at a point"],
   ["PgUp / PgDn", "Lift up / down"],
   ["R", "Ready pose"],
   ["1 – 4", "Camera presets"],
@@ -153,7 +157,8 @@ export function HelpOverlay() {
           ))}
         </dl>
         <p className="muted small">
-          Drag the glowing target with the gizmo, or jog it with the keyboard. The robot follows
+          Drag the glowing target with the gizmo, or jog it with the keyboard. In drive mode the
+          same keys drive the base; it brakes as soon as you let go or pause. The robot follows
           through inverse kinematics; a red target is out of reach. Input stops → the robot pauses
           and holds.
         </p>
@@ -165,29 +170,44 @@ export function HelpOverlay() {
 export function KeyHints() {
   const role = useUi((s) => s.role);
   const engaged = useUi((s) => s.status?.state === "engaged");
-  const activeArm = useUi((s) => s.activeArm);
+  const driveMode = useUi((s) => s.driveMode);
   const set = useUi((s) => s.set);
   if (role !== "operator") return null;
   return (
     <div className="key-hints glass hide-touch">
-      <span className={`arm-chip arm-${activeArm}`}>
-        {activeArm === "left" ? "Left" : "Right"} arm
-      </span>
+      <ControlChip />
       {engaged ? (
-        <>
-          <span>
-            <kbd>WASD</kbd> <kbd>QE</kbd> move
-          </span>
-          <span>
-            <kbd>[</kbd> <kbd>]</kbd> grip
-          </span>
-          <span>
-            <kbd>Tab</kbd> arm
-          </span>
-          <span>
-            <kbd>Esc</kbd> pause
-          </span>
-        </>
+        driveMode ? (
+          <>
+            <span>
+              <kbd>WASD</kbd> drive
+            </span>
+            <span>
+              <kbd>Q</kbd> <kbd>E</kbd> turn
+            </span>
+            <span>
+              <kbd>Shift</kbd> slow
+            </span>
+            <span>
+              <kbd>Esc</kbd> stop
+            </span>
+          </>
+        ) : (
+          <>
+            <span>
+              <kbd>WASD</kbd> <kbd>QE</kbd> move
+            </span>
+            <span>
+              <kbd>[</kbd> <kbd>]</kbd> grip
+            </span>
+            <span>
+              <kbd>Tab</kbd> hand/drive
+            </span>
+            <span>
+              <kbd>Esc</kbd> pause
+            </span>
+          </>
+        )
       ) : (
         <span>
           <kbd>Enter</kbd> engage

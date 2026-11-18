@@ -1,6 +1,105 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { lookAt, panBy, recentreHead } from "../input/headLook";
 import type { TeleopClient } from "../net/TeleopClient";
-import type { Eyes } from "../state/store";
+import { useUi, type Eyes } from "../state/store";
+import { syncMirror } from "./SidePanel";
+
+const DRAG_START_PX = 6;
+const DOUBLE_TAP_MS = 320;
+
+interface Gesture {
+  id: number;
+  x: number;
+  y: number;
+  lastX: number;
+  lastY: number;
+  dragging: boolean;
+}
+
+/**
+ * Pointer gestures on a head-camera image: drag pans the head (image follows the
+ * finger), tap/click looks at that point, double-tap re-centres. Active only while
+ * the operator is engaged; otherwise a hint explains why nothing moves.
+ */
+function useHeadGestures(fovDeg: number, aspect: number) {
+  const gesture = useRef<Gesture | null>(null);
+  const lastTap = useRef({ t: 0, x: 0, y: 0 });
+  const [rings, setRings] = useState<{ id: number; x: number; y: number }[]>([]);
+  const ringId = useRef(0);
+  const geometry = { verticalFovDeg: fovDeg, aspect };
+  const allowed = () => {
+    const ui = useUi.getState();
+    if (ui.role === "operator" && ui.status?.state === "engaged") return true;
+    ui.toast("info", ui.role === "operator" ? "Engage to aim the head" : "View only");
+    return false;
+  };
+  const frac = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { u: (e.clientX - r.left) / r.width, v: (e.clientY - r.top) / r.height, r };
+  };
+  return {
+    rings,
+    handlers: {
+      onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (gesture.current) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        gesture.current = {
+          id: e.pointerId,
+          x: e.clientX,
+          y: e.clientY,
+          lastX: e.clientX,
+          lastY: e.clientY,
+          dragging: false,
+        };
+      },
+      onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => {
+        const g = gesture.current;
+        if (!g || g.id !== e.pointerId) return;
+        if (!g.dragging && Math.hypot(e.clientX - g.x, e.clientY - g.y) > DRAG_START_PX) {
+          if (!allowed()) {
+            gesture.current = null;
+            return;
+          }
+          g.dragging = true;
+        }
+        if (g.dragging) {
+          const { r } = frac(e);
+          panBy((e.clientX - g.lastX) / r.width, (e.clientY - g.lastY) / r.height, geometry);
+          g.lastX = e.clientX;
+          g.lastY = e.clientY;
+        }
+      },
+      onPointerUp: (e: ReactPointerEvent<HTMLDivElement>) => {
+        const g = gesture.current;
+        gesture.current = null;
+        if (!g || g.id !== e.pointerId) return;
+        if (g.dragging) {
+          syncMirror();
+          return;
+        }
+        if (!allowed()) return;
+        const { u, v } = frac(e);
+        const now = performance.now();
+        const t = lastTap.current;
+        if (now - t.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 30) {
+          recentreHead();
+          lastTap.current = { t: 0, x: 0, y: 0 };
+          useUi.getState().toast("info", "Head re-centred");
+        } else {
+          lookAt(u, v, geometry);
+          lastTap.current = { t: now, x: e.clientX, y: e.clientY };
+          const id = ++ringId.current;
+          setRings((list) => [...list.slice(-2), { id, x: u, y: v }]);
+          window.setTimeout(() => setRings((list) => list.filter((ring) => ring.id !== id)), 650);
+        }
+        syncMirror();
+      },
+      onPointerCancel: () => {
+        gesture.current = null;
+      },
+    },
+  };
+}
 
 const STALE_MS = 300; // contract video_stale_age_s
 
@@ -21,6 +120,8 @@ export function CameraView({
   const rightRef = useRef<HTMLCanvasElement>(null);
   const [info, setInfo] = useState({ stale: true, fps: 0, waiting: true });
   const [aspect, setAspect] = useState(4 / 3);
+  const [fov, setFov] = useState(83.3);
+  const { rings, handlers } = useHeadGestures(fov, aspect);
 
   useEffect(() => {
     let raf = 0;
@@ -43,6 +144,8 @@ export function CameraView({
         drawnPair = pair.meta.pair_id;
         const ratio = pair.meta.width / pair.meta.height;
         setAspect((prev) => (Math.abs(prev - ratio) < 1e-3 ? prev : ratio));
+        const vfov = pair.meta.vertical_fov_deg[0];
+        setFov((prev) => (Math.abs(prev - vfov) < 1e-3 ? prev : vfov));
         draw(leftRef.current, pair.left);
         draw(rightRef.current, pair.right);
         frames += 1;
@@ -70,18 +173,26 @@ export function CameraView({
       className={`camera-view eyes-${eyes} ${compact ? "compact" : ""}`}
       style={{ ["--aspect" as string]: aspect }}
     >
-      <div className="eye" hidden={eyes === "right"}>
-        <div className="eye-frame">
-          <canvas ref={leftRef} aria-label="Robot head camera, left eye" />
-          {eyes === "both" && <span className="eye-tag">L</span>}
+      {(["left", "right"] as const).map((eye) => (
+        <div key={eye} className="eye" hidden={eyes === (eye === "left" ? "right" : "left")}>
+          <div className={`eye-frame ${compact ? "" : "aimable"}`} {...(compact ? {} : handlers)}>
+            <canvas
+              ref={eye === "left" ? leftRef : rightRef}
+              aria-label={`Robot head camera, ${eye} eye`}
+            />
+            {eyes === "both" && <span className="eye-tag">{eye === "left" ? "L" : "R"}</span>}
+            {!compact && <span className="crosshair" aria-hidden />}
+            {!compact &&
+              rings.map((ring) => (
+                <span
+                  key={ring.id}
+                  className="look-ring"
+                  style={{ left: `${ring.x * 100}%`, top: `${ring.y * 100}%` }}
+                />
+              ))}
+          </div>
         </div>
-      </div>
-      <div className="eye" hidden={eyes === "left"}>
-        <div className="eye-frame">
-          <canvas ref={rightRef} aria-label="Robot head camera, right eye" />
-          {eyes === "both" && <span className="eye-tag">R</span>}
-        </div>
-      </div>
+      ))}
       <div className="camera-badges">
         {info.waiting ? (
           <span className="badge">Connecting video…</span>

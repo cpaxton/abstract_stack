@@ -177,6 +177,44 @@ kbd {
   height: 100%;
   display: block;
 }
+.eye-frame.aimable {
+  cursor: crosshair;
+  touch-action: none;
+}
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    linear-gradient(#fff, #fff) center / 2px 100% no-repeat,
+    linear-gradient(#fff, #fff) center / 100% 2px no-repeat;
+  mix-blend-mode: difference;
+}
+.look-ring {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+  animation: look-ring 0.65s ease-out forwards;
+}
+@keyframes look-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
 .eye-tag {
   position: absolute;
   top: 8px;
@@ -186,7 +224,45 @@ kbd {
   background: rgba(0, 0, 0, 0.55);
   font: 700 11px/1.5 var(--mono);
 }
-.camera-view.compact .eye-tag {
+.camera-view.compact .eye-frame.aimable {
+  cursor: crosshair;
+  touch-action: none;
+}
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    linear-gradient(#fff, #fff) center / 2px 100% no-repeat,
+    linear-gradient(#fff, #fff) center / 100% 2px no-repeat;
+  mix-blend-mode: difference;
+}
+.look-ring {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+  animation: look-ring 0.65s ease-out forwards;
+}
+@keyframes look-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+.eye-tag {
   top: auto;
   bottom: 4px;
   left: 4px;
@@ -610,6 +686,17 @@ details.card > summary {
 }
 .arm-chip.arm-right {
   --side: var(--right);
+}
+.arm-chip.arm-drive {
+  --side: #b78cff;
+}
+.chip-warn-dot {
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--bad);
+  box-shadow: 0 0 0 3px rgba(255, 93, 93, 0.25);
 }
 
 /* Range slider with filled track. */
@@ -1087,4 +1174,17 @@ input[type="range"]:disabled {
   padding: 1px 5px;
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.08);
+}
+
+.btn.small {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.btn-drive-on {
+  background: rgba(183, 140, 255, 0.18) !important;
+  color: #d8c4ff;
+}
+.error-text {
+  color: var(--bad);
 }

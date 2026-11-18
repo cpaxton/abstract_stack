@@ -26,6 +26,8 @@ export const intent = {
   head: { yaw: 0, pitch: 0 },
   lift: 0.3175,
   torso: 0,
+  /** Base velocity for this instant (m/s, rad/s); zero unless drive input is held. */
+  base: { forward: 0, left: 0, turn: 0 },
   ranges: null as Status["channels"]["ranges"] | null,
 };
 
@@ -61,6 +63,10 @@ export function rebaseFromStatus(status: Status): boolean {
 
 const clamp = (v: number, [lo, hi]: [number, number]) => Math.min(hi, Math.max(lo, v));
 
+export function stopBase(): void {
+  intent.base.forward = intent.base.left = intent.base.turn = 0;
+}
+
 export function clampChannels(): void {
   const r = intent.ranges;
   if (!r) return;
@@ -87,8 +93,13 @@ export function buildCommand(): CommandBody | null {
       grip: round(a.grip),
     };
   }
+  const b = intent.base;
+  const driving = b.forward !== 0 || b.left !== 0 || b.turn !== 0;
   return {
     target_epoch: intent.epoch,
+    base: driving
+      ? { forward_mps: round(b.forward), left_mps: round(b.left), turn_radps: round(b.turn) }
+      : null,
     arms,
     head: { yaw_rad: round(intent.head.yaw), pitch_rad: round(intent.head.pitch) },
     lift_m: round(intent.lift),

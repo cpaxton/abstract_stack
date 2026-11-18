@@ -132,6 +132,37 @@ function ArmCard({ side, active, editable }: { side: Side; active: boolean; edit
   );
 }
 
+function BaseCard() {
+  const base = useUi((s) => s.status?.base);
+  const driveMode = useUi((s) => s.driveMode);
+  const set = useUi((s) => s.set);
+  if (!base) return null;
+  const speed = Math.hypot(base.forward_mps, base.left_mps);
+  return (
+    <section className="card">
+      <div className="card-title">
+        <span>Base</span>
+        <button
+          className={`btn btn-ghost small ${driveMode ? "btn-drive-on" : ""}`}
+          onClick={() => set({ driveMode: !driveMode })}
+          aria-pressed={driveMode}
+          title="Drive mode: movement input drives the robot (Tab)"
+        >
+          {driveMode ? "Driving" : "Drive"}
+        </button>
+      </div>
+      <div className="task-row">
+        <span className="mono">{speed.toFixed(2)} m/s</span>
+        <span className="mono">{deg(base.turn_radps).toFixed(0)}°/s</span>
+        <span className={`badge ${base.tilt_guard ? "badge-bad" : "badge-ok"}`}>
+          tilt {base.tilt_deg.toFixed(1)}°
+        </span>
+      </div>
+      {base.tilt_guard && <span className="small error-text">Tilt guard is braking the base.</span>}
+    </section>
+  );
+}
+
 function TaskCard() {
   const task = useUi((s) => s.status?.task);
   if (!task) return null;
@@ -295,6 +326,7 @@ export function SidePanel() {
           />
         </section>
 
+        <BaseCard />
         <TaskCard />
         <Diagnostics />
       </div>

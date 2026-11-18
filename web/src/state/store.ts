@@ -30,6 +30,8 @@ interface UiState {
   rttMs: number | null;
   busyAction: string | null;
   activeArm: Side;
+  /** Drive mode: movement input drives the base instead of a hand. */
+  driveMode: boolean;
   gizmoMode: GizmoMode;
   camera: CameraPreset;
   cameraNonce: number;
@@ -51,6 +53,8 @@ interface UiState {
   toast: (tone: Toast["tone"], text: string) => void;
   dismiss: (id: number) => void;
   setCamera: (camera: CameraPreset) => void;
+  /** Cycle the controlled part: left hand → right hand → drive → left hand. */
+  cycleControl: () => void;
 }
 
 let toastId = 0;
@@ -64,10 +68,16 @@ export const useUi = create<UiState>((set, get) => ({
   rttMs: null,
   busyAction: null,
   activeArm: "right",
+  driveMode: false,
   gizmoMode: "translate",
   camera: "operator",
   cameraNonce: 0,
-  panelOpen: typeof window === "undefined" ? true : window.innerWidth >= 900,
+  // Open by default only on wide pointer-driven screens; on phones/tablets it would
+  // cover the joysticks and picture-in-picture.
+  panelOpen:
+    typeof window === "undefined"
+      ? true
+      : window.innerWidth >= 900 && !window.matchMedia?.("(pointer: coarse)").matches,
   helpOpen: false,
   quality: initialQuality(),
   mainView: "twin",
@@ -87,4 +97,10 @@ export const useUi = create<UiState>((set, get) => ({
   },
   dismiss: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
   setCamera: (camera) => set({ camera, cameraNonce: get().cameraNonce + 1 }),
+  cycleControl: () => {
+    const { driveMode, activeArm } = get();
+    if (driveMode) set({ driveMode: false, activeArm: "left" });
+    else if (activeArm === "left") set({ activeArm: "right" });
+    else set({ driveMode: true });
+  },
 }));

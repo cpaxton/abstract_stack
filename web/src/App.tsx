@@ -153,9 +153,15 @@ export function App() {
             if (!engaged) togglePrimary(client);
             return true;
           case "Tab":
-            ui.set({ activeArm: ui.activeArm === "left" ? "right" : "left" });
+            ui.cycleControl();
+            return true;
+          case "Home":
+            intent.head.yaw = 0;
+            intent.head.pitch = 0;
+            syncMirror();
             return true;
           case "KeyG": {
+            if (ui.driveMode) return true;
             const arm = intent.arms[ui.activeArm];
             arm.grip = arm.grip > 0.5 ? 0 : 1;
             syncMirror();

@@ -45,7 +45,8 @@ explicitly. `?quality=low` forces the light render path, which the client also
 switches to automatically when the frame rate drops. Low quality also loads a
 simplified twin mesh (800 faces per mesh); the default is full resolution.
 
-Useful options: `--scene`, `--seed`, `--time-limit` (default 3600 simulated
+Useful options: `--scene`, `--seed`, `--spawn-backoff` (default 0.15 m; see
+below), `--time-limit` (default 3600 simulated
 seconds), `--input-timeout` (default 0.15 s), `--face-budget` (0 = full-resolution
 twin), `--no-video`, `--video-fps` (default 20), `--video-size` (default
 640x480 per eye) and `--video-quality` (JPEG quality, default 80).
@@ -67,8 +68,10 @@ cd web && npm run dev                                    # terminal 2, open the 
 | Move hand (relative to the view) | <kbd>W A S D</kbd>, <kbd>Q</kbd>/<kbd>E</kbd> down/up, or drag the gizmo | left stick; right stick up/down |
 | Rotate hand | <kbd>I K</kbd> pitch, <kbd>J L</kbd> yaw, <kbd>U O</kbd> roll, or gizmo in Rotate mode (<kbd>Y</kbd>) | right stick left/right (yaw) |
 | Grip | <kbd>[</kbd>/<kbd>]</kbd>, <kbd>G</kbd> toggle, slider | **Open** / **Close** (hold) |
-| Switch arm | <kbd>Tab</kbd> | arm chip |
-| Head, lift | arrows, <kbd>PgUp</kbd>/<kbd>PgDn</kbd>, sliders | panel sliders |
+| Switch hand / drive | <kbd>Tab</kbd> cycles left hand → right hand → drive | control chip |
+| Drive the base (drive mode) | <kbd>W A S D</kbd> relative to the robot, <kbd>Q</kbd>/<kbd>E</kbd> turn | left stick drives, right stick turns |
+| Head | arrows; drag the camera view to look around, click to look at a point, double-click or <kbd>Home</kbd> to re-centre | drag, tap, double-tap the camera view |
+| Lift, torso lean | <kbd>PgUp</kbd>/<kbd>PgDn</kbd>, sliders | panel sliders |
 | Fine motion | hold <kbd>Shift</kbd> | **Fine** toggle |
 | Ready pose | <kbd>R</kbd> | top-bar button |
 | Main view 3D ⇄ head camera | <kbd>V</kbd>, **3D / Camera** switch, click the PiP | switch, tap the PiP |
@@ -81,6 +84,17 @@ elbows and brings the palms about 0.4 m in front of the chassis. Each glowing
 target shows where that palm is commanded to go. A tether connects it to the
 measured palm, and the target turns red when IK cannot reach it. Leaving the
 tab pauses immediately.
+
+**Driving.** In drive mode, movement input drives MABEL's swerve base relative to
+the robot's own heading; the 3D view follows the robot. The base ramps up gently
+(0.45 m/s and 0.9 rad/s maximum). It brakes as soon as input stops, control
+pauses, the connection drops, or the chassis tilts past 8°.
+
+**Spawn backoff.** Every bundled scene spawns MABEL with its fingers inside the
+shelf front. The hooked hands then pull the robot over as soon as the arms or the
+base move (measured: 11–55° tilt). Teleop therefore starts MABEL 0.15 m further
+back (`--spawn-backoff 0` keeps the scene placement). The scenes themselves are
+unchanged, and the operator can drive up to the shelf.
 
 The head camera and the 3D twin swap between the main view and a
 picture-in-picture. `zed_left` and `zed_right` are a 63 mm stereo pair, so the
@@ -111,8 +125,15 @@ Browser (web/)                                  Host (src/abstract_stack/web_tel
   previous solution and keeps refining until it converges. Lift is the
   operator's own channel and is pinned during both arms' IK. Grip maps one
   fraction to the native flexion ranges and keeps the scripted controller's
-  thumb preshape. Head and torso are clamped and rate-limited. The base gets
-  stationary targets.
+  thumb preshape. Head and torso are clamped and rate-limited.
+- **Base** (`base.SwerveBase`). The base receives a robot-frame twist and turns
+  it into native steer angles and wheel speeds. Module positions, zero-steer
+  rolling directions and wheel radius come from the compiled model; the rolling
+  directions were verified against MuJoCo Jacobians. Modules aim before the base
+  accelerates, reverse instead of turning past 90°, and drive only the component
+  along their measured rolling direction. With clear surroundings, a 3 s,
+  0.3 m/s command travels 0.79 m (ramps included) with no sideways drift and no
+  tilt.
 - **Nominal, applied and measured are kept separate.** Status reports IK
   position error (m) separately from orientation error (rad), the measured
   palm pose, and which joints were rate- or target-limited.
@@ -166,7 +187,9 @@ Implementations: `src/abstract_stack/web_teleop/protocol.py` and
 4. `command`: absolute intents with `calibration_generation`, `target_epoch`,
    `arms.{left,right}` (palm control-point `position_m` and `quaternion_wxyz`
    in the `mabel_chassis` frame, plus `grip` ∈ [0,1], or null to hold), and
-   `head`, `lift_m`, `torso_rad` (null holds). Absolute targets make every
+   `head`, `lift_m`, `torso_rad` (null holds). An optional `base`
+   `{forward_mps, left_mps, turn_radps}` is a velocity intent: null stops the
+   base, and it only applies while engaged with fresh input. Absolute targets make every
    message self-contained, so a lost message never accumulates drift.
 5. `control {event_id, calibration_generation, action}` with actions
    `engage | pause | reset | ready` → `control_ack`.
@@ -230,9 +253,11 @@ CPU, so the tests use `?quality=low` and the e2e host runs with
   yet.
 - **The stock scenes start with fingers intersecting the shelf.** In every
   bundled scene, MABEL's index or thumb links already penetrate the shelf at
-  reset (`stocking`, `tight`, `house`: index fingers; `pick_place`: right
-  thumb). The left index can snag while the arms move. The physics tests avoid
-  this by moving fixtures away; teleop uses the scenes unchanged.
+  reset. Teleop's default `--spawn-backoff` avoids this; the scenes still need
+  a proper fix.
+- **Head aiming from the image is approximate.** It uses a small-angle model
+  that ignores the camera's offset from the neck axes; a second click refines
+  the aim. Neck roll is not exposed.
 - **Wrist servos are weak.** The upstream wrist actuators have `kp = 1`, so
   wrist angle sags under load or contact beyond what the bounded feedforward
   can correct. Status shows measured versus nominal values, and the model is
