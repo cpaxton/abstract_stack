@@ -95,8 +95,10 @@ Until an accepted mapping with uncertainty ≤25 ms exists, or after five second
 without refreshing it, video is unsynchronized/stale. Capture age is checked
 against the last submitted pair, rather than newly decoded but unseen data.
 Age plus uncertainty >300 ms, future capture beyond uncertainty, disconnect,
-lost focus or pause marks stale; transitioning stale requests an immediate pause
-through the control owner. The last complete pair has a red stale border;
+lost focus or pause marks stale. The viewer sends one immediate pause request
+through the control owner per stale interval, independent of the 50 ms
+`video_status` schedule. On focus loss or suspension it asks for pause before
+clearing the session. The last complete pair has a red stale border;
 reconnect, suspension and generation invalidation clear both textures and pending
 state. Repeated submissions never refresh the original host capture time.
 

@@ -34,7 +34,7 @@ namespace AbstractStack.QuestStereo
         long generation, sequence;
         double offset, uncertainty = double.PositiveInfinity, clockAt, presentedAt, presentedCaptureHostTime, feedbackAt, syntheticAt;
         long? presentedId;
-        bool lastStale = true, active = true, focused = true, paused;
+        bool pauseRequestedForStale, active = true, focused = true, paused;
         Action<JObject> sendControl;
         Action requestPause;
         readonly System.Collections.Generic.List<XRDisplaySubsystem> displays = new System.Collections.Generic.List<XRDisplaySubsystem>();
@@ -75,7 +75,7 @@ namespace AbstractStack.QuestStereo
         public void ConfigureSession(Uri videoUri, string sessionId, long calibrationGeneration, Action<JObject> reliableControl, Action pauseRequest = null)
         {
             ClearSession(); synthetic = false; session = sessionId; generation = calibrationGeneration;
-            sendControl = reliableControl; requestPause = pauseRequest; lastStale = false; Queue.Reset(session, generation);
+            sendControl = reliableControl; requestPause = pauseRequest; Queue.Reset(session, generation);
             receiver = new StereoVideoReceiver(Queue); _ = receiver.Run(videoUri, session);
         }
         public void UpdateClock(double hostMinusClientSeconds, double uncertaintySeconds)
@@ -87,7 +87,7 @@ namespace AbstractStack.QuestStereo
         {
             receiver?.Dispose(); receiver = null; Queue.Reset(null, 0); displayed = null; session = null;
             presentedId = null; presentedAt = 0; sequence = 0; uncertainty = double.PositiveInfinity; clockAt = 0;
-            sendControl = null; requestPause = null; Stale = lastStale = true;
+            sendControl = null; requestPause = null; Stale = true; pauseRequestedForStale = false;
             if (material) { material.SetTexture("_LeftTex", Texture2D.blackTexture); material.SetTexture("_RightTex", Texture2D.blackTexture); material.SetFloat("_Stale", 1); }
             DestroyTextures();
         }
@@ -117,14 +117,15 @@ namespace AbstractStack.QuestStereo
             {
                 if (MonotonicSeconds - syntheticAt >= 1.0 / 15)
                 { syntheticAt = MonotonicSeconds; ShowSynthetic(++syntheticId); }
-                Stale = !active;
+                SetStale(!active);
             }
             else
             {
                 var pair = Queue.Take(); if (pair != null) Decode(pair);
                 double now = MonotonicSeconds;
                 double age = !presentedId.HasValue ? double.PositiveInfinity : now + offset - presentedCaptureHostTime;
-                Stale = !active || receiver == null || !receiver.Connected || displayed == null || uncertainty > .025 || now - clockAt > 5 || age + uncertainty > .300 || age < -uncertainty;
+                SetStale(!active || receiver == null || !receiver.Connected || displayed == null ||
+                    uncertainty > .025 || now - clockAt > 5 || age + uncertainty > .300 || age < -uncertainty);
                 if (sendControl != null && now - feedbackAt >= .05)
                 {
                     feedbackAt = now;
@@ -134,15 +135,21 @@ namespace AbstractStack.QuestStereo
                         ["presented_pair_id"] = presentedId.HasValue ? (JToken)presentedId.Value : JValue.CreateNull(),
                         ["presented_monotonic_s"] = presentedId.HasValue ? (JToken)presentedAt : JValue.CreateNull(),
                         ["reported_monotonic_s"] = now, ["stale"] = Stale });
-                    if (Stale && !lastStale) requestPause?.Invoke();
                 }
             }
-            lastStale = Stale;
             if (material) material.SetFloat("_Stale", Stale ? 1 : 0);
             if (status) status.text = synthetic ? "SYNTHETIC STEREO CHECK\nClose right eye: L / red. Close left: R / blue.\nCross should fuse in front of grid. Move head: window stays in room.\nPair " + syntheticId :
                 "QUEST HEAD CAMERAS  |  " + (Stale ? "STALE / UNSYNCHRONIZED" : "LIVE") + "\n" + (receiver?.Diagnostic ?? "Disconnected") +
                 "  Pair " + (displayed?.PairId.ToString() ?? "none") + "\nDecode " + LastDecodeMilliseconds.ToString("F1") + " ms  Received " + (receiver?.Received ?? 0) + "  Drops " + Queue.Replaced +
                 "\nRejected " + ((receiver?.Malformed ?? 0) + DecodeRejected) + "  Submitted " + Submitted;
+        }
+        void SetStale(bool stale)
+        {
+            Stale = stale;
+            if (!stale) { pauseRequestedForStale = false; return; }
+            if (pauseRequestedForStale || requestPause == null) return;
+            pauseRequestedForStale = true;
+            requestPause.Invoke();
         }
         void Decode(StereoPair pair)
         {
@@ -178,7 +185,18 @@ namespace AbstractStack.QuestStereo
         void DestroyTextures() { if (left) Destroy(left); if (right) Destroy(right); left = right = null; }
         void OnApplicationFocus(bool value) { focused = value; active = focused && !paused; if (!active) Suspend(); else Resume(); }
         void OnApplicationPause(bool value) { paused = value; active = focused && !paused; if (!active) Suspend(); else Resume(); }
-        void Suspend() { diagnostic?.Dispose(); diagnostic = null; ClearSession(); }
+        void Suspend()
+        {
+            // The control owner must see the pause request before its callback
+            // and the session's presentation state are cleared.
+            try { SetStale(true); }
+            finally
+            {
+                diagnostic?.Dispose();
+                diagnostic = null;
+                ClearSession();
+            }
+        }
         void Resume() { if (!synthetic && !string.IsNullOrEmpty(networkHost) && diagnostic == null) StartDiagnostic(networkHost); }
         void OnDestroy() { RenderPipelineManager.endCameraRendering -= OnCameraRendered; diagnostic?.Dispose(); ClearSession(); if (material) Destroy(material); }
     }
