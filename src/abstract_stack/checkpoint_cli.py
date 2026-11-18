@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -31,6 +30,42 @@ def add_commands(parent):
 
 def _write(path, value):
     path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
+
+
+def _validate_input_reference(args):
+    """New parents pin inputs; legacy frozen commands retain direct-path support."""
+    reference_path = args.output / "input_ref.json"
+    if not reference_path.exists():
+        manifest_path = args.output / "capture_manifest.json"
+        if manifest_path.exists() and "input_ref.json" in json.loads(manifest_path.read_text()).get(
+            "sha256", {}
+        ):
+            raise ValueError("Checkpoint command input reference missing")
+        return
+    manifest = json.loads((args.output / "capture_manifest.json").read_text())
+    for name, digest in manifest["sha256"].items():
+        if (
+            name not in ("input_ref.json", "source_ref.json")
+            or hashlib.sha256((args.output / name).read_bytes()).hexdigest() != digest
+        ):
+            raise ValueError("Checkpoint command reference changed")
+    reference = json.loads(reference_path.read_text())
+    root = Path(reference["path"])
+    if not root.is_absolute() or reference["kind"] != args.checkpoint_action:
+        raise ValueError("Checkpoint input reference mode/path differs")
+    if args.checkpoint_action == "capture" and reference["state"] != args.state:
+        raise ValueError("Checkpoint capture state differs from the input reference")
+    for name, digest in reference["hashes"].items():
+        if (
+            Path(name).is_absolute()
+            or ".." in Path(name).parts
+            or hashlib.sha256((root / name).read_bytes()).hexdigest() != digest
+        ):
+            raise ValueError("Referenced checkpoint input changed")
+    if args.checkpoint_action == "capture":
+        args.episode = root
+    else:
+        args.checkpoint = root
 
 
 def _capture(args):
@@ -100,7 +135,7 @@ def _capture(args):
 
 def run(args):
     from abstract_stack.checkpoint_manifest import inspect_checkpoint
-    from abstract_stack.provenance import policy_provenance
+    from abstract_stack.source_store import freeze_source
 
     if args.checkpoint_action == "inspect":
         path, manifest = inspect_checkpoint(args.checkpoint)
@@ -129,9 +164,10 @@ def run(args):
         raise ValueError("Keep checkpoint witness/compute budgets bounded")
     args.output = args.output.resolve()
     if args.worker:
-        from abstract_stack.checkpoints import verify_checkpoint
-
         try:
+            _validate_input_reference(args)
+            from abstract_stack.checkpoints import verify_checkpoint
+
             report = (
                 _capture(args)
                 if args.checkpoint_action == "capture"
@@ -147,29 +183,71 @@ def run(args):
             )
             return 2
     args.output.mkdir(parents=True, exist_ok=False)
-    snapshot = args.output / "source_snapshot"
-    shutil.copytree(
-        Path(__file__).parent,
-        snapshot / "abstract_stack",
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    _write(
+        args.output / "process.json", dict(status="preparing", returncode=None, fresh_task_credit=0)
+    )
+    package = Path(__file__).resolve().parent
+    root = package.parents[1] if package.parent.name == "src" else package.parent
+    relative_package = package.relative_to(root)
+    paths = [relative_package.as_posix()]
+    paths.extend(name for name in ("pyproject.toml", "uv.lock") if (root / name).is_file())
+    frozen = freeze_source(root, paths=paths)
+    frozen.write_reference(args.output / "source_ref.json")
+    if args.checkpoint_action == "capture":
+        input_root = args.episode.resolve()
+        names = [
+            "summary.json",
+            "initial-scene/manifest.json",
+            "initial-scene/scene.xml",
+            f"rollout_{args.state}.npz",
+        ]
+    else:
+        input_root, _ = inspect_checkpoint(args.checkpoint)
+        input_root = input_root.resolve()
+        names = ["manifest.json"]
+    _write(
+        args.output / "input_ref.json",
+        dict(
+            kind=args.checkpoint_action,
+            path=str(input_root),
+            state=getattr(args, "state", None),
+            hashes={
+                name: hashlib.sha256((input_root / name).read_bytes()).hexdigest() for name in names
+            },
+        ),
     )
     command = [sys.executable, "-m", "abstract_stack.checkpoint_cli", args.checkpoint_action]
     if args.checkpoint_action == "capture":
         command += [
             "--episode",
-            str(args.episode.resolve()),
+            str(input_root),
             "--state",
             args.state,
             "--witness-steps",
             str(args.witness_steps),
         ]
     else:
-        command.append(str(args.checkpoint.resolve()))
+        command.append(str(input_root))
     command += ["--output", str(args.output), "--worker"]
     _write(
         args.output / "capture_manifest.json",
         dict(
-            policy_source=policy_provenance(),
+            policy_source=dict(
+                revision=frozen.git["revision"],
+                dirty_sources=frozen.git["dirty_sources"],
+                source_bundle_id=frozen.content_id,
+                python_sha256={
+                    name[len(relative_package.as_posix()) + 1 :]: record["sha256"]
+                    for name, record in frozen.files.items()
+                    if name.startswith(relative_package.as_posix() + "/") and name.endswith(".py")
+                },
+            ),
+            source_content_id=frozen.content_id,
+            git=frozen.git,
+            sha256={
+                name: hashlib.sha256((args.output / name).read_bytes()).hexdigest()
+                for name in ("input_ref.json", "source_ref.json")
+            },
             command=command,
             wall_budget_seconds=args.wall_seconds,
             fresh_task_credit=0,
@@ -182,7 +260,14 @@ def run(args):
     with (args.output / "run.log").open("w") as stream:
         process = subprocess.Popen(
             command,
-            env=dict(os.environ, PYTHONPATH=str(snapshot), PYTHONFAULTHANDLER="1"),
+            env=dict(
+                os.environ,
+                PYTHONPATH=str(frozen.runtime_root / relative_package.parent),
+                PYTHONFAULTHANDLER="1",
+                PYTHONDONTWRITEBYTECODE="1",
+                ABSTRACT_STACK_SOURCE_STORE=str(frozen.archive.parent),
+                ABSTRACT_STACK_SOURCE_REFERENCE=str(args.output / "source_ref.json"),
+            ),
             stdout=stream,
             stderr=subprocess.STDOUT,
             start_new_session=True,
