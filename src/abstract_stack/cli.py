@@ -193,6 +193,16 @@ def _parser():
                 help="Experimental force-triggered approach and preshaping",
             )
             sub.add_argument(
+                "--grasp-skill",
+                action="store_true",
+                help="Experimental object-aligned grasp with checked Cartesian entry",
+            )
+            sub.add_argument(
+                "--record-skill-starts",
+                action="store_true",
+                help="Save measured per-skill entry distributions and native checkpoints",
+            )
+            sub.add_argument(
                 "--fixture-avoidance",
                 action=argparse.BooleanOptionalAction,
                 default=True,
@@ -547,6 +557,8 @@ def main(argv=None):
                         head_tracking=not args.no_head_tracking,
                         contact_aware=not args.legacy_contact_control,
                         guarded_approach=args.guarded_approach,
+                        grasp_skill=args.grasp_skill,
+                        record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,
                         **resolve_control_settings(args.force_profile, args.control_config),

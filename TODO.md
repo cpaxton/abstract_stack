@@ -18,17 +18,43 @@ the [two-layer contract](docs/receding_horizon_stocking.md#fixed-shelf-two-layer
 - [ ] Emit a common reference packet with measured-state identity, object goal,
   tool/contact target, nominal posture, force target, motion limits, expiry and
   predicted object poses. Reject stale references before commanding motion.
-- [ ] Admit the second pickup after earlier motions disturb the remaining
+- [x] Admit the second pickup after earlier motions disturb the remaining
   inventory. A fresh fixed `pick_place` seed-0 attempt completes carton 1, then
   aborts carton 0's approach at 25.17 N despite accepted kinematic IK/path checks.
   Forecast intended hand contact and replan the grasp from measured object pose;
   preserve the 25 N guard. See [video evidence](docs/reports/fixed_shelf_videos.md).
+  Object-aligned entry and bounded centering offsets clear the top collision.
+  The frozen teacher passes 8 development front pickups, 3 isolated held-out
+  front pickups and a saved-state rotated-carton recovery. These are scoped
+  skills, not arbitrary-order or full-sequence robustness.
 - [ ] Close the next carton's lateral registration and squaring together, then
   verify release/retreat. Retain the current 3.228-degree/50-mm failure.
-- [ ] Connect those primitives in one fresh fixed-shelf episode, initially two
-  cartons, before increasing toward ten. Record causal nominal/applied actions.
+- [x] Connect those primitives in one fresh fixed-shelf episode, initially two
+  cartons, before increasing toward ten. Both pass every stage in 90.7 simulated
+  seconds, with zero prefills or tip/drop incidents. Causal LfD remains open.
 - [ ] Measure prediction versus execution error and planner/controller timing
   separately; freeze this baseline before introducing scene or sensor variation.
+
+## Skill curriculum and current evidence
+
+- [x] Separate callable grasp/lift and transfer/placement; record five skill
+  entry distributions and full native checkpoints with explicit nominal/applied
+  references and retained observer history. See [skill contracts](docs/skills.md).
+- [x] Add isolated grasp/lift/0.5-second-hold tests, independent held-out seeds,
+  strict native sequence replay and a passed-held-out-first recovery tool.
+- [x] Align the lifted carton to the shelf frame instead of preserving table
+  yaw. Generate an exact actuator-replay video of two consecutive complete stocks.
+- [ ] Extend to three cartons. The supply layout requires a 0.42 m table; the
+  first pickup passes, but loaded staging hits native shoulder limits. Plan a
+  loaded route/base action from that grasp without relaxing IK acceptance.
+- [x] Add a separate fixed 60 mm rear-clearance layout and labeled prefill preview.
+- [ ] Implement pose-based depth registration and final rear-gap checks for that
+  layout; the current backstop controller does not solve it.
+- [ ] Collect causal skill demonstrations and cover additional task-induced
+  starts before training. Held-out sequence testing remains 3/6 scheduled picks:
+  all first pickups pass, and transfer prevents the three second pickups.
+
+Reports, source IDs and videos: [grasp and longer execution](docs/reports/grasp_skill_development.md).
 
 ## 1. Receding-horizon task and motion planning — in progress
 

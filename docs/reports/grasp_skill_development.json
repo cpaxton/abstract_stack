@@ -1,0 +1,934 @@
+{
+  "kind": "grasp_skill_and_longer_stocking_development",
+  "date": "2026-11-17",
+  "world_state": "perfect simulator state",
+  "training_eligible": false,
+  "trained_student": false,
+  "default_policy_promoted": false,
+  "scope": "Development variants, held-out isolated skills, retained-state recovery and fixed-scene task evidence are separate",
+  "runs": [
+    {
+      "name": "composed-01",
+      "source": {
+        "content_id": "893e110bc29c2448e10aba6ae4ab51c465f9d0b8ead439ed56f56bf3b70ac29e",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/composed-01/source_ref.json",
+          "sha256": "c4cac2588cc0ff125bb7311d4a3c8d2a97b4711ac34661a7c0aa3d1d6f63ba03"
+        }
+      },
+      "process": {
+        "returncode": 2,
+        "timeout": false,
+        "wall_seconds": 39.74502488700091,
+        "wall_budget_seconds": 120
+      },
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/composed-01/manifest.json",
+          "sha256": "316622d3c757f291bb28e8c97dc7c387f8a4508a6d72e0625dd30ad2aa2a9015"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/composed-01/process.json",
+          "sha256": "56635d9f8f510d6940a26592c243fd760d9da49fb89f3af74a27101ceed61a9b"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/composed-01/episode/summary.json",
+          "sha256": "9ab6a32b755c4e8ea6b58c93d3e45819da40e20de70131ce9c4c719cc47799dd"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1"
+      ],
+      "prefilled_products": [],
+      "task_success": false,
+      "failure": "align_shelf: IK prefilter found no acceptable pose/path; predicted miss 0.075 m; replan required",
+      "stage_totals": {
+        "pick": 2,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "incidents": [],
+      "simulated_episode_time_s": 66.62000000002614,
+      "peak_forces_N": {
+        "hand": 7.859068387045353,
+        "support": 3.071059894390097,
+        "back": 3.2847044663914136,
+        "arm_fixture": 8.784177845663168,
+        "other_product": 3.421282495635045,
+        "arm_product": 0.0,
+        "robot_product": 7.859068387045353
+      }
+    },
+    {
+      "name": "composed-video-02",
+      "source": {
+        "content_id": "c3e751d54ef888189596f12749526c2d5d2372aac1b4e5bcc4fa4b9d57921a00",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/composed-video-02/source_ref.json",
+          "sha256": "bef7d9af46bb02453bb3a2e2d7552dd709a8dca64df8e4da72381a00b569cb7b"
+        }
+      },
+      "process": {
+        "returncode": 2,
+        "timeout": false,
+        "wall_seconds": 51.3821385370029,
+        "wall_budget_seconds": 180
+      },
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/composed-video-02/manifest.json",
+          "sha256": "c2055ab3f4fa89260ad847e0d27634228237a27a4d161f0706102cca7ff2d30b"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/composed-video-02/process.json",
+          "sha256": "ffa0323d01780624d86421bf0e876277fbf735fda3bb52519a881d62f7ce7f17"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/composed-video-02/episode/summary.json",
+          "sha256": "c251d4ffc79f66f8de9b31d2d85d9624afc1d8c970b2c50558c803d7dd648348"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1"
+      ],
+      "prefilled_products": [],
+      "task_success": false,
+      "failure": "align_shelf: IK prefilter found no acceptable pose/path; predicted miss 0.075 m; replan required",
+      "stage_totals": {
+        "pick": 2,
+        "place": 1,
+        "final_position": 1,
+        "retreat": 1
+      },
+      "incidents": [],
+      "simulated_episode_time_s": 66.62000000002614,
+      "peak_forces_N": {
+        "hand": 7.859068387045353,
+        "support": 3.071059894390097,
+        "back": 3.2847044663914136,
+        "arm_fixture": 8.784177845663168,
+        "other_product": 3.421282495635045,
+        "arm_product": 0.0,
+        "robot_product": 7.859068387045353
+      }
+    },
+    {
+      "name": "longer-transfer-03",
+      "source": {
+        "content_id": "5a17dd47421f823990d2572e68302506ed8ed0beb36d25c02ea1f0ece78b8e18",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/longer-transfer-03/source_ref.json",
+          "sha256": "eb9d4d067d2c4f08bd8ffab827a5abfd9420691293208703817d4fa9569f4462"
+        }
+      },
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 53.42519067499961,
+        "wall_budget_seconds": 120
+      },
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/longer-transfer-03/manifest.json",
+          "sha256": "526fee93c453e9022f25104e0c3f91c5f434ae14bf6da296844046f07978e98c"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/longer-transfer-03/process.json",
+          "sha256": "61086f30f8398e5187e275440c0e6d92ec1fdeb634775fde05d6ae217ddcf8d7"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/longer-transfer-03/episode/summary.json",
+          "sha256": "7228114244ed152c6b05aa518c481bc9d07e1eef61aee40e66fea3e91b13f62e"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1"
+      ],
+      "prefilled_products": [],
+      "task_success": true,
+      "failure": null,
+      "stage_totals": {
+        "pick": 2,
+        "place": 2,
+        "final_position": 2,
+        "retreat": 2
+      },
+      "incidents": [],
+      "simulated_episode_time_s": 90.69999999997002,
+      "peak_forces_N": {
+        "hand": 8.238808294794923,
+        "support": 3.8079750821789453,
+        "back": 3.2778721430003728,
+        "arm_fixture": 8.784177845663168,
+        "other_product": 3.421282482637294,
+        "arm_product": 0.0,
+        "robot_product": 8.238808294794923
+      }
+    },
+    {
+      "name": "two-carton-current-08",
+      "source": {
+        "content_id": "8ec422a14a1e27aaf912c41bda91ae05116a130318a594f8024ca5cf3af54b3f",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/two-carton-current-08/source_ref.json",
+          "sha256": "61724baab6d9139ea6542aa7f90d92e6df68be191c0f61f6da4d433449e73907"
+        }
+      },
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 56.943786948002526,
+        "wall_budget_seconds": 120
+      },
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/two-carton-current-08/manifest.json",
+          "sha256": "1b7501fac425250c8f4fe0873d5a99f20b99d5763e898c1c4272885a456648d4"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/two-carton-current-08/process.json",
+          "sha256": "7b124ddd07bac6cc0d4f8dbaefa56a01cad382b0960611cec464cea26d0d00c5"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/two-carton-current-08/episode/summary.json",
+          "sha256": "db27572bbf4d9ff779e14695724a3ac79d9626210d890382f7d7c17a04a256ea"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1"
+      ],
+      "prefilled_products": [],
+      "task_success": true,
+      "failure": null,
+      "stage_totals": {
+        "pick": 2,
+        "place": 2,
+        "final_position": 2,
+        "retreat": 2
+      },
+      "incidents": [],
+      "simulated_episode_time_s": 90.69999999997002,
+      "peak_forces_N": {
+        "hand": 8.238808294794923,
+        "support": 3.8079750821789453,
+        "back": 3.2778721430003728,
+        "arm_fixture": 8.784177845663168,
+        "other_product": 3.421282482637294,
+        "arm_product": 0.0,
+        "robot_product": 8.238808294794923
+      }
+    },
+    {
+      "name": "three-carton-video-04",
+      "source": {
+        "content_id": "5a17dd47421f823990d2572e68302506ed8ed0beb36d25c02ea1f0ece78b8e18",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/three-carton-video-04/source_ref.json",
+          "sha256": "fd189a37adccbc65045b2b1e94591fe04ad3c7722be8db39b80fccf489a8aacd"
+        }
+      },
+      "process": {
+        "returncode": 1,
+        "timeout": false,
+        "wall_seconds": 0.16488198000297416,
+        "wall_budget_seconds": 180
+      },
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-video-04/manifest.json",
+          "sha256": "08ae5d4cd558755304474c3deeb39716dc2f9a4cea865361e3b7d7f178784474"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-video-04/process.json",
+          "sha256": "141fbbd3f27176f05d078817a78d305fa665d23c196a49fad26e51ca58705faa"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1",
+        "carton_2"
+      ],
+      "task_success": false,
+      "stage_totals": {
+        "pick": 0,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "outcome": "invalid_layout_before_physics"
+    },
+    {
+      "name": "three-carton-video-05",
+      "source": {
+        "content_id": "5a17dd47421f823990d2572e68302506ed8ed0beb36d25c02ea1f0ece78b8e18",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/three-carton-video-05/source_ref.json",
+          "sha256": "fd189a37adccbc65045b2b1e94591fe04ad3c7722be8db39b80fccf489a8aacd"
+        }
+      },
+      "process": {
+        "returncode": 2,
+        "timeout": false,
+        "wall_seconds": 16.858507853001356,
+        "wall_budget_seconds": 180
+      },
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-video-05/manifest.json",
+          "sha256": "d7858115bb4f5637242e7e413ba9b33b8c147d1cd1ca07c7797ec0d240c687ea"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-video-05/process.json",
+          "sha256": "00b48815f5e5657d53c9bfb34aeb32ff4a63ecb822c45a1306a8c6a7d8a5dd53"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-video-05/episode/summary.json",
+          "sha256": "f4e869f47bf078c54b1acb15897d9745e81b214fe8cfdfe4307f924018b90c42"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1",
+        "carton_2"
+      ],
+      "prefilled_products": [],
+      "task_success": false,
+      "failure": "align_shelf: IK prefilter found no acceptable pose/path; predicted miss 0.119 m; replan required",
+      "stage_totals": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "incidents": [],
+      "simulated_episode_time_s": 24.1399999999975,
+      "peak_forces_N": {
+        "hand": 8.217691698393276,
+        "support": 3.0661914330386275,
+        "back": 0.0,
+        "arm_fixture": 8.784177845663168,
+        "other_product": 0.0,
+        "arm_product": 0.0,
+        "robot_product": 8.217691698393276
+      }
+    },
+    {
+      "name": "three-carton-06",
+      "source": {
+        "content_id": "8ec422a14a1e27aaf912c41bda91ae05116a130318a594f8024ca5cf3af54b3f",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/three-carton-06/source_ref.json",
+          "sha256": "a562731a28c151cb920cfbb3fab0c66fe9e4ada9a363f7583856147007f2a5dc"
+        }
+      },
+      "process": {
+        "returncode": 2,
+        "timeout": false,
+        "wall_seconds": 12.193209233002563,
+        "wall_budget_seconds": 180
+      },
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-06/manifest.json",
+          "sha256": "a50f6db50d1a44428c76e3d21adf310703db311d66285bd1934664850ccbfe84"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-06/process.json",
+          "sha256": "f8ea855851139226b461cc7c3314fbb1b24c53f2ecd6c9efcf3255e8dc18369a"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/three-carton-06/episode/summary.json",
+          "sha256": "26538ddff2f675dc515fc0153cbb8eabcd986a4e000844fae092d85596a64bfb"
+        }
+      ],
+      "scheduled_products": [
+        "carton_0",
+        "carton_1",
+        "carton_2"
+      ],
+      "prefilled_products": [],
+      "task_success": false,
+      "failure": "loaded_stage: no checked shelf approach candidate",
+      "stage_totals": {
+        "pick": 1,
+        "place": 0,
+        "final_position": 0,
+        "retreat": 0
+      },
+      "incidents": [],
+      "simulated_episode_time_s": 24.1399999999975,
+      "peak_forces_N": {
+        "hand": 8.217691698393276,
+        "support": 3.0661914330386275,
+        "back": 0.0,
+        "arm_fixture": 8.784177845663168,
+        "other_product": 0.0,
+        "arm_product": 0.0,
+        "robot_product": 8.217691698393276
+      }
+    },
+    {
+      "name": "isolated-suite-00",
+      "source": {
+        "content_id": "49aa0a3acd94d12751d5882d6193b21366c06ad8ba011e86e1adfe9118b0727d",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/isolated-suite-00/source_ref.json",
+          "sha256": "34680a85af953752f9f68ee4a53bbce49d11fe69e29bd3dc7f1bda1ab6a1869c"
+        }
+      },
+      "scheduled_grasps": 4,
+      "reported_verified_grasps": 0,
+      "evaluation_complete": true,
+      "scope": "development skill cases; not independent full stocking episodes",
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/isolated-suite-00/report.json",
+          "sha256": "4b5f47e4c1198fbcc508119cae4667a04dad61d26220203216aeaefe650ef9fd"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/isolated-suite-00/manifest.json",
+          "sha256": "35d8c14e975fdbf078edf2fb52f836ce84d46502515040237a76c910d69f077f"
+        }
+      ]
+    },
+    {
+      "name": "isolated-front-01",
+      "source": {
+        "content_id": "809f042d1b0812327cf7efa92263b62948a0e85749cabb2c73c77a8f2ea98092",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/isolated-front-01/source_ref.json",
+          "sha256": "e2cb37caa3803b23f6c0a8d594c3f354088a39e772bd7687f9cf20f7c2b736b7"
+        }
+      },
+      "scheduled_grasps": 2,
+      "reported_verified_grasps": 2,
+      "evaluation_complete": true,
+      "scope": "development skill cases; not independent full stocking episodes",
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/isolated-front-01/report.json",
+          "sha256": "3714fe9eed7dbf3d2c73e119ea7006441c7538a17a734f7984cf71de700b3f50"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/isolated-front-01/manifest.json",
+          "sha256": "7fea6b0ab013034ddfcca870bc8d9a8d1e4a1e536233c87c9cc5a40858d22f81"
+        }
+      ]
+    },
+    {
+      "name": "induced-second-01",
+      "source": {
+        "content_id": "809f042d1b0812327cf7efa92263b62948a0e85749cabb2c73c77a8f2ea98092",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/induced-second-01/source_ref.json",
+          "sha256": "e2cb37caa3803b23f6c0a8d594c3f354088a39e772bd7687f9cf20f7c2b736b7"
+        }
+      },
+      "scheduled_grasps": 1,
+      "reported_verified_grasps": 1,
+      "evaluation_complete": true,
+      "scope": "development skill cases; not independent full stocking episodes",
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/induced-second-01/report.json",
+          "sha256": "6a5962dcf9c980f320edb15639ed7641a70712cd20b981d9de57e116580b2809"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/induced-second-01/manifest.json",
+          "sha256": "2a9a78732b28effc16426ca62951aac76532366d32fc4e9ba4c27fb5c1cfcc87"
+        }
+      ]
+    },
+    {
+      "name": "isolated-front-02",
+      "source": {
+        "content_id": "812295c2c9f151f013c041722d4b012856fa329d95703887495b1da45a6ecf60",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/isolated-front-02/source_ref.json",
+          "sha256": "f09a01d978b8497f2377dd0d638afd4cd3cd9cab0b2c2c12d151b8dc11b4a0e7"
+        }
+      },
+      "scheduled_grasps": 8,
+      "reported_verified_grasps": 8,
+      "evaluation_complete": true,
+      "scope": "development skill cases; not independent full stocking episodes",
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/isolated-front-02/report.json",
+          "sha256": "72a2f2b39677310dbf7b6ed652fa050859e95ffa10b5ca73f49fe3f2248e0932"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/isolated-front-02/manifest.json",
+          "sha256": "e2998dcdc01ee5bef4bc122a105d2507a09f92e6d18cb359c167619f22305da7"
+        }
+      ]
+    },
+    {
+      "name": "induced-second-02",
+      "source": {
+        "content_id": "812295c2c9f151f013c041722d4b012856fa329d95703887495b1da45a6ecf60",
+        "reference": {
+          "path": "outputs/grasp-skill-v1/induced-second-02/source_ref.json",
+          "sha256": "f09a01d978b8497f2377dd0d638afd4cd3cd9cab0b2c2c12d151b8dc11b4a0e7"
+        }
+      },
+      "scheduled_grasps": 1,
+      "reported_verified_grasps": 1,
+      "evaluation_complete": true,
+      "scope": "development skill cases; not independent full stocking episodes",
+      "evidence": [
+        {
+          "path": "outputs/grasp-skill-v1/induced-second-02/report.json",
+          "sha256": "7d08bbf7843fc71d300b1033cebc3c14a0b507ef5087f37c9df78477bb4faa52"
+        },
+        {
+          "path": "outputs/grasp-skill-v1/induced-second-02/manifest.json",
+          "sha256": "7eb3cf8ae8072ba3f4c2a378aabb4efa129f090ce96d3b651e92e67420edf584"
+        }
+      ]
+    }
+  ],
+  "isolated_holdout": {
+    "source": {
+      "content_id": "812295c2c9f151f013c041722d4b012856fa329d95703887495b1da45a6ecf60",
+      "reference": {
+        "path": "outputs/grasp-skill-v1/isolated-holdout-01/source_ref.json",
+        "sha256": "f09a01d978b8497f2377dd0d638afd4cd3cd9cab0b2c2c12d151b8dc11b4a0e7"
+      }
+    },
+    "scheduled_grasps": 3,
+    "verified_grasps": 3,
+    "evaluation_complete": true,
+    "scope": "front-carton grasp/lift/hold on fixed geometry; independent private reset seeds",
+    "private_seed_values_omitted": true,
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/isolated-holdout-01/split.json",
+        "sha256": "30d6d5e1d867c587878864d94c66f5c2a52bfb88146f6772dad3f4c3f3c3a2ef"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/isolated-holdout-01/suite/report.json",
+        "sha256": "d40a8878624ee555a085d4cc209b0ecc392cb05355df65f58b62dbd45ae05747"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/isolated-holdout-01/process.json",
+        "sha256": "bca8a9b5b3474d667a778642afccf7974e460872eef5d9a8f6db6152f880baa7"
+      }
+    ]
+  },
+  "sequence_holdout": {
+    "policy_content_id": "812295c2c9f151f013c041722d4b012856fa329d95703887495b1da45a6ecf60",
+    "harness_content_id": "a5e82de56aa73f496cf3ee20297d81285b6822606ce697fe21144203eb5c854b",
+    "scheduled_sequences": 3,
+    "scheduled_grasps": 6,
+    "verified_grasps": 3,
+    "unreached_second_grasps": 3,
+    "complete_shelf_successes": 0,
+    "private_seed_values_omitted": true,
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/heldout-00/report.json",
+        "sha256": "b797107de50922e1cf0637b687da40d1b4e2cfc8fc40c99d6c1f3d870830ce37"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/heldout-00/manifest.json",
+        "sha256": "eb867262522853a0b1586880adc39b66f57919cf0103963ef1a94d5dc7e46588"
+      }
+    ]
+  },
+  "original_failed_state_recovery": {
+    "result": {
+      "kind": "failed_plan_grasp_recovery",
+      "exact_starting_integration_state": true,
+      "reference_initialization": "new measured-pose nominal references; historical nominal labels remain unknown",
+      "grasp_verified": true,
+      "failure": null,
+      "peak_forces_N": {
+        "hand": 8.305434239719398,
+        "support": 2.8478816704789747,
+        "back": 0.0,
+        "arm_fixture": 7.347629812169635,
+        "other_product": 0.0,
+        "arm_product": 0.0,
+        "robot_product": 8.305434239719398
+      },
+      "new_prefix_incidents": [],
+      "original_outcome": "approach: contact force exceeded 25.0 N",
+      "full_stocking_task_success": false,
+      "fresh_stocking_credit": 0,
+      "recording_error": null
+    },
+    "process": {
+      "returncode": 0,
+      "timeout": false,
+      "wall_seconds": 19.0070576529979,
+      "wall_budget_seconds": 90.0
+    },
+    "policy_content_id": "812295c2c9f151f013c041722d4b012856fa329d95703887495b1da45a6ecf60",
+    "scope": "exact saved pregrasp state from failed episode; prefix-only monitoring and zero new whole-stock credit",
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-00/manifest.json",
+        "sha256": "c4233f1af329aed27c359800b1e9f2fbe26e537016a122cc7a5c09269c598d9c"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-00/input_ref.json",
+        "sha256": "010e8c0c5629e9c5c730c7f29545c28d5be5940970f4ee53ff0ac7ce6ed11754"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-00/source_ref.json",
+        "sha256": "1433bac4baf52dc36bc9e6b621671d41905e60e98fe5794a5dd486443f64ace1"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-00/harness_source_ref.json",
+        "sha256": "22f5920dd900ed604e12093acfd3997a722f6e20d6052c3e2d598d5bf79d1ca9"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-00/result.json",
+        "sha256": "f4409cffd3a67d40613bcf7868744d34acc1ea83a7d464989f5595e9fc025ec8"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-00/process.json",
+        "sha256": "f62537c47b3e46572cf9721ccf534ec0bc136483687eedda55766b0535b908a3"
+      }
+    ]
+  },
+  "retained_unknown_attempt": {
+    "name": "composed-00",
+    "recovery": {
+      "outcome": "unknown_due_to_disk_exhaustion",
+      "parent_returncode": 1,
+      "native_outcome_not_fully_persisted": true,
+      "task_success": false,
+      "original_files_retained": true,
+      "byte_identical_models_hardlinked_in_complete_checkpoints": 3
+    },
+    "scheduled_products": [
+      "carton_0",
+      "carton_1"
+    ],
+    "credited_stages": {
+      "pick": 0,
+      "place": 0,
+      "final_position": 0,
+      "retreat": 0
+    },
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/composed-00/recovery.json",
+        "sha256": "2240dabb9328f8e0c9bab6b3e67b13dc575b1fa30dfd40476034b0f0f62af57c"
+      }
+    ]
+  },
+  "entry_bank": {
+    "per_skill_samples": {
+      "grasp_lift": 2,
+      "transfer": 2,
+      "shelf_place": 1,
+      "contact_finish": 1,
+      "release_retreat": 1
+    },
+    "training_eligible": false,
+    "evidence": {
+      "path": "outputs/grasp-skill-v1/composed-01/episode/skill-entries/index.json",
+      "sha256": "2043b5fa05c45455f980695a3d524da7a52bdb483921847c263e035982b054cd"
+    }
+  },
+  "two_carton_video": {
+    "full_terminal_integration_bit_equal": true,
+    "simulated_seconds": 89.69999999997002,
+    "original_task_success": true,
+    "replay_fresh_task_credit": 0,
+    "render_native_state_unchanged": true,
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/two-carton-success-video-07/result.json",
+        "sha256": "267e021aecf2b2cc202a9813a1eacbd3f78a625fd6d05b68a1ac62685934d817"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/two-carton-success-video-07/process.json",
+        "sha256": "74740c30ab496b5dfe0d6fe9fd6d4bdc69ee4be69e9ebbde71cf3a8a772e0030"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/two-carton-success-video-07/manifest.json",
+        "sha256": "fd4d8921855347e69e983242434a39cf7fb570c02382130e6494015a4ccd980e"
+      }
+    ]
+  },
+  "preview": {
+    "configuration": {
+      "path": "configs/scenes/pick_place_rear_clearance.json",
+      "sha256": "1d299f99b5605a533cb51300c5a86ecad1030472531406c9e4f6eeda44424092"
+    },
+    "fixture": {
+      "kind": "prefilled_native_geometry_preview",
+      "initially_stocked": 2,
+      "scheduled_manipulations": 0,
+      "desired_rear_gap_m": 0.06,
+      "roof_render_cutaway_only": true,
+      "native_state_and_collision_masks_unchanged": true,
+      "task_success": false,
+      "fresh_task_credit": 0
+    },
+    "measured_after_settling": {
+      "carton_0": 0.05019315449877127,
+      "carton_1": 0.06000006037983908
+    },
+    "controller_for_rear_gap_validated": false
+  },
+  "validation": {
+    "process": {
+      "returncode": 0,
+      "timeout": false,
+      "wall_seconds": 86.56412743099645,
+      "wall_budget_seconds": 180
+    },
+    "tests_passed": 193,
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/validation-final-01/pytest.log",
+        "sha256": "930f64940426ca76c11a3d835ded373b2c1b741a17b0b6d4857097941292a9d2"
+      }
+    ]
+  },
+  "videos": [
+    {
+      "file": {
+        "path": "outputs/grasp-skill-v1/two-carton-success-video-07/overview.mp4",
+        "sha256": "a16ab9e53e892dd07fbfac75b3e41606f4135bd1ca5970c540e6e56318a04e14"
+      },
+      "metadata": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 480,
+            "r_frame_rate": "15/1",
+            "nb_frames": "1361"
+          }
+        ],
+        "format": {
+          "duration": "90.734000",
+          "size": "4381329"
+        }
+      },
+      "complete_decode_passed": true
+    },
+    {
+      "file": {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-00/overview.mp4",
+        "sha256": "2d68ca6cdd13b544b14fd482655d341d242dcda7a5b175ab48b87f5b1bb4828d"
+      },
+      "metadata": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 480,
+            "r_frame_rate": "15/1",
+            "nb_frames": "402"
+          }
+        ],
+        "format": {
+          "duration": "26.800000",
+          "size": "969942"
+        }
+      },
+      "complete_decode_passed": true
+    },
+    {
+      "file": {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-final-01/overview.mp4",
+        "sha256": "850169568f800c7f16437b711ea0a8f7d10cfc226050316d65bde1040184858f"
+      },
+      "metadata": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 480,
+            "r_frame_rate": "15/1",
+            "nb_frames": "402"
+          }
+        ],
+        "format": {
+          "duration": "26.800000",
+          "size": "961584"
+        }
+      },
+      "complete_decode_passed": true
+    }
+  ],
+  "loose_python_files_in_run_directories": 0,
+  "final_teacher": {
+    "content_id": "15184cddb3c8b54361dad63acae4071acba796cf79dac62f16d5ed41a5211ec0",
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/two-carton-final-09/source_ref.json",
+        "sha256": "36be0eacd4f0ffa46968e563aaf90c6a6292a3d870635acc82e4bc3ce425dbda"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/two-carton-final-09/manifest.json",
+        "sha256": "f7514d4e41b7499b4a0c5e01281481e961a16e2e7726302cc9743d4f89e226f8"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/two-carton-final-09/process.json",
+        "sha256": "4c4d52c639780adfa502110577130a22afa235b5deced702c76b5899717128ea"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/two-carton-final-09/episode/summary.json",
+        "sha256": "83fa97157033623e468adbb16427557e2241890c0f2cc781098d8702d84c1914"
+      }
+    ],
+    "task_success": true,
+    "simulated_episode_time_s": 90.69999999997002,
+    "stage_totals": {
+      "pick": 2,
+      "place": 2,
+      "final_position": 2,
+      "retreat": 2
+    },
+    "peak_forces_N": {
+      "hand": 8.238808294794923,
+      "support": 3.8079750821789453,
+      "back": 3.2778721430003728,
+      "arm_fixture": 8.784177845663168,
+      "other_product": 3.421282482637294,
+      "arm_product": 0.0,
+      "robot_product": 8.238808294794923
+    },
+    "coupled_closing_geometry_guard": true,
+    "controls_bit_identical_to_first_success": true,
+    "terminal_state_bit_identical_to_first_success": true
+  },
+  "final_isolated_holdout": {
+    "content_id": "15184cddb3c8b54361dad63acae4071acba796cf79dac62f16d5ed41a5211ec0",
+    "scheduled_grasps": 3,
+    "verified_grasps": 3,
+    "evaluation_complete": true,
+    "private_seed_values_omitted": true,
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/isolated-holdout-final-02/split.json",
+        "sha256": "24b347c806d16ffd98d9d1a410c5b175af3e46919b71b49638a20a9234833c02"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/isolated-holdout-final-02/suite/report.json",
+        "sha256": "a4d494e8cd60d94426f6aa5d6f2b4ce52b10a32595724b8703da03c82b59a826"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/isolated-holdout-final-02/process.json",
+        "sha256": "9854cb7e6b2b10facb69bcb38b44d2b170b3562bb15d0570e57ce902245a8622"
+      }
+    ]
+  },
+  "final_failed_state_recovery": {
+    "result": {
+      "kind": "failed_plan_grasp_recovery",
+      "exact_starting_integration_state": true,
+      "reference_initialization": "new measured-pose nominal references; historical nominal labels remain unknown",
+      "grasp_verified": true,
+      "failure": null,
+      "peak_forces_N": {
+        "hand": 8.305434239719398,
+        "support": 2.8478816704789747,
+        "back": 0.0,
+        "arm_fixture": 7.347629812169635,
+        "other_product": 0.0,
+        "arm_product": 0.0,
+        "robot_product": 8.305434239719398
+      },
+      "new_prefix_incidents": [],
+      "original_outcome": "approach: contact force exceeded 25.0 N",
+      "full_stocking_task_success": false,
+      "fresh_stocking_credit": 0,
+      "recording_error": null
+    },
+    "process": {
+      "returncode": 0,
+      "timeout": false,
+      "wall_seconds": 17.25260252300359,
+      "wall_budget_seconds": 90.0
+    },
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-final-01/source_ref.json",
+        "sha256": "0ff8c68e0f270931004b2740a7f8fde004e3ff795693f12a5d0004b4931bd08a"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-final-01/harness_source_ref.json",
+        "sha256": "c25224af016f1d5670b7681493243cb3a97d0b230bbd82a7528b95025d7fafc2"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-final-01/manifest.json",
+        "sha256": "cdfad6686bf746d2dcb5d325ec0fe9df5c803a7c1542184ba8f7dbc0f650496a"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-final-01/input_ref.json",
+        "sha256": "8eaa3dde9252654406f34263dd8e2defe813ed089254962e7647c86bba1ee0d7"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-final-01/result.json",
+        "sha256": "f4409cffd3a67d40613bcf7868744d34acc1ea83a7d464989f5595e9fc025ec8"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/original-failure-recovery-final-01/process.json",
+        "sha256": "69390ebf3fdffc2802cae1d098a847d4ba88ea58cb5dceda2877638703c1a227"
+      }
+    ]
+  },
+  "next_focus_checkpoint": {
+    "scope": "Native loaded state at the rejected three-carton route, not task success",
+    "capture": {
+      "returncode": 0,
+      "timeout": false,
+      "wall_seconds": 1.5668332169952919,
+      "wall_budget_seconds": 30.0,
+      "outcome": "completed",
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    "verification": {
+      "returncode": 0,
+      "timeout": false,
+      "wall_seconds": 0.6149553089999245,
+      "wall_budget_seconds": 30.0,
+      "outcome": "completed",
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/three-failed-transfer-checkpoint/checkpoint/manifest.json",
+        "sha256": "489c85ba0e835d60445eaa8ca01e2acb43cfd5a8a10c208cd75c13637c3ef7c1"
+      },
+      {
+        "path": "outputs/grasp-skill-v1/three-failed-transfer-checkpoint/capture_manifest.json",
+        "sha256": "553669ed6e5b1948ff6de12df953c6c98f167ba11c6146508b24457f7f67f1cf"
+      }
+    ]
+  },
+  "final_closing_validation": {
+    "tests_passed": 62,
+    "process": {
+      "returncode": 0,
+      "timeout": false,
+      "wall_seconds": 21.51791047200095,
+      "wall_budget_seconds": 90
+    },
+    "evidence": [
+      {
+        "path": "outputs/grasp-skill-v1/validation-closing-final-02/pytest.log",
+        "sha256": "11d9ee6515e5327df71d78337d177b574aead78daf59d62cf6818853dbf3dd6a"
+      }
+    ]
+  }
+}

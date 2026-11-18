@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import mujoco
 import numpy as np
@@ -58,6 +59,8 @@ class ScriptConfig:
     head_tracking: bool = True
     contact_aware: bool = True
     guarded_approach: bool = False
+    grasp_skill: bool = False
+    record_skill_starts: bool = False
     fixture_avoidance: bool = True
     approach_force_target: float = 15.0
     release_lateral_limit: float = 0.04
@@ -83,6 +86,8 @@ class ScriptConfig:
         values.pop("head_tracking")
         values.pop("contact_aware")
         values.pop("guarded_approach")
+        values.pop("grasp_skill")
+        values.pop("record_skill_starts")
         values.pop("thumb_preshape")
         values.pop("fixture_avoidance")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
@@ -108,6 +113,8 @@ class ScriptConfig:
             raise ValueError("gravity_compensation must be true or false")
         if not isinstance(self.adaptive_grasps, bool):
             raise ValueError("adaptive_grasps must be true or false")
+        if not isinstance(self.grasp_skill, bool) or not isinstance(self.record_skill_starts, bool):
+            raise ValueError("grasp_skill and record_skill_starts must be boolean")
         if not isinstance(self.thumb_preshape, bool):
             raise ValueError("thumb_preshape must be boolean")
         if not isinstance(self.head_tracking, bool):
@@ -525,6 +532,7 @@ class StockingScript:
     FRONT_SUPPORT = "shelf"
     CONTACT_PROTOCOL = "grasped_supported_slide"
     ALLOW_OFFSET_START = False
+    TASK_SCOPE = "stocking"
 
     def episode_evidence(self):
         """Read-only controller-specific diagnostics for the terminal artifact."""
@@ -586,6 +594,7 @@ class StockingScript:
         self.observer = None
         self.fixture_unloading = False
         self.fixture_feedback = np.zeros(3)
+        self.skill_entries = []
 
     def _new_cartesian_hand(self):
         """Construct the empty hand again after settling, preserving subclass policy."""
@@ -755,7 +764,19 @@ class StockingScript:
                 raise InteractionFailure("push: feedback pose/path rejected before actuation")
             self.controller.last_target = np.asarray(target).copy()
             return self._apply_tick(self.controller.joint_targets(prediction.q, grip))
-        return self._apply_tick(self.controller.targets(target, grip))
+        previous = self.controller.command.copy()
+        action = self.controller.targets(target, grip)
+        if self.config.grasp_skill and self.phase == "close":
+            collisions = self.controller.check_hand_step(
+                SimpleNamespace(q=self.controller.command.copy()), grip, self.product.name
+            )
+            if collisions:
+                self.controller.command = previous
+                self.events[-1]["finger_sweep_rejection"] = collisions
+                raise InteractionFailure(
+                    "close: coupled arm/finger geometry rejected before actuation"
+                )
+        return self._apply_tick(action)
 
     def _load_feedforward(self):
         return None
@@ -808,6 +829,10 @@ class StockingScript:
         (self.directory / "physics-progress.json").write_text(
             json.dumps(self.events[-1], indent=2) + "\n"
         )
+        if self.config.record_skill_starts:
+            from abstract_stack.skill_entries import record_skill_entry
+
+            record_skill_entry(self, name)
 
     def _move(
         self,
@@ -832,7 +857,12 @@ class StockingScript:
             )
             self.events[-1]["payload_orientation_goal"] = self.payload_rotation_goal.tolist()
         target = np.asarray(target, dtype=float)
-        allow_object = self.product.name if (grip > 0 or name in ("approach", "place")) else None
+        cartesian_entry = self.config.grasp_skill and name == "approach" and grip == 0
+        allow_object = (
+            self.product.name
+            if not cartesian_entry and (grip > 0 or name in ("approach", "place"))
+            else None
+        )
         prediction = self.controller.predict(
             target,
             allowed_object=allow_object,
@@ -841,6 +871,7 @@ class StockingScript:
             else orientation_alternatives,
             grip=grip,
             carrying=carrying,
+            path_mode="cartesian" if cartesian_entry else "joint",
         )
         event = self.events[-1]
         event["ik_prediction"] = prediction.report()
@@ -865,6 +896,21 @@ class StockingScript:
         self.controller.last_prediction = prediction
         start = self.controller.ik.measured_q()
         duration = max(seconds or self.config.approach_seconds, prediction.minimum_seconds * 1.05)
+        path, knots = None, None
+        if cartesian_entry and not staging:
+            from abstract_stack.grasping import timed_joint_path
+
+            if prediction.joint_path is None:
+                raise InteractionFailure("approach: Cartesian entry lacks checked waypoints")
+            rates = np.r_[np.full(len(self.controller.names), self.config.max_joint_speed), 0.08]
+            path, knots, minimum = timed_joint_path(prediction.joint_path, rates)
+            duration = max(duration, minimum * 1.05)
+            event.update(
+                decision="execute_checked_cartesian_grasp_entry",
+                active_object_contact_allowed=False,
+                retained_waypoints=len(path),
+                reference_timing="segment joint-rate cost with quintic peak bound",
+            )
         event["planned_duration_s"] = duration
         if duration > self.config.max_motion_seconds:
             event["decision"] = "hold_for_duration_replan"
@@ -876,7 +922,12 @@ class StockingScript:
         for k in range(ticks):
             t = (k + 1) / ticks
             blend = 10 * t**3 - 15 * t**4 + 6 * t**5
-            action = self.controller.joint_targets(start + blend * (prediction.q - start), grip)
+            q = (
+                start + blend * (prediction.q - start)
+                if path is None
+                else np.array([np.interp(blend, knots, path[:, i]) for i in range(path.shape[1])])
+            )
+            action = self.controller.joint_targets(q, grip)
             self.controller.last_target, _ = self.controller.ik.forward(
                 self.controller.command,
                 prediction.reference_qpos,
@@ -942,6 +993,10 @@ class StockingScript:
 
     def _select_grasp(self, pending):
         """Regenerate object/height choices before committing to an approach."""
+        if self.config.grasp_skill:
+            from abstract_stack.grasp_skill import select_grasp
+
+            return select_grasp(self, pending)
         base = self.env.data.body("mabel_chassis").xpos
         for product in sorted(
             pending, key=lambda p: np.linalg.norm(self.env.data.body(p.name).xpos[:2] - base[:2])
@@ -972,6 +1027,11 @@ class StockingScript:
         return self.env.config.front_x - extent - 0.006
 
     def _pick_and_place_front(self, selected=None):
+        """Compose independently callable grasp/lift and loaded transfer skills."""
+        grasp_grip = self._grasp_and_lift(selected)
+        return self._transfer_and_place_front(grasp_grip)
+
+    def _grasp_and_lift(self, selected=None):
         env, config, product = self.env, self.config, self.product
         box = env.data.body(product.name).xpos.copy()
         self.payload_rotation_goal = env.data.body(product.name).xmat.reshape(3, 3).copy()
@@ -990,7 +1050,13 @@ class StockingScript:
         grasp_rotation = grasp.requested_rotation.copy()
         self._move("retract", [-0.44, -0.20, 1.00])
         self._move("raise", [-0.44, -0.20, box[2] + config.pregrasp_height])
-        self._move("pregrasp", grasp_target + [0, 0, config.pregrasp_height])
+        if config.grasp_skill:
+            self.controller.active_rotation = grasp_rotation.copy()
+        self._move(
+            "pregrasp",
+            grasp_target + [0, 0, config.pregrasp_height],
+            orientation_alternatives=False if config.grasp_skill else None,
+        )
         self.controller.active_rotation = grasp_rotation
         # The shared lift is capped at 8 cm/s; allow the full descent rather
         # than treating lag from a short pose command as a grasp failure.
@@ -1100,6 +1166,17 @@ class StockingScript:
         self.carry_reference = env.data.xmat[self.controller.palm].reshape(3, 3).T @ (
             actual - env.data.xpos[self.controller.palm]
         )
+        return grasp_grip
+
+    def _transfer_and_place_front(self, grasp_grip):
+        env, config, product = self.env, self.config, self.product
+        actual = env.data.body(product.name).xpos.copy()
+        if config.grasp_skill:
+            # The table yaw specifies the grasp, not the shelf placement goal.
+            # Reorient only after the measured lift has cleared the table.
+            # Every loaded move still checks the measured grasp transform and
+            # native carried-object path; no object pose is edited here.
+            self.payload_rotation_goal = np.eye(3)
         # Retain the measured relative grasp offset; never attach or move the object directly.
         offset = self.controller.position() - actual
         placement = np.array(product.target)
@@ -1112,6 +1189,44 @@ class StockingScript:
         staging = placement + offset + [0, 0, config.lift_height]
         staging[0] = env.config.front_x + 0.20 + offset[0]
         staging[2] = max(staging[2], self.controller.position()[2])
+        if config.grasp_skill:
+            # A near-body lateral waypoint can require shoulder adduction that
+            # the native arm cannot supply. Search outward shelf approaches
+            # from the same measured grasp instead of accepting a poor IK fit.
+            self._stage("loaded_stage_plan")
+            attempts = []
+            body = env.data.body(product.name)
+            self.controller.active_rotation = (
+                self.payload_rotation_goal
+                @ body.xmat.reshape(3, 3).T
+                @ env.data.xmat[self.controller.palm].reshape(3, 3)
+            )
+            for front_clearance in (0.20, 0.16, 0.12, 0.08):
+                proposed = staging.copy()
+                proposed[0] = env.config.front_x + front_clearance + offset[0]
+                prediction = self.controller.predict(
+                    proposed,
+                    allowed_object=product.name,
+                    alternatives=False,
+                    grip=grasp_grip,
+                )
+                attempts.append(
+                    dict(front_clearance_m=front_clearance, prediction=prediction.report())
+                )
+                if (
+                    prediction.feasible
+                    and prediction.minimum_seconds * 1.05 <= config.max_motion_seconds
+                ):
+                    staging = proposed
+                    break
+            else:
+                self.events[-1].update(candidates=attempts, decision="hold_for_replan")
+                raise InteractionFailure("loaded_stage: no checked shelf approach candidate")
+            self.events[-1].update(
+                candidates=attempts,
+                decision="execute_checked_shelf_approach",
+                selected_position_world_m=staging.tolist(),
+            )
         self._move("align_shelf", staging, grasp_grip)
         transfer = placement + offset + [0, 0, config.lift_height]
         transfer[2] = max(transfer[2], staging[2])
@@ -1386,13 +1501,42 @@ class StockingScript:
         )
         self.release_origin = None
 
-    def run(self) -> dict:
+    def _execute_task(self, result):
+        """Execute the stocking composition; isolated skills override this loop."""
+        pending = [p for p in self.env.products if not p.initially_stocked]
+        while pending:
+            selected = self._select_grasp(pending) if self.config.adaptive_grasps else None
+            if selected is None:
+                self.product = pending[0]
+            self._one_box(selected)
+            result["completed_products"].append(self.product.name)
+            pending.remove(self.product)
+        self._stage("settle")
+        for _ in range(
+            0 if self.terminal else int(self.env.config.stable_seconds / self.env.dt) + 10
+        ):
+            if self._tick(self.controller.position(), 0):
+                break
+        result["physical_success"] = self.env.info()["success"]
+        if not result["physical_success"]:
+            result["failure"] = "Final stocking stability criteria were not met"
+
+    def _prepare_episode(self):
         from abstract_stack.bundle import build_scene_bundle
 
         build_scene_bundle(self.env, self.directory / "initial-scene")
+
+    def _new_observer(self):
         from abstract_stack.evaluation import StageObserver
 
-        self.observer = StageObserver(self.env)
+        return StageObserver(self.env)
+
+    def _new_tracker(self):
+        return MabelController(self.env.model, self.env.data, self._tracking_config())
+
+    def run(self) -> dict:
+        self._prepare_episode()
+        self.observer = self._new_observer()
         self.observer.completed.update(
             p.name
             for i, p in enumerate(self.env.products)
@@ -1400,11 +1544,7 @@ class StockingScript:
         )
         # The bundle settles the world; initialize IK targets from that measured state.
         self.controller = self._new_cartesian_hand()
-        self.tracker = MabelController(
-            self.env.model,
-            self.env.data,
-            self._tracking_config(),
-        )
+        self.tracker = self._new_tracker()
         self.base_start = self.env.data.body("mabel_chassis").xpos.copy()
         if self.config.head_tracking:
             from abstract_stack.recording import HeadGaze
@@ -1425,6 +1565,7 @@ class StockingScript:
         )
         result = {
             "schema_version": 3,
+            "task_scope": self.TASK_SCOPE,
             "physical_success": False,
             "failure": None,
             "completed_products": [],
@@ -1442,23 +1583,7 @@ class StockingScript:
             "contact_protocol": self.CONTACT_PROTOCOL,
         }
         try:
-            pending = [p for p in self.env.products if not p.initially_stocked]
-            while pending:
-                selected = self._select_grasp(pending) if self.config.adaptive_grasps else None
-                if selected is None:
-                    self.product = pending[0]
-                self._one_box(selected)
-                result["completed_products"].append(self.product.name)
-                pending.remove(self.product)
-            self._stage("settle")
-            for _ in range(
-                0 if self.terminal else int(self.env.config.stable_seconds / self.env.dt) + 10
-            ):
-                if self._tick(self.controller.position(), 0):
-                    break
-            result["physical_success"] = self.env.info()["success"]
-            if not result["physical_success"]:
-                result["failure"] = "Final stocking stability criteria were not met"
+            self._execute_task(result)
         except (RuntimeError, ValueError, FloatingPointError) as error:
             result["failure"] = str(error)
         finally:
@@ -1556,7 +1681,11 @@ class StockingScript:
             result["manipulation_evaluation"] = manipulation_evaluation(result)
             result["task_success"] = result["manipulation_evaluation"]["clean_success"]
             result["controller_evidence"] = self.episode_evidence()
-            if not result["task_success"] and result["failure"] is None:
+            if (
+                self.TASK_SCOPE == "stocking"
+                and not result["task_success"]
+                and result["failure"] is None
+            ):
                 result["failure"] = (
                     "Physical goal met but scheduled manipulation evidence incomplete"
                 )

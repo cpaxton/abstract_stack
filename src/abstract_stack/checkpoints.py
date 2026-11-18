@@ -7,6 +7,7 @@ recompiling MJCF on restore; original MJCF and scene metadata remain auditable.
 
 import hashlib
 import json
+import os
 import platform
 import random
 import sys
@@ -206,6 +207,7 @@ def save_checkpoint(
     validation_controls=None,
     generator_states=None,
     portable_source=True,
+    shared_model_checkpoint=None,
 ):
     """Capture a paused control boundary and a short scratch-only replay witness.
 
@@ -237,9 +239,20 @@ def save_checkpoint(
         ):
             raise ValueError("Checkpoint nominal reference exceeds native actuator bounds")
     signature = model_signature(model)
+    shared_model = None
+    if shared_model_checkpoint is not None:
+        previous, previous_manifest = inspect_checkpoint(shared_model_checkpoint)
+        if previous_manifest["model_signature"] != signature:
+            raise ValueError("Shared checkpoint has a different compiled model")
+        shared_model = previous / "model.mjb"
     directory.mkdir(parents=True, exist_ok=False)
     _write(directory / "manifest.json", dict(schema_version=SCHEMA, status="incomplete"))
-    mujoco.mj_saveModel(model, str(directory / "model.mjb"), None)
+    if shared_model is None:
+        mujoco.mj_saveModel(model, str(directory / "model.mjb"), None)
+    else:
+        # The complete verified MJB remains present at each checkpoint path.
+        # Link only on the same filesystem; never silently substitute a model.
+        os.link(shared_model, directory / "model.mjb")
     np.savez_compressed(directory / "state.npz", integration=state, state_spec=int(STATE))
     _write(directory / "scene.json", scene)
     _write(directory / "controller.json", controller)

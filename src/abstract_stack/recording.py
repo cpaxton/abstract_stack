@@ -182,6 +182,15 @@ class DualVideoRecorder:
         task_success = result.get("task_success", result["physical_success"])
         verdict = "SUCCESS" if task_success else "FAILED / PARTIAL"
         reason = result.get("failure") or "All physical gates passed"
+        skill_success = None
+        if result.get("task_scope") == "grasp_lift_hold":
+            skill_success = (
+                result.get("controller_evidence", {}).get("grasp_skill_verified") is True
+                and result.get("failure") is None
+                and any(e.get("verified_grasp_skill") is True for e in result.get("events", []))
+            )
+            verdict = "GRASP VERIFIED" if skill_success else "GRASP FAILED / UNVERIFIED"
+            reason = result.get("failure") or "Isolated grasp/lift/hold; whole shelf not evaluated"
         label = f"FINAL STATE (paused) | {verdict} | {reason}"
         try:
             frames = self._frames(label)
@@ -201,6 +210,8 @@ class DualVideoRecorder:
             "encoded_frames": len(self.times) + self.paused_end_frames,
             "physical_success": result["physical_success"],
             "task_success": task_success,
+            "task_scope": result.get("task_scope", "stocking"),
+            "skill_success": skill_success,
             "failure": result.get("failure"),
             "synchronization": "both views rendered from the same physics state at each timestamp",
             "first_person_scope": "native robot-mounted camera; neck motion uses actuators",
