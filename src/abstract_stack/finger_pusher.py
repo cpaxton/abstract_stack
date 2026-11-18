@@ -19,6 +19,10 @@ class FingerPusher(CartesianHand):
     def finger_targets(self, grip):
         targets = super().finger_targets(0)
         for finger in ("Index", "Middle", "Ring", "Pinky"):
+            name = f"Left {finger} Abd"
+            targets[name] = self.abduction_targets.get(
+                name, float(self.model.qpos0[int(self.model.joint(name).qposadr[0])])
+            )
             for joint in ("MCP", "PIP"):
                 targets[f"Left {finger} {joint}"] = (
                     (-0.2 if joint == "MCP" else 0.0) if finger == self.finger else 1.0
@@ -150,17 +154,18 @@ class PairedFingerPusher(FingerPusher):
         return float((-np.arctan2(delta[0], delta[1]) + np.pi / 2) % np.pi - np.pi / 2)
 
 
-class WallFingerPusher(FingerPusher):
-    """Use an outer native finger while keeping the palm inside a sidewall."""
+class FoldedFingerPusher(FingerPusher):
+    """Keep one native finger extended and fold the others for a narrow row."""
 
     WRISTS = (0.2, 0.0)
+    FOLDED_FLEXION = 1.5
 
     def finger_targets(self, grip):
         targets = super().finger_targets(grip)
         for finger in ("Index", "Middle", "Ring", "Pinky"):
             if finger != self.finger:
                 for joint in ("MCP", "PIP"):
-                    targets[f"Left {finger} {joint}"] = 1.5
+                    targets[f"Left {finger} {joint}"] = self.FOLDED_FLEXION
         return targets
 
     def __init__(self, env, config, **kwargs):
@@ -169,3 +174,9 @@ class WallFingerPusher(FingerPusher):
         self.ik.constrain_reference_range(
             "Left Wrist", self.ik.original_lower[index], self.ik.original_upper[index] - 0.35
         )
+
+
+class WallFingerPusher(FoldedFingerPusher):
+    """Use the folded posture's outer finger beside a shelf sidewall."""
+
+    FOLDED_FLEXION = 1.5

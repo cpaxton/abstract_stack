@@ -9,15 +9,12 @@ These are proposed skill outcomes; only a subset is currently instrumented.
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox{0.88\linewidth}{\centering
-Development: probe simulator $\rightarrow$ revise program $\rightarrow$ freeze\par
-\medskip
-Evaluation: task program $\rightarrow$ feasibility check $\rightarrow$
-tracking/contact controller $\rightarrow$ native MuJoCo physics\par
-\medskip
-Measured state, contacts and failure reasons feed back to the frozen program.}}
-\caption{Proposed separation of program development and physical execution.
-The same execution contract should support conventional and learned controllers.}
+\includegraphics[width=0.86\linewidth,height=0.56\textheight,keepaspectratio]{figures/contact_skill_flow.pdf}
+\caption{Shelf-stocking skill sequence. Each measured handoff supports a new
+motion check and hand preshape. The dashed box marks proposed joint planning
+over the landing, push and withdrawal. The current release forecast runs at
+the end of contact execution.}
+\label{fig:contact-skill-flow}
 \end{figure}
 
 \subsection{Feasibility before motion}

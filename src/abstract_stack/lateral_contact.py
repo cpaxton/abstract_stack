@@ -327,6 +327,22 @@ class LateralStockingScript(DenseStockingScript):
                 target[0] += np.clip(vx * env.dt, -0.005 * env.dt, 0.005 * env.dt)
                 target[0] = np.clip(target[0], origin[0] - 0.015, origin[0] + 0.015)
             target[2] += np.clip(-0.012 * force[2] * env.dt, -0.005 * env.dt, 0.005 * env.dt)
+            # Project the reference into the unchanged corridor before IK.
+            # Admittance at a height limit must saturate, not command an
+            # out-of-corridor step or discard a still-supported wall approach.
+            if self.config.ungrasped_insertion:
+                requested = target.copy()
+                lower = np.array(
+                    [origin[0] - 0.015, origin[1] - distance_m - 0.025, height - 0.005]
+                )
+                upper = np.array(
+                    [origin[0] + 0.015, origin[1] + distance_m + 0.025, height + 0.025]
+                )
+                target = np.clip(target, lower + 1e-6, upper - 1e-6)
+                if not np.array_equal(requested, target):
+                    event["reference_saturation_updates"] = (
+                        event.get("reference_saturation_updates", 0) + 1
+                    )
             # Final bounds follow every force/height correction.
             if (
                 abs(target[1] - origin[1]) > distance_m + 0.025

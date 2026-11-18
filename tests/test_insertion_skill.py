@@ -275,3 +275,29 @@ def test_wall_finger_posture_and_headroom_preserve_native_model(finger):
         np.testing.assert_array_equal(env.model.jnt_range, ranges)
     finally:
         env.close()
+
+
+def test_wall_packing_uses_measured_neighbor_and_preserves_remaining_row_capacity():
+    from abstract_stack.config import load_scene_config
+    from abstract_stack.interactions import InteractionFailure
+    from abstract_stack.scene import products_for
+
+    script = object.__new__(StockingScript)
+    config = load_scene_config("configs/scenes/tight_ten_cartons.json")
+    products = products_for(config)
+    script.config = ScriptConfig(
+        ungrasped_insertion=True, paired_finger_insertion=True, wall_packing=True
+    )
+    script.product = products[7]
+    canonical = script.product.target
+    neighbor = SimpleNamespace(xpos=np.array([-0.725, 0.06, 0.92]), xmat=np.eye(3).ravel())
+    script.env = SimpleNamespace(
+        config=config, products=products, data=SimpleNamespace(body=lambda _: neighbor)
+    )
+    script.observer = SimpleNamespace(completed={"carton_8", "carton_9"})
+    assert script.lateral_goal_y == pytest.approx(0.01)
+    assert script.product.target == canonical
+    # A leftward disturbance cannot consume room needed by seven later cartons.
+    neighbor.xpos[1] = 0.035
+    with pytest.raises(InteractionFailure, match="needs rearrangement"):
+        _ = script.lateral_goal_y

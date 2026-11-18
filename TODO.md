@@ -47,6 +47,13 @@ trials, not a generalization success rate.
 - [x] Verify hysteretic base stopping on the retained inventory route: all five
   waypoints pass, final position error 1.33 mm inside the original 2 mm bound.
   This continuation earns no fresh-task credit.
+- [x] Add measured wall-first order and neighbor contact references, with an
+  explicit reserve for all remaining carton widths; retain canonical task goals.
+- [x] Recover the first wall-slot release/side-push/insert/square/exit sequence
+  from its saved state (`ten-wall-first-opening-01`, yaw -0.02650 degrees,
+  no incidents, zero fresh credit). Verify all ten consecutively next.
+- [x] Attribute passive drift by exact native replay and retain numerical-contact
+  ablations separately. The active wall-first run keeps the original model.
 - [ ] Complete ten cartons, zero prefills, 10 mm **total** row free space. Both
   sidewalls participate in planning and native summed-force guards. Then 5 mm.
 - [ ] Freeze the successful controller, validate untouched scenes, and generate

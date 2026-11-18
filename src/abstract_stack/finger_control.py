@@ -17,10 +17,11 @@ class FingerLoadCompensation:
         self.hand = hand
         self.joints = {}
         model = hand.model
+        suffixes = ("Abd", "MCP", "PIP") if getattr(hand, "fingers", ()) else ("MCP", "PIP")
         names = [
             f"Left {finger} {suffix}"
             for finger in getattr(hand, "fingers", (hand.finger,))
-            for suffix in ("MCP", "PIP")
+            for suffix in suffixes
         ]
         for name in names:
             joint, actuator = model.joint(name), model.actuator(name)

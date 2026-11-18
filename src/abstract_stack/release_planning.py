@@ -175,7 +175,8 @@ def choose_release_reference(script, monitor, dwell):
         }
         eligible = bool(report and report["release_retreat_verified"] and all(placements.values()))
         registration_budget = None
-        registration_error = abs(float(env.data.xpos[guarded.active, 1]) - script.product.target[1])
+        task_lateral_error = abs(float(env.data.xpos[guarded.active, 1]) - script.product.target[1])
+        registration_error = abs(float(env.data.xpos[guarded.active, 1]) - script.lateral_goal_y)
         if env.config.row_free_space is not None and script.config.paired_finger_insertion:
             count = sum(p.level == script.product.level for p in env.products)
             registration_budget = min(0.001, env.config.row_free_space / count)
@@ -198,6 +199,8 @@ def choose_release_reference(script, monitor, dwell):
             failure=failure,
             terminal_yaw_deg=yaw,
             active_lateral_error_m=registration_error,
+            active_task_target_lateral_error_m=task_lateral_error,
+            controller_lateral_goal_world_y_m=script.lateral_goal_y,
             controller_lateral_admission_budget_m=registration_budget,
             simulated_seconds=float(env.data.time - script.env.data.time),
             artifact=str(artifact.relative_to(script.directory)),

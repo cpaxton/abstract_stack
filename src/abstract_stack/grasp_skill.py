@@ -12,25 +12,40 @@ from abstract_stack.grasping import object_aligned_rotation, open_hand_clearance
 from abstract_stack.interactions import CartesianHand, InteractionFailure, StockingScript
 
 
-def loaded_staging_reachable(env, controller, config, product, *, base_xy=(0.0, 0.0)):
-    """Planning-only forecast of the loaded shelf staging reachability.
+def loaded_staging_reachable(
+    env,
+    controller,
+    config,
+    product,
+    *,
+    base_xy=(0.0, 0.0),
+    placement=None,
+    grip=None,
+    front_clearance=None,
+    front_center=None,
+    report=None,
+):
+    """Necessary full staging/transfer/seat screen on independent native data.
 
-    Uses the **actual** measured carried state (grasp offset and world-aligned
-    payload orientation), shifting both the base and the carried carton together
-    to model a base relocation with the load retained. This mirrors
-    ``StockingScript._transfer_and_place_front``'s bounded shelf-front staging
-    search; live execution still rechecks every segment and retains all guards.
+    Shift the scratch base and retained load together, and carry the predicted
+    grasp transform through each segment. Live execution must still replan from
+    measured state. No native model or live pose is changed.
     """
     from abstract_stack.env import PlanningState
 
     body = env.data.body(product.name)
     offset = controller.position() - body.xpos
-    palm_rotation = env.data.xmat[controller.palm].reshape(3, 3)
-    active_rotation = np.eye(3) @ body.xmat.reshape(3, 3).T @ palm_rotation
+    active_rotation = body.xmat.reshape(3, 3).T @ env.data.xmat[controller.palm].reshape(3, 3)
+    if front_center is None:
 
-    placement = np.asarray(product.target, dtype=float)
-    placement[0] = env.config.front_x - product.half_size[0] - 0.006
+        def front_center(extent):
+            return env.config.front_x - extent - 0.006
 
+    if placement is None:
+        placement = np.array(product.target, dtype=float)
+        placement[0] = front_center(product.half_size[0])
+    else:
+        placement = np.array(placement, dtype=float)
     data = mujoco.MjData(env.model)
     mujoco.mj_copyData(data, env.model, env.data)
     shift = np.asarray(base_xy, dtype=float)
@@ -39,24 +54,51 @@ def loaded_staging_reachable(env, controller, config, product, *, base_xy=(0.0, 
     data.qpos[base_adr : base_adr + 2] += shift
     data.qpos[carton_adr : carton_adr + 2] += shift
     mujoco.mj_forward(env.model, data)
-
     hand = CartesianHand(PlanningState(env.model, data, env.dt), config)
-    hand.command = controller.command.copy()
-    hand.active_rotation = active_rotation.copy()
-
-    staging = placement + offset + [0, 0, config.lift_height]
-    staging[0] = env.config.front_x + 0.20 + offset[0]
-    staging[2] = max(staging[2], hand.position()[2])
-    for front_clearance in (0.20, 0.16, 0.12, 0.08):
-        proposed = staging.copy()
-        proposed[0] = env.config.front_x + front_clearance + offset[0]
-        prediction = hand.predict(
-            proposed,
-            allowed_object=product.name,
-            alternatives=False,
-            grip=config.grip,
-        )
-        if prediction.feasible and prediction.minimum_seconds * 1.05 <= config.max_motion_seconds:
+    hand.abduction_targets = dict(controller.abduction_targets)
+    hand.open_posture_overrides = dict(controller.open_posture_overrides)
+    hand.ik.lower = controller.ik.lower.copy()
+    hand.ik.upper = controller.ik.upper.copy()
+    hand.ik.posture_constraints = dict(controller.ik.posture_constraints)
+    baseline = data.qpos.copy()
+    grip = config.grip if grip is None else grip
+    choices = (0.20, 0.16, 0.12, 0.08) if front_clearance is None else (front_clearance,)
+    for clearance in choices:
+        data.qpos[:] = baseline
+        mujoco.mj_forward(env.model, data)
+        hand.command = controller.command.copy()
+        hand.active_rotation = active_rotation.copy()
+        staging = placement + offset + [0, 0, config.lift_height]
+        staging[0] = env.config.front_x + clearance + offset[0]
+        staging[2] = max(staging[2], hand.position()[2])
+        transfer = placement + offset + [0, 0, config.lift_height]
+        transfer[2] = max(transfer[2], staging[2])
+        row = dict(front_clearance_m=clearance, stages=[], complete=False)
+        if report is not None:
+            report.append(row)
+        for name, point in (("staging", staging), ("transfer", transfer), ("seat", None)):
+            if name == "seat":
+                carried = data.body(product.name)
+                extent = np.abs(carried.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
+                seat = placement.copy()
+                seat[0] = front_center(extent[0])
+                seat[2] = env.config.levels[product.level] + extent[2] + 0.001
+                point = seat + hand.position() - carried.xpos
+            prediction = hand.predict(
+                point, allowed_object=product.name, alternatives=False, grip=grip, carrying=True
+            )
+            row["stages"].append(dict(name=name, prediction=prediction.report()))
+            if (
+                not prediction.feasible
+                or prediction.minimum_seconds * 1.05 > config.max_motion_seconds
+            ):
+                break
+            hand.ik.forward(prediction.q, prediction.reference_qpos)
+            data.qpos[:] = hand.ik.scratch.qpos
+            mujoco.mj_forward(env.model, data)
+            hand.command = prediction.q.copy()
+        else:
+            row["complete"] = True
             return True
     return False
 

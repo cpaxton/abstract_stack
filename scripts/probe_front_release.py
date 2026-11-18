@@ -63,6 +63,12 @@ def worker(args):
     if args.alignment_seconds is not None:
         settings["alignment_timeout_seconds"] = args.alignment_seconds
     script = StockingScript(env, args.output / "episode", ScriptConfig(**settings))
+    if args.pusher_tilt is not None:
+        script.PUSHER_TILTS = (args.pusher_tilt,)
+    if args.single_center_finger:
+        from abstract_stack.finger_pusher import WallFingerPusher
+
+        script.PAIRED_PUSHER_CLASS = WallFingerPusher
     if "grasp_abduction_targets" in state:
         script.grasp_abduction_targets = dict(state["grasp_abduction_targets"])
     script.product = next(
@@ -75,12 +81,23 @@ def worker(args):
         initial.mkdir()
         write(initial / "manifest.json", scene)
     if args.withdrawal or args.insert_only and state.get("tool_class") != "CartesianHand":
-        from abstract_stack.finger_pusher import FingerPusher, PairedFingerPusher, WallFingerPusher
+        from abstract_stack.finger_pusher import (
+            FingerPusher,
+            FoldedFingerPusher,
+            PairedFingerPusher,
+            WallFingerPusher,
+        )
         from abstract_stack.lateral_contact import SideFingerPusher
 
         kinds = {
             kind.__name__: kind
-            for kind in (FingerPusher, PairedFingerPusher, WallFingerPusher, SideFingerPusher)
+            for kind in (
+                FingerPusher,
+                FoldedFingerPusher,
+                PairedFingerPusher,
+                WallFingerPusher,
+                SideFingerPusher,
+            )
         }
         if state.get("tool_class") not in kinds:
             raise ValueError("Withdrawal continuation requires an explicitly recorded FingerPusher")
@@ -213,6 +230,8 @@ def worker(args):
             failure=failure,
             reference_initialization=initialization,
             config=vars(script.config),
+            single_center_finger=args.single_center_finger,
+            pusher_tilts_degrees=list(getattr(script, "PUSHER_TILTS", (20, 30, 10, 40))),
             tracking_config=vars(tracking),
             active=script.product.name,
             simulated_seconds=float(env.data.time) - float(initial[0]),
@@ -253,6 +272,8 @@ def main():
     parser.add_argument("--back-force-target", type=float)
     parser.add_argument("--alignment-seconds", type=float)
     parser.add_argument("--wrist-offset", type=float)
+    parser.add_argument("--single-center-finger", action="store_true")
+    parser.add_argument("--pusher-tilt", type=float, choices=(0, 10, 20, 30, 40))
     parser.add_argument("--control-config", type=Path)
     parser.add_argument("--worker", action="store_true")
     args = parser.parse_args()
@@ -324,6 +345,8 @@ def main():
         command.append("--legacy-opening")
     if args.paired_fingers:
         command.append("--paired-fingers")
+    if args.single_center_finger:
+        command.append("--single-center-finger")
     if args.insert:
         command.append("--insert")
     if args.insert_only:
@@ -342,6 +365,8 @@ def main():
         command += ["--alignment-seconds", str(args.alignment_seconds)]
     if args.wrist_offset is not None:
         command += ["--wrist-offset", str(args.wrist_offset)]
+    if args.pusher_tilt is not None:
+        command += ["--pusher-tilt", str(args.pusher_tilt)]
     supervise = runpy.run_path(str(frozen.runtime_root / "scripts/run_frozen_replanning.py"))[
         "supervise"
     ]

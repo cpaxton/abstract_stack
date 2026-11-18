@@ -190,6 +190,13 @@ def supported_withdrawal(
             )
         )
     for stage, displacement, speed, seconds in stages:
+        if tracker is not None:
+            # Reserve part of the unchanged applied Cartesian speed bound for
+            # refreshed load compensation: nominal FK and compensated FK have
+            # different Jacobians even when their joint offsets are held.
+            speed = min(
+                speed, tracker.config.nominal_servo_speed_fraction * tracker.config.servo_speed_m_s
+            )
         goal = measured_origin + displacement
         if stage.startswith("retreat") and tracker is not None and tracker.config.yaw_feedback:
             # Keep the admitted lateral unload offset until the hand is clear;
@@ -447,6 +454,16 @@ def supported_withdrawal(
                         tick=tick,
                         collision=collision,
                         applied_point_m=applied_point.tolist(),
+                        applied_lower_m=applied_lower.tolist(),
+                        applied_upper_m=applied_upper.tolist(),
+                        applied_translation_step_m=float(
+                            np.linalg.norm(applied_point - previous_point)
+                        ),
+                        maximum_translation_step_m=servo_bound,
+                        applied_rotation_step_rad=float(
+                            np.linalg.norm(rotation_error(previous_rotation, applied_rotation))
+                        ),
+                        maximum_rotation_step_rad=angular_bound,
                     )
                 )
                 failure = "withdrawal_final_applied_geometry_or_motion"
