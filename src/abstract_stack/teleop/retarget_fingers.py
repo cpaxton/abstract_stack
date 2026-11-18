@@ -141,9 +141,12 @@ def hand_features(source: Mapping, side: str) -> dict[str, float]:
     for finger in ("Index", "Middle", "Ring", "Pinky"):
         p = [positions[f"Hand_{finger}{suffix}"] for suffix in ("1", "2", "3", "Tip")]
         proximal, intermediate, distal = (_unit(p[i + 1] - p[i]) for i in range(3))
-        mcp = math.atan2(-float(np.dot(proximal, normal)), float(np.dot(proximal, forward)))
-        if math.hypot(np.dot(proximal, normal), np.dot(proximal, forward)) < 0.1:
+        flexion_normal = -float(np.dot(proximal, normal))
+        flexion_forward = float(np.dot(proximal, forward))
+        flexion_projection = math.hypot(flexion_normal, flexion_forward)
+        if flexion_projection < 0.1:
             raise ValueError(f"{finger} has unusable flexion projection")
+        mcp = math.atan2(flexion_normal, flexion_forward)
         pip = math.atan2(
             -float(np.dot(np.cross(proximal, intermediate), hinge_axis)),
             float(np.dot(proximal, intermediate)),
@@ -155,9 +158,9 @@ def hand_features(source: Mapping, side: str) -> dict[str, float]:
         result[f"{finger} MCP"] = mcp
         # Native fingers have one PIP/IP servo and no independent DIP actuator.
         result[f"{finger} PIP"] = 0.7 * max(0, pip) + 0.3 * max(0, dip)
-        result[f"{finger} Abd"] = math.atan2(
-            float(np.dot(proximal, radial)), float(np.dot(proximal, forward))
-        )
+        # Rotation within the flexion plane must not change sideways spread,
+        # including when the proximal phalanx points back toward the palm.
+        result[f"{finger} Abd"] = math.atan2(float(np.dot(proximal, radial)), flexion_projection)
     thumb = [positions[f"Hand_Thumb{x}"] for x in ("0", "1", "2", "3", "Tip")]
     segments = [thumb[i + 1] - thumb[i] for i in range(4)]
     for key, index in (("Thumb MCP", 0), ("Thumb PIP", 1), ("Thumb DIP", 2)):
