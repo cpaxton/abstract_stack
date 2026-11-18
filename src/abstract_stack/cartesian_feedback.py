@@ -251,7 +251,9 @@ def bounded_cartesian_step(
     )
 
 
-def bounded_contact_prediction(hand, proposal, target, dt, rates, *, config=None):
+def bounded_contact_prediction(
+    hand, proposal, target, dt, rates, *, config=None, reference_envelope=None
+):
     """Replace a fresh contact proposal with a checked bounded nominal step.
 
     Existing ``hand.predict`` must initialize matching carry/slide context first.
@@ -283,6 +285,38 @@ def bounded_contact_prediction(hand, proposal, target, dt, rates, *, config=None
         reference=proposal.reference_qpos,
         config=config,
     )
+    projection = None
+    if reference_envelope is not None:
+        q, projection = reference_envelope.project(
+            ik,
+            previous,
+            step.q,
+            rates=rates,
+            dt=dt,
+            reference=proposal.reference_qpos,
+            postures=step.ramped_postures,
+        )
+        position, rotation = ik.forward(q, proposal.reference_qpos)
+        step = replace(
+            step,
+            q=q,
+            position=position,
+            rotation=rotation,
+            position_error_m=float(np.linalg.norm(position - target)),
+            orientation_error_rad=float(
+                np.linalg.norm(rotation_error(rotation, proposal.requested_rotation))
+            ),
+            active_rate_limits=[
+                name
+                for i, name in enumerate(ik.names)
+                if abs(abs(q[i] - previous[i]) - rates[i] * dt) <= 1e-8
+            ],
+            active_joint_limits=[
+                name
+                for i, name in enumerate(ik.names)
+                if min(q[i] - ik.lower[i], ik.upper[i] - q[i]) <= 1e-8
+            ],
+        )
     object_name = proposal.allowed_contact_object
     object_id = None if object_name is None else hand.model.body(object_name).id
     start = ik.measured_q()
@@ -301,6 +335,7 @@ def bounded_contact_prediction(hand, proposal, target, dt, rates, *, config=None
         "control_dt_seconds": float(dt),
         "global_proposal_position_error_m": proposal.position_error_m,
         "allowed_contact_object": object_name,
+        "paired_reference_projection": projection,
     }
     feasible = (
         step.position_error_m <= proposal.position_tolerance_m
@@ -308,6 +343,7 @@ def bounded_contact_prediction(hand, proposal, target, dt, rates, *, config=None
         and not collisions
         and not path_collisions
         and diagnostics["solver"]["projected_gradient_inf"] <= 1e-6
+        and (projection is None or projection["feasible"])
     )
     return replace(
         proposal,

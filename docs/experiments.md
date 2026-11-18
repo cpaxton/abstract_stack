@@ -21,6 +21,10 @@ roundtrip evidence and the remaining student/camera integration work.
 The [sustained-contact follow-up](reports/sustained_contact_development.md)
 distinguishes backstop contact from squaring: bounded continuations reduce yaw
 but do not pass the unchanged placement gate or earn new task credit.
+The newer [bounded-reference study](reports/compliance_reference_projection.md)
+removes a local proposal stall and passes squaring/contact dwell from two related
+saved states at a 2 N development target. Unloading still fails; there is no
+fresh stocking credit or default controller promotion.
 Use [simulation checkpoints](sim_checkpoints.md) and the
 [focus-bank report](reports/checkpoint_focus_development.md) to repeat the final
 millimeters without repeating pickup. The

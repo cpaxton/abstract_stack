@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from abstract_stack.bounded_reference import ReferenceEnvelope
 from abstract_stack.cartesian_feedback import bounded_contact_prediction
 from abstract_stack.ik import interpolate_rotation, rotation_error
 
@@ -81,6 +82,7 @@ def generate_push_candidates(
     admittance=None,
     lateral_goal_m=None,
     lateral_measurement_m=None,
+    project_reference_bounds=False,
 ):
     """Generate checked arm/lift trajectories with held native finger commands.
 
@@ -250,6 +252,7 @@ def generate_push_candidates(
             applied = base.copy()
             controls = []
             nominal_trace = []
+            projection_trace = []
             failure = None
             for tick in range(steps // interval):
                 if time.monotonic() - started >= wall_seconds:
@@ -262,8 +265,21 @@ def generate_push_candidates(
                 # unchanged throughout this independent open-loop forecast.
                 proposal = replace(endpoint, requested_rotation=proposal_rotation)
                 prediction = bounded_contact_prediction(
-                    hand, proposal, target, hand.env.dt, nominal_rates
+                    hand,
+                    proposal,
+                    target,
+                    hand.env.dt,
+                    nominal_rates,
+                    reference_envelope=(
+                        ReferenceEnvelope(
+                            lower_xyz, upper_xyz, applied_lower, applied_upper, applied[aids]
+                        )
+                        if project_reference_bounds
+                        else None
+                    ),
                 )
+                if project_reference_bounds:
+                    projection_trace.append(prediction.bounded_feedback)
                 previous_point, previous_rotation = hand.ik.forward(
                     hand.command, endpoint.reference_qpos
                 )
@@ -350,6 +366,8 @@ def generate_push_candidates(
                 applied = bounded
                 hand.command = prediction.q.copy()
                 nominal_trace.append(prediction.q.tolist())
+            if project_reference_bounds:
+                report["bounded_feedback_trace"] = projection_trace
             if failure:
                 rejected.append(dict(report, failure=failure))
             else:
@@ -376,6 +394,7 @@ def generate_push_candidates(
             applied_virtual_origin_m=applied_origin.tolist(),
             applied_envelope_translation_m=(applied_origin - origin).tolist(),
             generation_seconds=time.monotonic() - started,
+            project_reference_bounds=project_reference_bounds,
             scheduled_candidates=1 + len(alternatives),
             generated=len(candidates),
             rejected=rejected,
