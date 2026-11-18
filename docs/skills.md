@@ -26,6 +26,29 @@ contact finishing and release already have separate control entry points. These
 are five skill boundaries, not five trained policies. Transfer is still a
 single composed route and does not yet have an independent learned controller.
 
+## Composable skill library and per-carton task plan
+
+[`skill_library.py`](../src/abstract_stack/skill_library.py) makes those
+boundaries explicit and reusable. A `Skill` is a named unit with a declared
+measured entry precondition, a declared measured exit gate, optional upstream
+dependencies and a callable `execute` adapter. `TaskPlan` validates and orders a
+sequence of skills; `run_plan` executes it and records reach/entry/exit evidence
+at every boundary. `build_stocking_plan()` returns the canonical released
+per-carton sequence `pick → place → insert → push_to_contact → retreat`, where
+`pick`/`place` reuse the existing grasp and transfer skills, `insert` releases
+and registers the carton, `push_to_contact` advances to measured back contact,
+and `retreat` verifies squared contact and withdraws.
+
+Two default-preserving seams expose the finer steps without changing physics:
+`_release_and_insert_front(grip, push=False)` stops after front registration,
+and `_insert_from_front(retreat=False)` stops with back contact established.
+The defaults keep the fused release/insert/retreat behavior. `--plan-driven`
+(pending a CLI flag; `ScriptConfig(plan_driven=True)`) composes the five skills
+through `run_plan`; the grasped supported-slide protocol keeps its existing
+fused path. The plan is always recorded in `summary.json` under `task_plan`,
+with each phase event annotated with its `skill`. Success criteria, force
+guards and tolerances are unchanged.
+
 ## Why reset poses are insufficient
 
 In the original fixed two-carton failure, carton 1 was picked first. Before the
@@ -180,3 +203,131 @@ the task calls for backstop contact. Reobserve at every handoff and replan the
 next step from the actual pose. A candidate without an exit should be rejected
 before choosing the landing. Keep each phase independently measurable and
 retain failed candidates for the skill catalog.
+
+### Hill-climb consecutive cartons from verified milestones
+
+A run with `--record-skill-starts` saves a `stocking_milestone` entry after
+every verified retreat with an empty hand and no tip/drop incidents. Its
+entry lists completed products. Keep each run in its own output directory so
+different policy branches can resume the same measured state.
+
+```sh
+python scripts/probe_front_release.py \
+  --checkpoint outputs/my-run/episode/skill-entries/NNN-carton_ID-stocking_milestone/checkpoint \
+  --output outputs/next-carton-probe --next-cartons 1 --record-skill-starts \
+  --control-config configs/controllers/adjacent_insertion.json --wall-seconds 180
+```
+
+Legacy `grasp_lift` entries with an unloaded hand can also start the next
+carton from their recorded completed set. For other retained motion states,
+use the matching skill continuation. A native snapshot can preserve arbitrary
+motion state, but resuming a partially executed motion requires its controller
+references, progress and guard state. Do not silently treat an in-contact
+snapshot as a cleared milestone. All continuations earn zero fresh credit.
+
+### Decide the next motion from measured preconditions
+
+| Observed state | Candidate next motion | Required postcondition |
+|---|---|---|
+| Held load and a checked free landing | Carry, seat, open, and clear | Upright supported carton and unloaded hand |
+| Released carton with a clear projected forward path | Preshape and advance | Measured depth progress under force and support guards |
+| Projected footprint conflicts with a stocked neighbor | Square in front or choose a lateral route | Upright support and a newly checked approach and exit |
+| Push force is present without object motion | Bounded preload increase, then unload and recontact if needed | Renewed advance without disturbing stocked objects |
+| Hand contact is lost before reaching the target | Recontact from a checked pose | Measured safe contact and renewed advance |
+| Hand contact is lost at the intended final pose | Check an unloaded clear path | Stable support, final pose, and verified retreat |
+| Loaded at final pose and withdrawal clips a neighbor | Change hand posture or exit direction | Force, clearance, and stocked-neighbor stability pass |
+| No admitted motion or a guard trips | Stop and snapshot the state | Failure is retained with phase, reason, and selected inputs |
+
+The unloaded-clear branch now handles a failed refinement when the carton
+already satisfies placement and the robot is unloaded. It requires stationary
+square support, checks the full exit in a native forecast, and verifies
+support and retreat in the live scene. Its event does not award backstop
+contact credit. The recontact branch for a carton still short of its goal
+remains planner work. Different cartons can take different branches based on
+their measured state.
+
+With skill recording enabled, fresh runs and skill probes now add a
+`motion_failure` entry for a handled controller stop before the controls
+are changed. The entry stores the failed phase and reason. If checkpoint
+creation itself fails, the run retains the original failure and reports
+the checkpoint error separately. A native process crash can prevent terminal
+capture. Use the last valid entry and native process log for those cases.
+
+For a long continuation that reaches its wall budget, start from its latest
+valid skill entry. `--insert-only` accepts a verified post-squaring entry and
+replans final advance. `--withdrawal` accepts contact-refinement and
+withdrawal-planning entries and revalidates contact before trying the exit.
+`--unloaded-clear` accepts a terminal failure entry and rechecks unloaded
+support before forecasting retreat. These are skill-level replans from exact
+physics states. They do not resume a partially consumed controller loop.
+
+### Angled entry development case
+
+The shelf sequence under test is free landing, front squaring, a short angled
+advance alongside the stocked neighbor, then final registration and guarded
+exit. `probe_front_release.py --insert-only --guided-entry-deg=3` enables the
+entry probe from a released or post-squaring checkpoint. The opposite sign
+is a matched candidate. The angle is a fingertip-plane reference, not a
+command to rotate the carton by that angle.
+
+The fixed-lateral-position collision model screens only the first 12 mm of
+this opt-in advance. The live controller checks each next motion and monitors
+support, wrench, signed progress, and stocked-neighbor displacement. The
+reference tapers to zero near the target. Preserve failed cases, including
+those rejected before motion.
+
+A future reusable skill contract should take measured object geometry,
+pose, support, motion direction, named contact partners and clearance
+limits as inputs. It should report progress, measured wrench and whether
+the resulting state admits the next skill. The current millimetre and angle
+settings are development probes for this shelf. Before adopting them for
+other objects, validate progress, jams and pattern preservation across
+different dimensions, masses, friction and pose error.
+
+### Sampling recorded stocking states
+
+Use the checkpoint inventory to choose reproducible inputs for local skill
+tests. For example, this lists all recorded insertion failures with a
+compatible start state, then samples distinct checkpoint manifests for a
+smaller development run.
+
+```bash
+.venv/bin/python scripts/sample_stocking_states.py outputs/adjacent-insertion-v1 insert --failed
+.venv/bin/python scripts/sample_stocking_states.py outputs/adjacent-insertion-v1 insert --failed --count 3 --seed 17
+```
+
+The other sampling groups are `grasp-lift`, `transfer-seat`,
+`supported-release`, `side-registration`, `push-to-contact`, and `retreat`. Use
+`--terminal` to list stopped recovery states, including failures without a
+compatible start state in the archive. Each record
+links the native checkpoint and its manifest SHA-256 with the run that
+provides outcome evidence and the later skill entries reached by that
+carton. In a continuation, the parent checkpoint is
+included only when its manifest matches the recorded input digest.
+`followed_by_failure` and `followed_by_milestone` describe what happened later
+in that run. `unverified` means neither outcome is available in the entry
+archive. Interpret the terminal phase before assigning a failure to a skill.
+The failure filters match recorded execution phases for each group.
+
+Keep both the originating full episodes and zero-fresh-credit continuations
+in this development corpus. Compare policy variants from identical
+checkpoints and score measured stage reach separately from final retreat.
+Keep a fresh frozen-policy suite for end-to-end validation. A last-slot
+wall-guided insertion may use a distinct motion with the same support,
+placement, and retreat gates.
+
+For a native composed run with paired fingers, positive-wall packing and
+guarded withdrawal, pass `--plan-driven --guided-wall-entry` to `script`.
+Guided entry uses the same measured-neighbor lateral goal as final
+registration. The square phase reserves extra room for the measured corner,
+then checks that clearance survives unloading. The first carton uses the
+original entry path.
+
+The checkpoint probe can stop at a measured handoff with `--stop-after`.
+Use `seat` with `--transfer`, `release` with `--insert`, and
+`registration` or `backstop-staging` with `--insert-only`. Automatic
+registration uses a free-landing entry. For a native contact-dwell test,
+use `--withdrawal --stop-after=squared-contact` with a contact-refinement
+entry. A bounded backstop staging handoff carries its own evidence and can
+enter guarded refinement. Actual back contact and the squared dwell have
+separate fields. These standalone probes receive zero fresh credit.

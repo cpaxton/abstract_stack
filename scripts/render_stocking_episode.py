@@ -30,15 +30,55 @@ def worker(args):
         if hashlib.sha256((episode / name).read_bytes()).hexdigest() != digest:
             raise ValueError("Archived episode changed")
     summary = json.loads((episode / "summary.json").read_text())
-    model = mujoco.MjModel.from_xml_string((episode / "initial-scene/scene.xml").read_text())
-    views = retain_model_views(model)
-    data = mujoco.MjData(model)
-    data_views = retain_data_views(model, data)
-    with np.load(episode / "rollout_start.npz") as archive:
-        mujoco.mj_setState(model, data, archive["state"], int(archive["state_spec"]))
-    mujoco.mj_forward(model, data)
-    start = float(data.time)
+    continuation = inputs.get("continuation")
+    checkpoint_only = continuation and continuation.get("only")
+    if not checkpoint_only:
+        model = mujoco.MjModel.from_xml_string((episode / "initial-scene/scene.xml").read_text())
+        views = retain_model_views(model)
+        data = mujoco.MjData(model)
+        data_views = retain_data_views(model, data)
+        with np.load(episode / "rollout_start.npz") as archive:
+            mujoco.mj_setState(model, data, archive["state"], int(archive["state_spec"]))
+        mujoco.mj_forward(model, data)
+        start = float(data.time)
     events = summary["events"]
+    boundary = None
+    if continuation:
+        recovery = Path(continuation["path"])
+        for name, digest in continuation["sha256"].items():
+            if hashlib.sha256((recovery / name).read_bytes()).hexdigest() != digest:
+                raise ValueError("Archived continuation changed")
+        recovery_summary = json.loads((recovery / "summary.json").read_text())
+        if not continuation.get("only") and (
+            recovery_summary["failure"]
+            or not any(
+                e.get("supported_withdrawal", {}).get("release_retreat_verified")
+                for e in recovery_summary["events"]
+            )
+        ):
+            raise ValueError("Require verified release and retreat in the continuation")
+        with np.load(recovery / "continuation.npz") as archive:
+            boundary = archive["initial_state"]
+            recovery_controls = archive["controls"]
+            recovery_samples = archive["samples"]
+            recovery_terminal = archive["terminal_state"]
+        if continuation.get("only"):
+            from abstract_stack.checkpoints import load_checkpoint
+
+            reference = json.loads((recovery / "input_ref.json").read_text())
+            path = Path(reference["checkpoint"])
+            if (
+                hashlib.sha256((path / "manifest.json").read_bytes()).hexdigest()
+                != reference["sha256"]
+            ):
+                raise ValueError("Continuation checkpoint manifest changed")
+            restored = load_checkpoint(path)
+            if not np.array_equal(boundary, native_state(restored.model, restored.data)):
+                raise ValueError("Continuation trace differs from its retained checkpoint")
+            model, data = restored.model, restored.data
+            views = retain_model_views(model)
+            data_views = retain_data_views(model, data)
+            start = float(data.time)
     recorder = None
     matched = False
     with mujoco.Renderer(model, width=640, height=480) as renderer:
@@ -63,8 +103,8 @@ def worker(args):
         recorder = DualVideoRecorder(env, args.output / "videos", fps=args.fps)
         recorder.capture(phase="initial recorded state", product="", forces={})
         try:
-            with np.load(episode / "trace.npz") as archive:
-                controls, samples = archive["controls"], archive["samples"]
+
+            def replay(controls, samples, phases, label):
                 if controls.shape != (len(samples), model.nu):
                     raise ValueError("Missing per-physics-step controls/forces")
                 for control, row in zip(controls, samples, strict=True):
@@ -74,18 +114,40 @@ def worker(args):
                     if not np.isclose(data.time, row[0], rtol=0, atol=1e-8):
                         raise ValueError("Recorded trace clock differs from native replay")
                     phase = next(
-                        (e for e in reversed(events) if e["sim_time"] <= data.time + 1e-9), None
+                        (e for e in reversed(phases) if e["sim_time"] <= data.time + 1e-9), None
                     )
                     recorder.capture(
-                        phase="recorded " + (phase["phase"] if phase else "initial"),
+                        phase=label + (phase["phase"] if phase else "initial"),
                         product=phase["product"] if phase else "",
                         forces=dict(hand=float(row[7]), back=float(row[9])),
                     )
-            with np.load(episode / "rollout_terminal.npz") as archive:
-                matched = bool(np.array_equal(native_state(model, data), archive["state"]))
+
+            if not (continuation and continuation.get("only")):
+                with np.load(episode / "trace.npz") as archive:
+                    controls, samples = archive["controls"], archive["samples"]
+                    stop = len(samples)
+                    if boundary is not None:
+                        stop = int(np.searchsorted(samples[:, 0], boundary[0] + 1e-9, side="right"))
+                    replay(controls[:stop], samples[:stop], events, "recorded ")
+            final_summary = summary
+            if boundary is not None:
+                if not np.array_equal(native_state(model, data), boundary):
+                    raise ValueError("Original replay does not match the retained motion boundary")
+                replay(recovery_controls, recovery_samples, recovery_summary["events"], "recovery ")
+                matched = bool(np.array_equal(native_state(model, data), recovery_terminal))
+                final_summary = dict(
+                    summary,
+                    task_success=False,
+                    physical_success=False,
+                    failure=recovery_summary["failure"]
+                    or "Checkpoint recovery verified; replay has zero fresh credit",
+                )
+            else:
+                with np.load(episode / "rollout_terminal.npz") as archive:
+                    matched = bool(np.array_equal(native_state(model, data), archive["state"]))
             if not matched:
                 raise ValueError("Native actuator replay differs from recorded terminal state")
-            video = recorder.finish(summary)
+            video = recorder.finish(final_summary)
         finally:
             recorder.close()
     write(
@@ -96,6 +158,8 @@ def worker(args):
             simulated_seconds=float(data.time) - start,
             original_task_success=summary["task_success"],
             original_failure=summary["failure"],
+            checkpoint_boundary_bit_equal=True if boundary is not None else None,
+            continuation=continuation,
             replay_fresh_task_credit=0,
             render_native_state_unchanged=True,
             video=video,
@@ -107,6 +171,8 @@ def worker(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--episode", type=Path)
+    parser.add_argument("--continuation", type=Path)
+    parser.add_argument("--continuation-only", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--fps", type=int, default=15)
     parser.add_argument("--wall-seconds", type=float, default=180)
@@ -120,6 +186,8 @@ def main():
         return 0
     if args.episode is None:
         parser.error("Require an archived episode")
+    if args.continuation_only and args.continuation is None:
+        parser.error("--continuation-only requires --continuation")
     from abstract_stack.source_store import freeze_source
 
     root = Path(__file__).resolve().parents[1]
@@ -133,10 +201,27 @@ def main():
         "rollout_start.npz",
         "rollout_terminal.npz",
     ]
+    continuation = None
+    if args.continuation:
+        path = args.continuation.resolve()
+        continuation = dict(
+            path=str(path),
+            only=args.continuation_only,
+            sha256={
+                name: hashlib.sha256((path / name).read_bytes()).hexdigest()
+                for name in (
+                    "summary.json",
+                    "continuation.npz",
+                    "source_ref.json",
+                    "input_ref.json",
+                )
+            },
+        )
     write(
         args.output / "input_ref.json",
         dict(
             episode=str(args.episode),
+            continuation=continuation,
             sha256={
                 name: hashlib.sha256((args.episode / name).read_bytes()).hexdigest()
                 for name in names

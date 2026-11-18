@@ -8,7 +8,11 @@ free (x, y) base route, never a tracking or contact guarantee.
 from __future__ import annotations
 
 import numpy as np
-from emet.motion.base.space import ConfigurationSpace
+
+try:
+    from emet.motion.base.space import ConfigurationSpace
+except ImportError:  # pragma: no cover - the lightweight CI environment has no Emet
+    ConfigurationSpace = None
 
 
 class SceneOccupancyGrid:
@@ -120,7 +124,7 @@ class SceneOccupancyGrid:
         return self.resolution
 
 
-class BaseNavigationSpace(ConfigurationSpace):
+class BaseNavigationSpace(ConfigurationSpace if ConfigurationSpace is not None else object):
     """A 2D (x, y) configuration space over a ``SceneOccupancyGrid``.
 
     Compatible with ``emet`` planners: it exposes ``get_navigation_map``,
@@ -134,6 +138,11 @@ class BaseNavigationSpace(ConfigurationSpace):
     FOOTPRINT_RADIUS_M = 0.22
 
     def __init__(self, grid: SceneOccupancyGrid, footprint_radius: float = FOOTPRINT_RADIUS_M):
+        if ConfigurationSpace is None:
+            raise ImportError(
+                "BaseNavigationSpace requires the optional 'emet' dependency; "
+                "install the full development environment"
+            )
         super().__init__(
             2,
             np.array([grid.xmin, grid.ymin]),

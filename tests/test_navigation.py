@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 
+pytest.importorskip("emet.motion.base.space")
+
 from abstract_stack.assets import mabel_model_path
 from abstract_stack.config import load_scene_config
 from abstract_stack.env import ShelfStockingEnv

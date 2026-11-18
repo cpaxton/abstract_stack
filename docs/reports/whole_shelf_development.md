@@ -286,3 +286,414 @@ first predicted a 2.30 mm overlap between a ring-finger collision geometry
 and the already-stocked carton eight on the first unload tick. This is a
 withdrawal-planning case, distinct from a loaded push stall. The opt-in
 checkpoint catalog now records both.
+
+For the carton-three exit, wall packing now admits a narrowly scoped distal
+finger contact with a named stocked neighbor in both native forecast and live
+withdrawal. The scratch admission is limited to 3 mm predicted overlap.
+The native monitor still guards loads and tip/drop on every step, and the
+withdrawal aborts if a named neighbor translates more than 2 mm from its
+entry position. Final placement and release gates still apply. Shoulder,
+fixture, self and unnamed contacts retain their existing checks.
+
+Withdrawal tests smaller measured-load corrections before rejecting a
+compensated command. A sustained measured square dwell can also advance to
+a full withdrawal forecast before the tighter yaw reference destabilizes
+contact. Neither staging nor a forecast earns task credit.
+
+The revised carton-three checkpoint trial
+`ten-third-neighbor-contact-02` passed native release and full retreat, ending
+at -0.00039 degrees yaw with zero incidents and 5.60 N peak summed robot/product
+normal force during withdrawal. This trial combines early forecast handoff,
+bounded compensation search and named-neighbor admission, so it does not
+isolate which change was necessary. It earns zero fresh credit. The fresh
+ten-carton validation is `tight-ten-22`.
+
+Fresh trial `tight-ten-22` picked and seated two cartons. The second triggered
+breakaway and then advanced only 0.22 mm over three seconds, aborting 69 mm
+short of the backstop. It captured both loaded-stall and exhausted-recovery
+entries. The next controller can try a second bounded preload step at 4.5 N
+before aborting. `ten-second-breakaway-02` completed full withdrawal from the
+saved second-carton entry without triggering either preload step. Fresh trial
+`tight-ten-23` tests the combined sequence and recovery behavior.
+
+### Four-carton finishing push
+
+The four-carton episode `tight-four-13` picked and seated all four and
+completed three retreats. The fourth carton satisfied the environment's
+placement check but did not reach the backstop dwell required by this
+controller. Its push ended about 25 mm short, before final withdrawal.
+
+The updated selected-finger push can enter a finishing phase within 35 mm of
+the backstop. It uses the same measured progress window and bounded preload
+steps as the longer insertion, followed by the same contact and withdrawal
+checks. The historical fourth-carton entry used a wrist reference outside the
+current reserved range. Its first recovery attempt failed during controller
+initialization. The retry explicitly replans the tool from the retained native
+state and records that adoption in the continuation report.
+
+The longest ten-carton recording is `tight-ten-21` (456.68 s of actuator
+replay). It shows three placements and two completed retreats. The synchronized
+[third-person](../../outputs/adjacent-insertion-v1/tight-ten-21-video-gpu/videos/third_person.mp4)
+and [first-person](../../outputs/adjacent-insertion-v1/tight-ten-21-video-gpu/videos/first_person.mp4)
+videos reproduce the terminal physics state bit for bit.
+
+The [four-carton third-person replay](../../outputs/adjacent-insertion-v1/tight-four-13-video-gpu/videos/third_person.mp4)
+and [first-person replay](../../outputs/adjacent-insertion-v1/tight-four-13-video-gpu/videos/first_person.mp4)
+match the original terminal physics state bit for bit. They show three complete
+stocking cycles and the fourth push failure.
+
+Continuation `fourth-finish-push-06` from the retained fourth-carton push
+entry reached the backstop and verified full retreat. Final yaw was -0.0137
+degrees with no reported tip/drop incidents. The push and contact refinement
+used the measured neighbor envelope for the same lateral goal. Named
+carton-face and distal finger contact were admitted under the native force
+guards, with a 2 mm neighbor displacement limit during the push. This
+continuation earns zero fresh credit. Trial `tight-four-15` tests the complete
+four-carton sequence from reset.
+
+### Verified four-carton recovery replay
+
+The combined replay follows `tight-four-13` up to the exact native state
+before the fourth push, then replays `fourth-finish-push-06`. Both the switch
+state and terminal integration state match bit for bit. The fourth retreat
+passed and all four cartons satisfy the native final placement conditions.
+This is a continuous 381.34-second recorded trajectory with a controller
+switch at the retained boundary. It earns zero fresh episode credit.
+
+- [Third person](../../outputs/adjacent-insertion-v1/four-carton-recovered-video/videos/third_person.mp4)
+- [First person](../../outputs/adjacent-insertion-v1/four-carton-recovered-video/videos/first_person.mp4)
+- [Replay verification](../../outputs/adjacent-insertion-v1/four-carton-recovered-video/result.json)
+
+A separate fresh attempt, `tight-four-15`, failed at the first carton's
+contact refinement. The recovered replay does not replace that failure.
+
+### Four-carton regression checkpoints
+
+| Saved state relative to `outputs/adjacent-insertion-v1/` | Diagnosis | Focused next motion |
+|---|---|---|
+| `tight-four-13/episode/skill-entries/022-carton_0-contact_finish/checkpoint` | Fourth carton stalled about 25 mm short of the backstop | Check measured neighbor registration, final push and retreat. Recovered in `fourth-finish-push-06`. |
+| `tight-four-15/episode/skill-entries/005-carton_2-front_insertion/checkpoint` | First carton reached placement but refinement forecasts lost push contact | Replay from the same released landing and isolate contact refinement and unloaded clear. |
+| `four-first-regression-low-force-01/episode/skill-entries/003-carton_2-motion_failure/checkpoint` | Reduced push force reached release planning, but no exit forecast passed | Diagnose contact still present during unload and preserved geometry limits. |
+| `tight-four-16/episode/skill-entries/008-carton_2-motion_failure/checkpoint` | Unloaded clear withdrew straight, then the final lift predicted 2.06 mm of torso to hand-tower overlap | Use `--unloaded-clear` to compare straight-then-lift and simultaneous retreat/lift from the exact stopped state. |
+
+Use `--insert-only --continue-after-insert 1 --record-skill-starts` to finish
+a retained insertion, save its verified milestone, and attempt one more
+carton in the same native state. The first ten-carton probe of this composition
+is `ten-chain-three-to-four-01`, starting from the third-carton released entry
+of `tight-ten-21`. The original fresh-run outcome remains unchanged.
+
+The exact first-carton stopped state from `tight-four-16` reproduced the
+torso/hand-tower rejection with both original clear paths. A third candidate
+retracted 35 mm less while lifting. `four-first-clear-exact-02` verified live
+retreat after the forecast and checked that the collision geometry of the
+whole hand was at least 10 mm outside the shelf front. The pose and support
+checks still apply. `tight-four-17` tests the change in a fresh sequence.
+
+The ten-carton continuation `ten-chain-three-to-four-01` saved a verified
+three-carton milestone, picked and seated carton four, then timed out during
+front squaring. `ten-chain-four-finish-01` resumed at its saved released
+entry, verified retreat, and saved the four-carton milestone with six
+cartons still in inventory. `ten-chain-five-01` resumes that milestone.
+These are checkpoint transitions and earn zero fresh episode credit.
+
+The ten-carton scene's fourth recovery is available in synchronized
+[third-person](../../outputs/adjacent-insertion-v1/ten-chain-four-video-02/videos/third_person.mp4)
+and [first-person](../../outputs/adjacent-insertion-v1/ten-chain-four-video-02/videos/first_person.mp4)
+video. This 45.27-second segment uses the saved model and starts at the
+released fourth carton. Both the initial boundary and terminal native state
+match the saved evidence exactly. The first render attempt rejected the
+original episode XML's model signature. The successful retry uses the
+continuation checkpoint binary and verifies exact native replay.
+
+Carton five was picked, placed, and advanced to withdrawal planning before
+the combined continuation timed out. Its latest valid test state is
+`ten-chain-five-01/episode/skill-entries/010-carton_5-withdrawal_planning/checkpoint`.
+`ten-chain-five-exit-01` resumes there and revalidates contact before exit.
+
+### Live-guarded exit rollout
+
+`ten-chain-five-exit-01` resumed the fifth carton's withdrawal-planning
+checkpoint, verified retreat, and saved a five-carton milestone. Five
+unstocked cartons remain. The following development rollout uses
+`--live-guarded-withdrawal` to execute the ordinary loaded exit once, without
+a full native lookahead. It still requires verified entry contact and checks
+the commanded arm and hand geometry, native forces, neighbor displacement,
+support, final placement and retreat. The already-unloaded branch keeps its
+checked path alternatives. Successful earlier forecasts and trials retain
+their original evidence.
+
+```sh
+python scripts/probe_front_release.py \
+  --checkpoint outputs/adjacent-insertion-v1/ten-chain-five-exit-01/episode/skill-entries/003-carton_5-stocking_milestone/checkpoint \
+  --output outputs/ten-live-guarded-from-five --next-cartons 5 \
+  --live-guarded-withdrawal --record-skill-starts \
+  --control-config configs/controllers/adjacent_insertion.json --wall-seconds 900
+```
+
+This is a checkpoint continuation and earns zero fresh credit. Compare force,
+displacement and stage outcomes before drawing conclusions about speed.
+
+The first live-guard rollout exposed a checkpoint-resume issue before pickup.
+The grasp hand inherited the saved pusher spread instead of the recorded
+grasp spread. Restoring the grasp references after constructing the hand
+cleared that issue. `ten-chain-live-guards-from-five-04` picked and seated
+carton six, then stopped before withdrawal. It advanced 0.23 mm during the
+last three seconds at a 4.5 N push target. The terminal native wrench shows
+about 3.1 N of opposing X reaction from carton five and 1.1 N from the shelf
+board, so this case is a corner jam against a stocked neighbor. It has
+retained post-squaring, loaded-stall, and terminal-failure checkpoints.
+
+A forward push with a 4 mm lateral reference offset did not provide a
+measured 4 mm of clearance and still jammed. The next focused probe
+`ten-six-side-offset-01` uses the exposed-side push before forward insertion
+to move the released carton 4 mm away from the occupied side. Until a
+rollout reaches live withdrawal, it provides no evidence about exit speed.
+
+The exploratory live exit uses a 1 degree release yaw window and retains the
+original 0.15 degree dwell as a separate benchmark indicator. The coarse
+loaded entry additionally requires current backstop contact, upright support,
+low measured carton velocity, and placement for every completed carton. It
+does not award the strict backstop dwell credit. Force, displacement, native
+collision, tip/drop, and release checks remain active.
+
+In matched fifth-carton checkpoint probes, strict live exit stopped at
+-0.1675 degrees after unloading. Full forecast and exit took 85.02 s wall.
+Exploratory live exit passed in 24.67 s wall, finished at 0.3938 degrees and
+saved its milestone. The strict yaw indicator was false. Preserving the
+open-side offset through front squaring also got carton six past the
+corner jam. Its exit is evaluated separately from the saved refinement state.
+
+`ten-six-coarse-exit-01` completed the sixth retreat with no recorded
+incidents and -0.2817 degrees final yaw. It saved a six-carton milestone
+with four still in inventory. Its strict yaw indicator was false.
+`ten-chain-live-guards-from-six-01` starts from that milestone and attempts
+the four remaining cartons under the same exploratory release rules.
+
+Carton six clips, replayed from exact native states:
+
+- [Corner jam, third person](../../outputs/adjacent-insertion-v1/ten-six-jam-video/videos/third_person.mp4)
+  and [first person](../../outputs/adjacent-insertion-v1/ten-six-jam-video/videos/first_person.mp4).
+  The forward attempt stalls about 69 mm short of the backstop.
+- [Recovered exit, third person](../../outputs/adjacent-insertion-v1/ten-six-recovered-exit-video/videos/third_person.mp4)
+  and [first person](../../outputs/adjacent-insertion-v1/ten-six-recovered-exit-video/videos/first_person.mp4).
+  This clip starts from the recovered contact-refinement checkpoint and shows
+  live release and retreat. Both clips match their terminal native states.
+
+The follow-on `ten-chain-live-guards-from-six-01` completed carton seven and
+saved a milestone. It stopped on carton eight when the stationary opening's
+coupled geometry check rejected the finger sweep. That is a distinct front
+handoff issue.
+
+### Base access, guided entry and the last slot
+
+By carton eight, the base already moved roughly 0.48 m laterally to the
+inventory approach and 0.40 m back with the load. Both moves completed.
+The failure was a predicted ring-finger sweep into the side panel during
+stationary grasp opening. The saved front-release entry isolates a bounded
+opening retry that can hold the wall-side digit at its last admitted target
+while opening the other fingers. The next departure must still pass geometry
+and the carton must remain supported.
+
+Use the measured neighbor as a guide only when the contact normal steers the
+carton toward the target rather than opposing forward motion. A candidate
+angled approach should leave room for the leading corner, use the measured
+wrench and displacement to distinguish guiding from wedging, and square at
+the desired depth before retreat. For the final slot, compare a precision
+entry with a wall-guided entry and check the base and tool exit as part of
+the choice. These are candidate policies; the current sixth-carton recovery
+used open-side clearance through squaring and advance.
+
+The [six-carton third-person edit](../../outputs/adjacent-insertion-v1/six-carton-edit/third_person.mp4)
+and [first-person edit](../../outputs/adjacent-insertion-v1/six-carton-edit/first_person.mp4)
+run 1:46 at 3–6× speed. They show the first two cycles from the original run,
+then labeled cuts to the verified saved insertion or exit segments for
+cartons three through six. Missing portions of timed-out continuations are
+omitted. Each input clip was checked against its recorded terminal integration
+state. The edit earns zero fresh credit.
+
+`ten-eight-opening-01` cleared the wall-side opening failure by holding the
+ring digit at its last admitted reference. `ten-eight-forward-square-01`
+then squared farther forward but found the projected insertion still placed
+the active carton about 5.3 mm into its neighbor. `ten-eight-open-side-01`
+tests a more lateral landing before final advance.
+
+The farther-offside landing trial `ten-eight-open-side-01` moved the
+wrapping hand too close to the side panel and failed opening again. That
+landing offset is not retained in the default live-guarded policy.
+`ten-eight-side-before-advance-01` instead starts after the previously
+verified opening and tries the exposed-side shift with an empty hand.
+
+Two angled-entry probes started from the identical post-square state
+`ten-eight-forward-square-01/episode/skill-entries/002-carton_2-front_squaring_complete/checkpoint`.
+The -3 degree pad-plane command advanced carton eight by 7.1 mm and moved it
+3.1 mm toward the occupied side. The +3 degree command advanced 4.8 mm and
+moved it only 0.15 mm toward the open side. Both stopped on projected
+carton-to-neighbor overlap (3.63 and 3.34 mm respectively) and saved terminal
+failure fixtures. Neither angle established a successful guiding contact.
+For this shelf, the remaining sequencing problem is to produce measured
+lateral separation before advancing the leading corner into the occupied
+row. Angle alone did not create enough separation from this entry state.
+
+The next probes tested lateral clearance as a separate motion. From the
+verified front release, moving the base 80 mm or 140 mm closer to the shelf
+still produced no checked exposed-side approach. Both stopped before
+touching the carton. Starting the same side push after forward squaring
+reached only a bounded staging pose, leaving a 559 mm predicted tool miss.
+The carton stayed at the post-square pose.
+
+Landing 6 or 8 mm farther toward the open side reached measured lateral
+positions of -254.63 and -256.43 mm, respectively. Both stationary openings
+failed the coupled hand sweep, with predicted ring-finger penetration
+of 2.44 and 2.11 mm into the side panel. Holding the implicated finger
+commands was insufficient to clear the whole motion. These are geometry
+rejections before execution of the rejected commands. All five probes
+recorded zero observer incidents and preserved terminal failure fixtures
+under `outputs/adjacent-insertion-v1/ten-eight-*`.
+
+The handoff to guided advance should require verified shelf support, an
+unloaded hand with a checked exit, and measured clearance for the leading
+corner along the first forward segment. The clearance check should use the
+current carton and neighbor footprints so it applies to other carton
+dimensions. This shelf still needs a tool pose that can achieve those
+conditions together. The seven-carton continuation remains the longest
+verified chain.
+
+### Fresh live-guarded run and diagonal front push
+
+`tight-ten-fresh-live-01` ran from the initial ten-carton scene (seed 0)
+with the command in Reproduction and validation plus
+`--live-guarded-withdrawal`. It picked and placed two cartons, verified
+final position and retreat for one, and recorded zero incidents. Carton two
+(`carton_8`) squared at the shelf front, but the final pusher search exhausted
+its base/posture candidates. The fixed-lateral advance projected about 7.1 mm
+of overlap with `carton_9`. The failure fixture is
+`episode/skill-entries/020-carton_8-motion_failure/checkpoint` under that run.
+The scored rollout advanced 287.55 s of simulation in 256.64 s of wall
+time. The continuous [third-person replay](../../outputs/adjacent-insertion-v1/tight-ten-fresh-live-video-02/videos/third_person.mp4)
+and [first-person replay](../../outputs/adjacent-insertion-v1/tight-ten-fresh-live-video-02/videos/first_person.mp4)
+are sampled at 3 fps. Replay matched the recorded terminal integration
+state bit for bit.
+
+`ten-eight-diagonal-01` is an independent, zero-fresh-credit probe from the
+saved post-square state for the eighth carton. It uses the existing paired
+front-face pusher with `--insert-only --guided-entry-deg=3 --diagonal-entry`
+and live-guarded withdrawal. The probe limits commanded forward speed to
+4 mm/s while seeking 6 mm of measured lateral travel toward the open side.
+It moved 6.00 mm forward and 0.84 mm sideways before the compensated geometry
+check projected 3.06 mm of active-to-neighbor overlap and stopped motion.
+The measured lateral gate never passed and there were zero observer incidents.
+For samples with forward force magnitude above 0.3 N, the median forward
+and open-side force components were 1.32 N and 0.28 N.
+Together these trials isolate lateral registration ahead of forward insertion
+as a problem at both ends of the row.
+
+### Insertion checkpoint regression
+
+`insert-regression-01/cases.json` freezes six replayable insertion starts
+from failures at positions two, six, and eight in the ten-carton order. It
+includes cases from the fresh seed-0 episode and the sequential recovery
+chain. The earlier and later boundaries of a failing insertion are distinct
+inputs. The comparison uses the same guided diagonal probe flags across all
+six, with a 90 s wall budget per case and per-case source snapshots. None
+earns fresh task credit.
+
+The two sixth-carton inputs show why both boundaries matter. From the released front-insertion
+entry the probe squared and advanced, but timed out 14.7 mm before the
+nominal final center. From the saved post-square state it reached bounded
+backstop staging, verified native refinement and retreat, and saved a
+six-carton milestone. The 6 mm lateral target was never reached on that
+successful case. The diagonal motion cannot be credited with establishing
+the intended clearance.
+
+The separate `fresh-second-clearance-before-square-01` probe computed a
+lateral target from the measured neighbor footprint before square/advance.
+The carton briefly crossed that target (58.90 mm versus a 58.94 mm maximum
+world Y), then drifted to 66.55 mm and finished at 1.39 degrees yaw. It
+timed out at the intermediate depth despite retaining shelf support. The
+clearance gate checks measured pose through the dwell and again after
+unloading, so a transient crossing cannot pass the handoff.
+
+| Carton in order | Earlier insertion entry | Post-square entry |
+|---|---|---|
+| 2 | Reached forward push, predicted 3.03 mm neighbor overlap | Reached forward push, predicted 3.05 mm neighbor overlap |
+| 6 | Reached forward push, contact dwell timed out | Refined contact and verified retreat |
+| 8 | Reached forward push, predicted 3.06 mm neighbor overlap | Reached forward push, predicted 3.06 mm neighbor overlap |
+
+All six reached the forward push. One verified retreat and five retained
+terminal failure fixtures, with zero observer incidents across the batch.
+The turns that started at the earlier insertion entry all reached the
+post-square boundary, so that handoff remains reachable under the comparison
+policy even when the subsequent motion fails.
+
+`fresh-second-clearance-before-square-02` removed the pad-plane angle after
+the lateral target was first observed. It ended at -0.41 degrees yaw and
+71.03 mm world Y. Relative to the first trial, squaring improved and lateral
+registration worsened. The measured clearance and squaring gates never
+held together through dwell. Both variants leave an exact stopped state
+for testing a separate sideways correction before any further advance.
+
+The exposed-side retry from the fresh second carton
+(`fresh-second-exposed-side-01`) found no checked approach after the 140 mm
+base offset. A separate 8 mm off-side landing, `fresh-second-open-side-landing-01`,
+held the carton on the open side but timed out in the subsequent squaring push.
+
+`fresh-second-clearance-before-square-03` uses the current rotated footprint
+to choose between steering toward open space and squaring. It can return
+to steering if the corner loses clearance. The same start state passed
+the square/unload handoff with zero hand load and 1.77 N shelf support,
+reached the backstop refinement entry, then verified the existing guarded
+withdrawal. Strict contact refinement exhausted its release-goal search,
+so the withdrawal used the existing coarse loaded exit after checking
+placement. Final yaw was -0.37 degrees. The episode saved its two-carton
+milestone, recorded zero incidents, and earns zero fresh credit.
+
+The same footprint policy passed the earlier insertion entries for the
+sixth and eighth cartons in `insert-clearance-regression-01`. Together with
+the second-carton probe, all three previously failing early entries verified
+retreat without observer incidents. The eighth run passed the square/unload
+handoff and saved an eight-carton checkpoint milestone. Its end yaw was
+0.149 degrees. The strict contact optimizer exhausted its search and the
+existing coarse loaded exit completed the retreat. The final yaw alone
+does not establish a strict contact dwell.
+
+#### Composed plan and standalone checks
+
+`plan-from-first-milestone-01` restored the fresh run's first milestone and
+executed carton two through the composed plan, starting at grasp. It verified
+all five handoffs and saved a two-carton milestone. The run used
+`--plan-driven --guided-wall-entry` and recorded zero incidents. It is a
+checkpoint continuation.
+
+`skill-seams-01` exercises the same controllers from retained boundaries.
+The push-only replay admitted near-backstop staging for carton two, with its
+direct back-contact flag false. The standalone squared-contact replay on
+carton six measured 0.242 s of strict dwell against the 0.12 s requirement.
+Retreat for carton eight, supported release for carton eight, transfer/seat
+for carton two, and side registration for carton one passed their respective
+native gates. The side registration moved 47.61 mm. An isolated grasp/lift
+probe passed from a sampled grasp entry that had led to an earlier close
+failure on carton six. Each completed probe recorded zero incidents.
+
+`plan-from-eight-milestone-01` reached the row-packing check for carton nine
+after a checked unloaded base move. The last placed carton's measured lower
+edge was -280.37 mm and the shelf wall was -375 mm, leaving 94.63 mm open for
+two 50 mm cartons. No ninth grasp was attempted. There was 7.47 mm of
+measured space on the occupied side of carton eight, making lateral
+rearrangement a candidate before retrying. The unmodified reserve check
+requires at least 100 mm open; its failure event now reports the measured
+shortfall. The run preserved all eight stocked cartons and zero incidents.
+
+The repeat `plan-from-eight-reserve-evidence-01` logged a 5.37 mm
+open-span shortfall and retained its terminal checkpoint. The planner
+reported the same stop before the ninth grasp.
+
+### 20 mm whole-row fixture
+
+`configs/scenes/tight_ten_cartons_20mm.json` sizes the clear shelf span as
+ten 50 mm cartons plus 20 mm of total free space. The 520 mm fixture keeps
+the positive wall at +135 mm and extends the free end 10 mm. With a fixed
+copy of the observed eight-carton arrangement, that yields 104.63 mm open
+for the final two cartons. It specifies a new scene, so that calculation is
+a geometric comparison and the actual run must measure its own open span.
+Nominal targets divide the free-space budget across the eleven carton and
+wall gaps (1.82 mm each). The 510 mm scene remains the 10 mm benchmark.

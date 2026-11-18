@@ -46,5 +46,8 @@ class DenseStockingScript(StockingScript):
 
     def _one_box(self, selected=None):
         self._move("clear_high", [-0.30, -0.20, 1.35])
+        if self.config.plan_driven:
+            self._execute_planned_box(selected)
+            return
         grip = self._pick_and_place_front(selected)
         self._release_and_insert_front(grip)

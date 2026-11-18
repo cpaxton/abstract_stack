@@ -176,6 +176,56 @@ class ContactMonitor:
         self.phase = "withdrawal"
         self.withdrawal_started_s = float(data.time)
 
+    def begin_coarse_loaded_withdrawal(self, data):
+        """Development entry gate for supported contact without precision dwell."""
+        failure = self.sample(data, elapsed=0)
+        rotation = data.xmat[self.active].reshape(3, 3)
+        yaw = np.arctan2(rotation[1, 0], rotation[0, 0])
+        velocity = np.empty(6)
+        mujoco.mj_objectVelocity(
+            self.model, data, mujoco.mjtObj.mjOBJ_BODY, self.active, velocity, 0
+        )
+        if (
+            self.phase != "push"
+            or failure
+            or self.last["back_N"] < 0.4
+            or self.last["hand_N"] <= 0.2
+            or self.last["support_N"] <= 0.2
+            or abs(yaw) > np.radians(1)
+            or rotation[2, 2] < np.cos(np.radians(5))
+            or np.linalg.norm(velocity[3:]) >= 0.01
+            or np.linalg.norm(velocity[:3]) >= 0.05
+        ):
+            raise ValueError("Coarse exit requires stationary supported backstop contact")
+        self.phase = "withdrawal"
+        self.withdrawal_started_s = float(data.time)
+
+    def begin_unloaded_withdrawal(self, data):
+        """Admit a square, stationary, supported carton with an unloaded robot."""
+        failure = self.sample(data, elapsed=0)
+        rotation = data.xmat[self.active].reshape(3, 3)
+        yaw = np.arctan2(rotation[1, 0], rotation[0, 0])
+        velocity = np.empty(6)
+        mujoco.mj_objectVelocity(
+            self.model, data, mujoco.mjtObj.mjOBJ_BODY, self.active, velocity, 0
+        )
+        if (
+            self.phase != "push"
+            or failure
+            or self.last["robot_product_N"] > 0.2
+            or self.last["support_N"] <= 0.2
+            or self.support_loss
+            or abs(yaw) > np.radians(0.15)
+            or rotation[2, 2] < np.cos(np.radians(5))
+            or np.linalg.norm(velocity[3:]) >= 0.01
+            or np.linalg.norm(velocity[:3]) >= 0.05
+        ):
+            raise ValueError(
+                "Unloaded clear requires stationary squared support and low hand force"
+            )
+        self.phase = "withdrawal"
+        self.withdrawal_started_s = float(data.time)
+
     def state_dict(self):
         """Explicit continuation memory; incidents and timers must not reset."""
         return copy.deepcopy(

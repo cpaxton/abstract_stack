@@ -96,6 +96,7 @@ class StageObserver:
                 "pick": any(e.get("verified_lift", False) for e in own),
                 "place": any(e.get("verified_shelf_support", False) for e in own),
                 "final_position": bool(final.get("placement_conditions", False))
+                and final.get("strict_release_yaw_verified", True)
                 and any(e.get("back_contact_verified", False) for e in own),
                 "retreat": bool(retreat.get("verified", False)),
                 "retreat_evidence": retreat or None,

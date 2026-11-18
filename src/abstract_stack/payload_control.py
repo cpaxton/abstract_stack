@@ -29,7 +29,7 @@ def measured_payload_load(script):
     return result
 
 
-def guard_payload_targets(script, targets, *, intended_contact=None):
+def guard_payload_targets(script, targets, *, intended_contact=None, admit_contact=None):
     """Check final compensated arm and proposed fingers together before stepping."""
     from abstract_stack.interactions import InteractionFailure
 
@@ -56,6 +56,7 @@ def guard_payload_targets(script, targets, *, intended_contact=None):
         0,
         script.product.name if intended_contact else None,
         targets=fingers,
+        **({"admit_contact": admit_contact} if admit_contact is not None else {}),
     )
     if errors:
         script.events[-1]["applied_tracking_geometry_rejection"] = errors

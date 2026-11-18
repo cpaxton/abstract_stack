@@ -238,6 +238,22 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             ):
                 event.update(native_dwell=dwell.report(), verified_pre_release_goal=True)
                 return
+            if (
+                config.ungrasped_insertion
+                and paired
+                and yaw_target_deg == 0
+                and normal_target_N is None
+                and dwell.verified
+                and dwell.held_seconds >= 0.4
+                and abs(lateral_reference - data.xpos[monitor.active, 1]) <= 0.001
+            ):
+                event.update(
+                    native_dwell=dwell.report(),
+                    verified_pre_release_goal=False,
+                    decision="sustained_square_staging_then_full_release_replan",
+                    fresh_task_credit=0,
+                )
+                return
     event["native_dwell"] = dwell.report()
     if (
         dwell.verified

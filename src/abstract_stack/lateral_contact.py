@@ -191,10 +191,11 @@ class LateralStockingScript(DenseStockingScript):
         if self.config.ungrasped_insertion and self.config.base_reposition:
             base_y = float(env.data.body("mabel_chassis").xpos[1])
             dy = float(precontact[1] + 0.12 - base_y)
-            if abs(dy) > 0.03:
-                if abs(dy) > 0.25:
+            dx = getattr(self, "side_base_dx", 0.0)
+            if abs(dy) > 0.03 or dx:
+                if np.hypot(dx, dy) > 0.25:
                     raise InteractionFailure("lateral_plan: workspace shift exceeds bounded search")
-                self._move_base([0, dy], reason="lateral_contact_workspace")
+                self._move_base([dx, dy], reason="lateral_contact_workspace")
                 self._stage("lateral_plan")
                 self.events[-1]["candidates"] = candidates
         wrists = (0.2, 0.0) if self.config.ungrasped_insertion else (0.2, 0.4, 0.0, 0.6)

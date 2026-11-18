@@ -136,9 +136,24 @@ def _parser():
                 help="Experimental two-fingertip squaring surface for released insertion",
             )
             sub.add_argument(
+                "--live-guarded-withdrawal",
+                action="store_true",
+                help="Development rollout with live checked exits instead of full exit forecasts",
+            )
+            sub.add_argument(
                 "--wall-packing",
                 action="store_true",
                 help="Fill a fresh dense row from the positive wall inward",
+            )
+            sub.add_argument(
+                "--guided-wall-entry",
+                action="store_true",
+                help="Use measured corner clearance during positive-wall row insertion",
+            )
+            sub.add_argument(
+                "--plan-driven",
+                action="store_true",
+                help="Compose the per-carton sequence through the task-plan skill library",
             )
             sub.add_argument(
                 "--payload-wrist-compensation",
@@ -446,6 +461,9 @@ def main(argv=None):
                         payload_wrist_compensation=args.payload_wrist_compensation,
                         paired_finger_insertion=args.paired_finger_insertion,
                         wall_packing=args.wall_packing,
+                        live_guarded_withdrawal=args.live_guarded_withdrawal,
+                        plan_driven=args.plan_driven,
+                        guided_wall_entry=args.guided_wall_entry,
                         record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,
