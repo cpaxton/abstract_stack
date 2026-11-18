@@ -26,7 +26,7 @@ async function open(page: Page) {
 test("connects, renders the robot twin and strips the token from the URL", async ({ page }) => {
   await open(page);
   expect(page.url()).not.toContain("token=");
-  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.locator(".twin-layer canvas")).toBeVisible();
   await page.screenshot({ path: `test-results/ready-${test.info().project.name}.png` });
 });
 
@@ -73,4 +73,26 @@ test("touch layout shows joysticks when engaged", async ({ page }, info) => {
   await expect(page.getByRole("status")).toContainText("Engaged");
   await expect(page.locator(".joystick")).toHaveCount(2);
   await page.screenshot({ path: "test-results/engaged-phone.png" });
+});
+
+test("head camera streams both stereo eyes", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "same stream on all devices");
+  await open(page);
+  await page.getByRole("radio", { name: "Camera" }).click();
+  await page.getByRole("radio", { name: "Both" }).click();
+  const pairs = () =>
+    page.evaluate(() =>
+      (window as unknown as { __teleop: { videoPairs: () => number } }).__teleop.videoPairs(),
+    );
+  await expect.poll(pairs).toBeGreaterThan(5);
+  const before = await pairs();
+  await page.waitForTimeout(2000);
+  // The host sends ~20 pairs/s; a CPU-rendered headless page decodes fewer.
+  expect((await pairs()) - before).toBeGreaterThan(5);
+  const eyes = page.locator(".camera-layer.main canvas");
+  await expect(eyes).toHaveCount(2);
+  for (const eye of await eyes.all()) {
+    expect(await eye.evaluate((c: HTMLCanvasElement) => c.width)).toBe(640);
+  }
+  await page.screenshot({ path: "test-results/camera-desktop.png" });
 });

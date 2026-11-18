@@ -116,10 +116,21 @@ def _parser():
                 "--web-dir", type=Path, help="Built web client (default: <checkout>/web/dist)"
             )
             sub.add_argument(
+                "--no-video", action="store_true", help="Disable head-camera video streaming"
+            )
+            sub.add_argument(
+                "--video-fps", type=float, default=20.0, help="Stereo pairs per second"
+            )
+            sub.add_argument(
+                "--video-size", default="640x480", help="Per-eye size WIDTHxHEIGHT (4:3 native)"
+            )
+            sub.add_argument("--video-quality", type=int, default=80, help="JPEG quality 30-95")
+            sub.add_argument(
                 "--face-budget",
-                type=_positive_int,
-                default=800,
-                help="Maximum faces per visual mesh in the browser preview",
+                type=int,
+                default=0,
+                help="Simplify browser-preview meshes to at most this many faces each "
+                "(default 0: full resolution)",
             )
         if command == "build-scene":
             sub.add_argument("--output-dir", type=Path, default=Path("outputs/scene"))
@@ -280,6 +291,8 @@ def _simulate(env, args):
 def _teleop(env, args):
     import logging
 
+    if args.face_budget < 0:
+        raise ValueError("--face-budget must be 0 (full resolution) or positive")
     if not 0.02 <= args.input_timeout <= 2.0:
         raise ValueError("--input-timeout must be between 0.02 and 2.0 seconds")
     try:
@@ -290,12 +303,35 @@ def _teleop(env, args):
             f"web teleop needs the 'teleop' extra ({error.name} missing): uv sync --extra teleop"
         ) from error
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s")
+    video = None
+    if not args.no_video:
+        from abstract_stack.web_teleop.video import StereoVideo
+
+        try:
+            width, height = (int(v) for v in args.video_size.lower().split("x"))
+        except ValueError as error:
+            raise ValueError("--video-size must look like 640x480") from error
+        if not 30 <= args.video_quality <= 95:
+            raise ValueError("--video-quality must be between 30 and 95")
+        cutaway = {}
+        if env.config.environment == "small_house":
+            from abstract_stack.house import CUTAWAY_CAMERAS, CUTAWAY_GROUP
+
+            cutaway = {"cutaway_cameras": CUTAWAY_CAMERAS, "cutaway_group": CUTAWAY_GROUP}
+        video = StereoVideo(
+            env.model,
+            width=width,
+            height=height,
+            fps=args.video_fps,
+            quality=args.video_quality,
+            **cutaway,
+        )
     web_dir = args.web_dir or Path(__file__).resolve().parents[2] / "web" / "dist"
     if not web_dir.is_dir():
         print(f"Web client not built at {web_dir}; serving the API only.", flush=True)
     token = None if args.insecure_no_token else (args.token or generate_token())
     serve(
-        TeleopCore(env, config=CoreConfig(input_timeout_s=args.input_timeout)),
+        TeleopCore(env, config=CoreConfig(input_timeout_s=args.input_timeout), video=video),
         host=args.host,
         port=args.port,
         token=token,

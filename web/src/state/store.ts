@@ -5,6 +5,8 @@ import type { HelloAck, Role, Side, Status } from "../net/protocol";
 export type GizmoMode = "translate" | "rotate";
 export type CameraPreset = "operator" | "side" | "top" | "front";
 export type Quality = "high" | "low";
+export type MainView = "twin" | "camera";
+export type Eyes = "left" | "right" | "both";
 
 const initialQuality = (): Quality => {
   if (typeof window === "undefined") return "high";
@@ -34,6 +36,11 @@ interface UiState {
   panelOpen: boolean;
   /** Render quality; drops to "low" automatically when the frame rate declines. */
   quality: Quality;
+  /** What fills the screen; the other view shows as picture-in-picture. */
+  mainView: MainView;
+  eyes: Eyes;
+  videoAvailable: boolean;
+  pipVisible: boolean;
   helpOpen: boolean;
   toasts: Toast[];
   /** Mirrors of intent values shown by sliders (updated at ≤ 15 Hz). */
@@ -61,6 +68,10 @@ export const useUi = create<UiState>((set, get) => ({
   panelOpen: typeof window === "undefined" ? true : window.innerWidth >= 900,
   helpOpen: false,
   quality: initialQuality(),
+  mainView: "twin",
+  eyes: "left",
+  videoAvailable: false,
+  pipVisible: true,
   toasts: [],
   mirror: { grip: { left: 0, right: 0 }, lift: 0.3175, torso: 0, yaw: 0, pitch: 0 },
   set: (patch) => set(patch),

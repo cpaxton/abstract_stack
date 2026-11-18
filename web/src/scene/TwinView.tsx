@@ -250,16 +250,23 @@ function JogLoop({ frames, enabled }: { frames: Frames; enabled: boolean }) {
     }
     jog.move.clampScalar(-1, 1);
     jog.rotate.clampScalar(-1, 1);
-    // Viewer forward projected on the ground, expressed in the robot root frame.
-    camera.getWorldDirection(tmp.dir);
-    fromThree(tmp.dir, tmp.mj);
-    tmp.mj.z = 0;
-    if (tmp.mj.lengthSq() < 1e-6) tmp.mj.set(-1, 0, 0);
-    tmp.mj.normalize();
-    tmp.inv.copy(frames.chassisQuat).invert();
-    tmp.fwd.copy(tmp.mj).applyQuaternion(tmp.inv);
-    tmp.fwd.z = 0;
-    tmp.fwd.normalize();
+    if (useUi.getState().mainView === "camera") {
+      // Looking through the robot's head: "forward" is where the head points
+      // (root frame: forward = -X, neck yaw positive turns toward the robot's left = -Y).
+      const yaw = intent.head.yaw;
+      tmp.fwd.set(-Math.cos(yaw), -Math.sin(yaw), 0);
+    } else {
+      // Viewer forward projected on the ground, expressed in the robot root frame.
+      camera.getWorldDirection(tmp.dir);
+      fromThree(tmp.dir, tmp.mj);
+      tmp.mj.z = 0;
+      if (tmp.mj.lengthSq() < 1e-6) tmp.mj.set(-1, 0, 0);
+      tmp.mj.normalize();
+      tmp.inv.copy(frames.chassisQuat).invert();
+      tmp.fwd.copy(tmp.mj).applyQuaternion(tmp.inv);
+      tmp.fwd.z = 0;
+      tmp.fwd.normalize();
+    }
     tmp.right.set(tmp.fwd.y, -tmp.fwd.x, 0); // forward × up
     applyJog(Math.min(delta, 0.1), jog, useUi.getState().activeArm, tmp.fwd, tmp.right);
   });

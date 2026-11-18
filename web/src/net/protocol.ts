@@ -69,6 +69,22 @@ export interface Status {
   arms: Record<Side, ArmStatus>;
   channels: Channels;
   limits: { rate_limited: string[]; target_limited: string[]; force_limited: string[] };
+  video: {
+    error: string | null;
+    pair_id: number;
+    render_ms: number;
+    encode_ms: number;
+    pair_bytes: number;
+  } | null;
+}
+
+export interface VideoDescriptor {
+  cameras: [string, string];
+  width: number;
+  height: number;
+  fps: number;
+  codec: "jpeg";
+  vertical_fov_deg: [number, number];
 }
 
 export interface HelloAck {
@@ -78,6 +94,7 @@ export interface HelloAck {
   model_hash: string;
   calibration_generation: number;
   budgets: { control_hz: number; command_hz: number; input_timeout_s: number; status_hz: number };
+  video: VideoDescriptor | null;
   status: Status;
 }
 

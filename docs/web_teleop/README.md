@@ -1,14 +1,15 @@
 # Web teleoperation (browser, phone, tablet)
 
-Teleoperate MABEL in `ShelfStockingEnv` from a browser. The operator sees an
-interpolated 3D twin of the simulated robot and scene, drags or jogs a target
-for each palm, and the host turns those targets into bounded actuator commands.
+Teleoperate MABEL in `ShelfStockingEnv` from a browser. The operator sees the
+robot's stereo head cameras (`zed_left`/`zed_right`) and an interpolated 3D twin
+of the robot and scene. They drag or jog a target for each palm, and the host
+turns those targets into bounded actuator commands.
 Desktop uses mouse and keyboard; phones and tablets get on-screen joysticks.
 The same client is meant to be wrapped later as an iOS/Android app (Capacitor)
 and extended with WebXR.
 
-Status: simulation only. Robot-camera video, session recording and WebXR are
-not implemented yet (see [Limitations](#limitations)).
+Status: simulation only. Session recording, wrist-camera video and WebXR are not
+implemented yet (see [Limitations](#limitations)).
 
 ## Run
 
@@ -23,18 +24,25 @@ cd web && npm ci && npm run build && cd ..
 
 # Phone/tablet on the same trusted LAN
 abstract-stack teleop --host 0.0.0.0 --port 8080
-# open http://<computer-ip>:8080/?token=<token> on the device
+# → also prints  Web teleop (LAN, phone/tablet): http://192.168.x.y:8080/?token=<token>
 ```
+
+Open the printed LAN URL on the phone. On macOS, allow incoming connections for
+Python if the firewall asks; otherwise the phone cannot connect. On headless
+Linux, set `MUJOCO_GL=egl` so the video thread can render offscreen.
 
 The token is generated per run unless `--token` is given. The client stores it
 for the tab and strips it from the address bar. `--insecure-no-token` disables
 it on a trusted development machine. A second browser joins as a view-only
 spectator while an operator holds control; `?role=spectator` requests that
 explicitly. `?quality=low` forces the light render path, which the client also
-switches to automatically when the frame rate drops.
+switches to automatically when the frame rate drops. Low quality also loads a
+simplified twin mesh (800 faces per mesh); the default is full resolution.
 
 Useful options: `--scene`, `--seed`, `--time-limit` (default 3600 simulated
-seconds), `--input-timeout` (default 0.15 s), `--face-budget` (twin mesh detail).
+seconds), `--input-timeout` (default 0.15 s), `--face-budget` (0 = full-resolution
+twin), `--no-video`, `--video-fps` (default 20), `--video-size` (default
+640x480 per eye) and `--video-quality` (JPEG quality, default 80).
 
 Front-end development with hot reload proxies `/api` and `/teleop` to a
 running host:
@@ -57,6 +65,8 @@ cd web && npm run dev                                    # terminal 2, open the 
 | Head, lift | arrows, <kbd>PgUp</kbd>/<kbd>PgDn</kbd>, sliders | panel sliders |
 | Fine motion | hold <kbd>Shift</kbd> | **Fine** toggle |
 | Ready pose | <kbd>R</kbd> | top-bar button |
+| Main view 3D ⇄ head camera | <kbd>V</kbd>, **3D / Camera** switch, click the PiP | switch, tap the PiP |
+| Head-camera eye: left / both / right | <kbd>B</kbd> | switch |
 | Camera presets / help | <kbd>1</kbd>–<kbd>4</kbd> / <kbd>?</kbd> | panel |
 
 Start with **Ready pose**. The reset posture has both arms straight ahead, an
@@ -66,6 +76,11 @@ target shows where that palm is commanded to go. A tether connects it to the
 measured palm, and the target turns red when IK cannot reach it. Leaving the
 tab pauses immediately.
 
+The head camera and the 3D twin swap between the main view and a
+picture-in-picture. `zed_left` and `zed_right` are a 63 mm stereo pair, so the
+eyes differ by a small horizontal parallax; **Both** shows them side by side. In
+the camera view, <kbd>W</kbd> moves the hand in the direction the head is facing.
+
 ## Architecture
 
 ```
@@ -74,6 +89,7 @@ Browser (web/)                                  Host (src/abstract_stack/web_tel
    commands 30 Hz, control, ping   ◄── status 10 Hz, acks, pong
  PoseBuffer  ◄── WS /teleop/state (binary WTS1, 50 Hz body poses)
  robotModel  ◄── GET /api/model (+ model.bin)   geometry.py  visual geoms from the live MjModel
+ CameraView  ◄── WS /teleop/video (binary QTP1 stereo JPEG pairs)   video.py  render thread
  TwinView (three.js / react-three-fiber)        core.py      sim-owner thread + session state machine
  input/ (keyboard, touch, gizmo → intent)       retarget.py  intents → PoseIK → MabelController
 ```
@@ -99,10 +115,24 @@ Browser (web/)                                  Host (src/abstract_stack/web_tel
   queueing them or slowing physics.
 - **The twin is the real model.** `geometry.py` exports visual geom groups 0,
   2 and 5 (scene, robot visuals, house cutaway walls) from the compiled
-  `MjModel`. Meshes are simplified to `--face-budget` faces each (about 210k
-  faces / 1.8 MB gzipped for the stocking scene), cached by content hash, and
-  served immutable. The simplification affects the preview only, never
-  physics.
+  `MjModel`. Meshes are full resolution with MuJoCo's own vertex normals (1.3M
+  faces, 12.8 MB gzipped for the stocking scene; 16-bit indices where
+  possible). They are cached by content hash, compressed once, and served
+  immutable, so browsers download them once. `detail=low` serves an 800
+  faces-per-mesh preview for weak devices. Simplification affects the preview
+  only, never physics.
+- **Head-camera video** (`video.py`). A render thread owns its own GL context,
+  `mujoco.Renderer` and scratch `MjData`. After each tick the sim owner only
+  copies `qpos`/mocap into a snapshot. The render thread forwards kinematics
+  and renders both eyes from that one state, with no physics step between
+  eyes. Each pair goes out as one `QTP1` message, the Quest contract's stereo
+  framing: `"QTP1"`, three big-endian uint32 lengths, JSON metadata, left JPEG,
+  right JPEG. Rendering runs only while a client is subscribed, and the client
+  unsubscribes when no camera view is visible. Measured on an Apple-silicon
+  Mac: 20 pairs/s at 640×480 per eye, about 37 KB per pair (6 Mbit/s),
+  physics real-time factor 1.0. The client decodes off the main thread
+  (`createImageBitmap`), keeps only the newest pair, swaps both eyes together,
+  and flags video older than 300 ms as stale.
 - **Client performance.** 50 Hz poses go into a jitter buffer that plays back
   about 40 ms behind the fastest observed arrival and interpolates at display
   rate. High-rate data never touches React state; panels re-render at most
@@ -120,18 +150,21 @@ Implementations: `src/abstract_stack/web_teleop/protocol.py` and
 
 1. Control socket: `hello {profile:"web_teleop_v1", role}` → `hello_ack {role,
    model_hash, calibration_generation, budgets, status}`.
-2. State socket: `state_bind {session_id}`, then binary frames. Each frame is
+2. State socket `/teleop/state`: `state_bind {session_id}`, then binary frames. Each frame is
    a 28-byte little-endian header (`"WTS1"`, tick u32, sim_time f64,
    host_time f64, nbody u16, flags u16), then float32 `xpos[nbody·3]` and
    `xquat[nbody·4]` (wxyz, world frame).
-3. `command`: absolute intents with `calibration_generation`, `target_epoch`,
+3. Video socket `/teleop/video`: `video_bind {session_id}`, then `QTP1` stereo
+   pairs. `hello_ack.video` describes the cameras, size, rate and field of view,
+   or is `null` with `--no-video`.
+4. `command`: absolute intents with `calibration_generation`, `target_epoch`,
    `arms.{left,right}` (palm control-point `position_m` and `quaternion_wxyz`
    in the `mabel_chassis` frame, plus `grip` ∈ [0,1], or null to hold), and
    `head`, `lift_m`, `torso_rad` (null holds). Absolute targets make every
    message self-contained, so a lost message never accumulates drift.
-4. `control {event_id, calibration_generation, action}` with actions
+5. `control {event_id, calibration_generation, action}` with actions
    `engage | pause | reset | ready` → `control_ack`.
-5. `ping {t0}` → `pong {t0, t1}` for round-trip display.
+6. `ping {t0}` → `pong {t0, t1}` for round-trip display.
 
 **Target epoch.** Whenever the host moves arm references on its own (engage,
 ready, reset), it increments `target_epoch` and publishes `arm_targets`. The
@@ -174,17 +207,21 @@ The native tests check:
   physics, with every applied control inside actuator limits;
 - stale epochs and generations;
 - model-export consistency;
-- the WebSocket handshake, token check and state stream.
+- the WebSocket handshake, token check and state stream;
+- `QTP1` framing, and a real stereo render streamed over the video socket
+  (both eyes, with measurable parallax).
 
-The browser e2e test exercises connect, keyboard jog, pause on input loss, and
-the touch layout. Headless Chromium rasterises WebGL on the CPU (about
-5–10 fps), so the e2e host runs with `--input-timeout 0.8`.
+The browser e2e test exercises connect, keyboard jog, pause on input loss,
+stereo video and the touch layout. Headless Chromium rasterises WebGL on the
+CPU, so the tests use `?quality=low` and the e2e host runs with
+`--input-timeout 0.8`.
 
 ## Limitations
 
-- **No robot-camera video yet.** The operator sees the client-side twin only.
-  WebRTC streaming of `zed_left`/`zed_right` and the wrist cameras is the next
-  step.
+- **Video is JPEG over WebSocket.** That is simple and low-latency on a LAN,
+  but uses about 6 Mbit/s. For internet use, H.264 over WebRTC with
+  congestion control is the planned upgrade. Wrist cameras are not streamed
+  yet.
 - **The stock scenes start with fingers intersecting the shelf.** In every
   bundled scene, MABEL's index or thumb links already penetrate the shelf at
   reset (`stocking`, `tight`, `house`: index fingers; `pick_place`: right
@@ -200,4 +237,4 @@ the touch layout. Headless Chromium rasterises WebGL on the CPU (about
 - **IK is local and has no collision checks.** Teleop applies the closest
   bounded IK solution and reports the residual. Physics resolves contacts. This
   is never evidence of a grasp or placement.
-- The twin's meshes are simplified, and textures are not shown.
+- Twin textures are not shown (colours come from MuJoCo materials).

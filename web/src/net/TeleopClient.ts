@@ -1,4 +1,5 @@
 import { PoseBuffer } from "./poseBuffer";
+import { StereoDecoder } from "./stereo";
 import {
   PROFILE,
   SCHEMA_VERSION,
@@ -29,6 +30,7 @@ export interface TeleopClientEvents {
   status: (status: Status, role: Role) => void;
   rtt: (ms: number) => void;
   error: (message: string) => void;
+  video: () => void;
 }
 
 /** RFC 4122 v4 UUID that also works in insecure (plain-HTTP LAN) contexts. */
@@ -52,17 +54,22 @@ export function uuid4(): string {
  */
 export class TeleopClient {
   readonly poses = new PoseBuffer();
+  readonly stereo = new StereoDecoder(() => this.emit("video"));
+  videoAvailable = false;
   sessionId = "";
   role: Role | null = null;
   generation = 0;
   private control: WebSocket | null = null;
   private state: WebSocket | null = null;
+  private video: WebSocket | null = null;
+  private videoWanted = true;
   private listeners: { [K in keyof TeleopClientEvents]: Set<TeleopClientEvents[K]> } = {
     connection: new Set(),
     hello: new Set(),
     status: new Set(),
     rtt: new Set(),
     error: new Set(),
+    video: new Set(),
   };
   private pending = new Map<number, (ack: ControlAck) => void>();
   private eventId = 0;
@@ -147,14 +154,15 @@ export class TeleopClient {
   private teardown(): void {
     window.clearInterval(this.commandTimer);
     window.clearInterval(this.pingTimer);
-    for (const socket of [this.control, this.state]) {
+    for (const socket of [this.control, this.state, this.video]) {
       if (socket) {
         socket.onclose = null;
         socket.onmessage = null;
         socket.close();
       }
     }
-    this.control = this.state = null;
+    this.control = this.state = this.video = null;
+    this.stereo.clear();
     this.role = null;
     for (const resolve of this.pending.values()) {
       resolve({
@@ -184,6 +192,8 @@ export class TeleopClient {
         this.role = message.role;
         this.generation = message.calibration_generation;
         this.openState();
+        this.videoAvailable = message.video !== null;
+        if (this.videoWanted) this.openVideo();
         this.startLoops(message.budgets.command_hz);
         this.emit("connection", "open");
         this.emit("hello", message);
@@ -205,6 +215,37 @@ export class TeleopClient {
         this.emit("error", message.message);
         break;
     }
+  }
+
+  /** Subscribe to head-camera video only while it is visible (saves host GPU and bandwidth). */
+  setVideoWanted(wanted: boolean): void {
+    this.videoWanted = wanted;
+    if (wanted && this.role && !this.video) this.openVideo();
+    if (!wanted && this.video) {
+      this.video.onclose = null;
+      this.video.close();
+      this.video = null;
+      this.stereo.clear();
+    }
+  }
+
+  private openVideo(): void {
+    if (!this.videoAvailable || this.video) return;
+    const video = new WebSocket(this.url("/teleop/video"));
+    video.binaryType = "arraybuffer";
+    this.video = video;
+    video.onopen = () =>
+      video.send(
+        JSON.stringify({
+          schema_version: SCHEMA_VERSION,
+          type: "video_bind",
+          session_id: this.sessionId,
+        }),
+      );
+    video.onmessage = (event) => this.stereo.push(event.data as ArrayBuffer);
+    video.onclose = () => {
+      if (this.video === video) this.video = null;
+    };
   }
 
   private openState(): void {

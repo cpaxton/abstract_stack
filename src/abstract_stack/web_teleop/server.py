@@ -19,10 +19,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import gzip
 import hmac
 import logging
 import secrets
+import socket
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from starlette.applications import Starlette
@@ -40,6 +44,7 @@ from abstract_stack.web_teleop.geometry import load_model_export
 
 log = logging.getLogger(__name__)
 MAX_PROTOCOL_ERRORS = 20
+LOW_DETAIL_FACE_BUDGET = 800
 HELLO_TIMEOUT_S = 5.0
 
 
@@ -50,8 +55,11 @@ class Hub:
         self.loop = loop
         self.frame: bytes | None = None
         self.status: dict | None = None
+        self.video: bytes | None = None
         self._frame_waiters: set[asyncio.Event] = set()
         self._status_waiters: set[asyncio.Event] = set()
+        self._video_waiters: set[asyncio.Event] = set()
+        self.on_video_subscribers: Callable[[int], None] | None = None
 
     def from_sim_thread(self, frame: bytes | None, status: dict | None) -> None:
         self.loop.call_soon_threadsafe(self._publish, frame, status)
@@ -66,15 +74,31 @@ class Hub:
             for event in self._status_waiters:
                 event.set()
 
+    def video_from_thread(self, pair: bytes) -> None:
+        self.loop.call_soon_threadsafe(self._publish_video, pair)
+
+    def _publish_video(self, pair: bytes) -> None:
+        self.video = pair
+        for event in self._video_waiters:
+            event.set()
+
     @contextlib.contextmanager
     def subscribe(self, kind: str):
         event = asyncio.Event()
-        waiters = self._frame_waiters if kind == "frame" else self._status_waiters
+        waiters = {
+            "frame": self._frame_waiters,
+            "status": self._status_waiters,
+            "video": self._video_waiters,
+        }[kind]
         waiters.add(event)
+        if kind == "video" and self.on_video_subscribers:
+            self.on_video_subscribers(len(waiters))
         try:
             yield event
         finally:
             waiters.discard(event)
+            if kind == "video" and self.on_video_subscribers:
+                self.on_video_subscribers(len(waiters))
 
 
 class TeleopServer:
@@ -85,12 +109,17 @@ class TeleopServer:
         token: str | None,
         static_dir: Path | None = None,
         allowed_origins: tuple[str, ...] = (),
-        face_budget: int = 800,
+        face_budget: int = 0,
     ):
         self.core = core
         self.token = token
         self.allowed_origins = set(allowed_origins)
-        self.manifest, self.blob = load_model_export(core.env.model, face_budget)
+        # "full" honours --face-budget (0 = full resolution); "low" is a light
+        # simplified preview for weak devices, built on first request.
+        self._exports: dict[str, tuple[dict, bytes, bytes]] = {}
+        self._export_budgets = {"full": face_budget, "low": face_budget or LOW_DETAIL_FACE_BUDGET}
+        self._export_lock = threading.Lock()
+        self.manifest = self._export("full")[0]
         self.hub: Hub | None = None
         self._sessions: dict[str, str] = {}  # session_id -> role
         routes = [
@@ -99,6 +128,7 @@ class TeleopServer:
             Route("/api/health", self.health),
             WebSocketRoute("/teleop/control", self.control_socket),
             WebSocketRoute("/teleop/state", self.state_socket),
+            WebSocketRoute("/teleop/video", self.video_socket),
         ]
         if static_dir is not None and static_dir.is_dir():
             routes.append(Mount("/", StaticFiles(directory=static_dir, html=True), name="web"))
@@ -112,6 +142,10 @@ class TeleopServer:
     async def _lifespan(self, app):
         self.hub = Hub(asyncio.get_running_loop())
         self.core.add_listener(self.hub.from_sim_thread)
+        video = self.core.video
+        if video is not None:
+            video.set_listener(self.hub.video_from_thread)
+            self.hub.on_video_subscribers = lambda count: video.set_active(count > 0)
         self.core.start()
         try:
             yield
@@ -134,20 +168,39 @@ class TeleopServer:
         return origin in self.allowed_origins
 
     # -- HTTP -------------------------------------------------------------------------
+    def _export(self, detail: str) -> tuple[dict, bytes, bytes]:
+        with self._export_lock:
+            if detail not in self._exports:
+                manifest, blob = load_model_export(
+                    self.core.env.model, self._export_budgets[detail]
+                )
+                # Compress once: the full-resolution blob is tens of MB uncompressed.
+                self._exports[detail] = (manifest, blob, gzip.compress(blob, 6, mtime=0))
+            return self._exports[detail]
+
+    @staticmethod
+    def _detail(request: Request) -> str:
+        return "low" if request.query_params.get("detail") == "low" else "full"
+
     async def model_manifest(self, request: Request) -> Response:
         if not self._authorised(request.query_params.get("token")):
             return JSONResponse({"error": "unauthorised"}, status_code=401)
-        return JSONResponse(self.manifest, headers={"Cache-Control": "no-cache"})
+        manifest, _, _ = await asyncio.to_thread(self._export, self._detail(request))
+        return JSONResponse(manifest, headers={"Cache-Control": "no-cache"})
 
     async def model_blob(self, request: Request) -> Response:
         if not self._authorised(request.query_params.get("token")):
             return JSONResponse({"error": "unauthorised"}, status_code=401)
         # The client requests ?v=<model_hash>; content for a hash never changes.
-        return Response(
-            self.blob,
-            media_type="application/octet-stream",
-            headers={"Cache-Control": "private, max-age=31536000, immutable"},
-        )
+        headers = {
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "Vary": "Accept-Encoding",
+        }
+        _, blob, blob_gzip = await asyncio.to_thread(self._export, self._detail(request))
+        if "gzip" in request.headers.get("accept-encoding", ""):
+            headers["Content-Encoding"] = "gzip"
+            return Response(blob_gzip, media_type="application/octet-stream", headers=headers)
+        return Response(blob, media_type="application/octet-stream", headers=headers)
 
     async def health(self, request: Request) -> Response:
         status = self.core.status()
@@ -205,6 +258,7 @@ class TeleopServer:
                         1 / (self.core.env.dt * self.core.config.status_every_ticks)
                     ),
                 },
+                video=self._video_descriptor(),
                 status=status,
             )
         )
@@ -268,28 +322,46 @@ class TeleopServer:
                         protocol.envelope("status", session_id, role=role, **status)
                     )
 
-    async def state_socket(self, websocket: WebSocket) -> None:
+    def _video_descriptor(self) -> dict | None:
+        video = self.core.video
+        if video is None:
+            return None
+        return {
+            "cameras": list(video.cameras),
+            "width": video.width,
+            "height": video.height,
+            "fps": video.fps,
+            "codec": "jpeg",
+            "vertical_fov_deg": video.fovy,
+        }
+
+    async def _bind(self, websocket: WebSocket, kind: str) -> str | None:
+        """Accept a secondary socket bound to an open control session."""
         if not await self._accept(websocket):
-            return
+            return None
         try:
             message = protocol.decode_json(
                 await asyncio.wait_for(websocket.receive_text(), HELLO_TIMEOUT_S)
             )
-            if message.get("type") != "state_bind" or set(message) != {
+            if message.get("type") != f"{kind}_bind" or set(message) != {
                 "schema_version",
                 "type",
                 "session_id",
             }:
-                raise protocol.ProtocolError("first state message must be state_bind")
+                raise protocol.ProtocolError(f"first {kind} message must be {kind}_bind")
             if message["session_id"] not in self._sessions:
-                raise protocol.ProtocolError("state_bind requires an open control session")
-            session_id = message["session_id"]
+                raise protocol.ProtocolError(f"{kind}_bind requires an open control session")
+            return message["session_id"]
         except (protocol.ProtocolError, asyncio.TimeoutError, WebSocketDisconnect):
             with contextlib.suppress(Exception):
                 await websocket.close(code=1008)
-            return
+            return None
+
+    async def _stream(self, websocket: WebSocket, session_id: str, kind: str) -> None:
+        """Latest-wins binary stream until the socket or its control session closes."""
         assert self.hub is not None
-        with self.hub.subscribe("frame") as event:
+        attribute = "frame" if kind == "frame" else "video"
+        with self.hub.subscribe(kind) as event:
             try:
                 while session_id in self._sessions:
                     try:
@@ -297,12 +369,43 @@ class TeleopServer:
                     except asyncio.TimeoutError:
                         continue
                     event.clear()
-                    if self.hub.frame is not None:
-                        await websocket.send_bytes(self.hub.frame)
+                    payload = getattr(self.hub, attribute)
+                    if payload is not None:
+                        await websocket.send_bytes(payload)
             except (WebSocketDisconnect, RuntimeError):
                 return
         with contextlib.suppress(Exception):
             await websocket.close(code=1000, reason="control session closed")
+
+    async def state_socket(self, websocket: WebSocket) -> None:
+        session_id = await self._bind(websocket, "state")
+        if session_id is not None:
+            await self._stream(websocket, session_id, "frame")
+
+    async def video_socket(self, websocket: WebSocket) -> None:
+        if self.core.video is None:
+            await websocket.close(code=1008, reason="video disabled on this host")
+            return
+        session_id = await self._bind(websocket, "video")
+        if session_id is not None:
+            await self._stream(websocket, session_id, "video")
+
+
+def lan_addresses() -> list[str]:
+    """IPv4 addresses other devices on the local network can use to reach this host."""
+    found: list[str] = []
+    # The default-route interface first: connecting a UDP socket sends no packets.
+    with contextlib.suppress(OSError), socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.connect(("192.0.2.1", 80))  # TEST-NET-1, never routed
+        found.append(probe.getsockname()[0])
+    with contextlib.suppress(OSError):
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            found.append(info[4][0])
+    unique = []
+    for address in found:
+        if address not in unique and not address.startswith(("127.", "169.254.")):
+            unique.append(address)
+    return unique
 
 
 def generate_token() -> str:
@@ -317,7 +420,7 @@ def serve(
     token: str | None,
     static_dir: Path | None,
     allowed_origins: tuple[str, ...] = (),
-    face_budget: int = 800,
+    face_budget: int = 0,
 ) -> None:
     import uvicorn
 
@@ -328,9 +431,22 @@ def serve(
         allowed_origins=allowed_origins,
         face_budget=face_budget,
     )
-    shown = "localhost" if host in ("0.0.0.0", "::") else host
     query = f"?token={token}" if token else ""
-    print(f"Web teleop: http://{shown}:{port}/{query}", flush=True)
+    if host in ("0.0.0.0", "::"):
+        print(f"Web teleop (this computer): http://localhost:{port}/{query}", flush=True)
+        addresses = lan_addresses()
+        for address in addresses:
+            print(f"Web teleop (LAN, phone/tablet): http://{address}:{port}/{query}", flush=True)
+        if not addresses:
+            print("No LAN address found; check the network connection.", flush=True)
+    else:
+        print(f"Web teleop: http://{host}:{port}/{query}", flush=True)
+        if host in ("127.0.0.1", "localhost", "::1"):
+            print(
+                "Only this computer can connect. Use --host 0.0.0.0 to allow phones "
+                "and tablets on your network.",
+                flush=True,
+            )
     uvicorn.run(
         server.app,
         host=host,

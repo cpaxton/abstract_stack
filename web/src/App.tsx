@@ -11,6 +11,7 @@ import { HelpOverlay, Hud, KeyHints, StatusBanner, Toasts } from "./ui/Overlays"
 import { SidePanel, syncMirror } from "./ui/SidePanel";
 import { TopBar } from "./ui/TopBar";
 import { TouchControls } from "./ui/TouchControls";
+import { ViewLayers } from "./ui/ViewLayers";
 
 /** Read the access token once from `?token=`, keep it for this tab, and strip it from the URL. */
 function takeToken(): string | null {
@@ -58,6 +59,7 @@ export function App() {
       status: () => useUi.getState().status,
       intent: () => intent,
       poseAgeMs: () => client.poses.ageMs(),
+      videoPairs: () => client.stereo.decodedPairs,
     };
   }, [client]);
 
@@ -69,7 +71,7 @@ export function App() {
         ui.set({ connection, connectionDetail: detail ?? null }),
       ),
       client.on("hello", (ack) => {
-        ui.set({ role: ack.role, budgets: ack.budgets });
+        ui.set({ role: ack.role, budgets: ack.budgets, videoAvailable: ack.video !== null });
         setModelHash(ack.model_hash);
         if (ack.role === "spectator")
           ui.toast("info", "Another operator is in control — viewing only");
@@ -102,7 +104,9 @@ export function App() {
     if (!modelHash) return;
     const abort = new AbortController();
     let result: RobotModel | undefined;
-    loadRobotModel(window.location.origin, takeToken(), abort.signal)
+    // Mesh detail is chosen once per load: full resolution unless low quality was requested.
+    const detail = useUi.getState().quality === "low" ? "low" : "full";
+    loadRobotModel(window.location.origin, takeToken(), abort.signal, detail)
       .then((model) => {
         result = model;
         setLoaded({ hash: modelHash, model });
@@ -178,6 +182,14 @@ export function App() {
           case "KeyR":
             void runAction(client, "ready");
             return true;
+          case "KeyV":
+            if (ui.videoAvailable) ui.set({ mainView: ui.mainView === "twin" ? "camera" : "twin" });
+            return true;
+          case "KeyB": {
+            const order = ["left", "both", "right"] as const;
+            ui.set({ eyes: order[(order.indexOf(ui.eyes) + 1) % order.length]! });
+            return true;
+          }
           case "KeyP":
             ui.set({ panelOpen: !ui.panelOpen });
             return true;
@@ -210,7 +222,7 @@ export function App() {
 
   return (
     <div className={`app app-${state}`}>
-      <TwinView model={model} client={client} />
+      <ViewLayers client={client} twin={<TwinView model={model} client={client} />} />
       <div className="engaged-frame" aria-hidden />
       {!model && (
         <div className="loading">

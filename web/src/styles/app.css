@@ -94,6 +94,135 @@ kbd {
   inset: 0;
 }
 
+/* ---- Main view / picture-in-picture ------------------------------------------------ */
+.view-layer {
+  position: absolute;
+  overflow: hidden;
+}
+.view-layer.main {
+  inset: 0;
+}
+.view-layer.pip {
+  left: calc(10px + var(--safe-left));
+  bottom: calc(58px + var(--safe-bottom));
+  width: min(340px, 38vw);
+  aspect-ratio: 8 / 3;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow);
+  z-index: 9;
+  background: #000;
+}
+.twin-layer.pip {
+  aspect-ratio: 4 / 3;
+  width: min(300px, 34vw);
+}
+.camera-layer.pip {
+  cursor: pointer;
+}
+.view-layer[hidden] {
+  display: none;
+}
+.pip-label {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  z-index: 2;
+}
+.camera-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 2px;
+  background: #05070a;
+}
+.camera-layer.main .camera-view {
+  padding-top: calc(70px + var(--safe-top));
+}
+.app:has(.side-panel.open) .camera-layer.main .camera-view {
+  padding-right: 340px;
+}
+.eye {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+}
+/* Largest box with the stream's aspect ratio that fits the eye cell. */
+.eye-frame {
+  position: relative;
+  width: min(100cqw, calc(100cqh * var(--aspect)));
+  aspect-ratio: var(--aspect);
+}
+.eye[hidden] {
+  display: none;
+}
+.eye canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.eye-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  font: 700 11px/1.5 var(--mono);
+}
+.camera-view.compact .eye-tag {
+  top: auto;
+  bottom: 4px;
+  left: 4px;
+}
+.camera-badges {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  pointer-events: none;
+}
+.camera-layer.main .camera-badges {
+  bottom: 64px;
+}
+.app:has(.side-panel.open) .camera-layer.main .camera-badges {
+  right: 350px;
+}
+.view-switch {
+  position: absolute;
+  top: calc(74px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  z-index: 13;
+}
+.view-switch .btn-icon {
+  width: 30px;
+  height: 30px;
+}
+.app:has(.view-switch) .banner {
+  top: calc(122px + var(--safe-top));
+}
+
 /* Engaged = live control: a thin coloured frame around the whole viewport. */
 .engaged-frame {
   position: absolute;
@@ -666,8 +795,13 @@ input[type="range"]:disabled {
 
 @media (min-width: 721px) {
   .app:has(.side-panel.open) .key-hints,
-  .app:has(.side-panel.open) .toasts {
+  .app:has(.side-panel.open) .toasts,
+  .app:has(.side-panel.open) .banner,
+  .app:has(.side-panel.open) .view-switch {
     left: calc((100% - 340px) / 2);
+  }
+  .app:has(.side-panel.open) .banner {
+    max-width: min(680px, calc(100vw - 364px));
   }
 }
 
@@ -818,6 +952,28 @@ input[type="range"]:disabled {
   }
   .hide-touch {
     display: none !important;
+  }
+  .app:has(.view-switch) .hud {
+    top: calc(124px + var(--safe-top));
+  }
+  .banner {
+    top: auto !important;
+    bottom: calc(24px + var(--safe-bottom));
+    flex-wrap: wrap;
+  }
+  .banner kbd,
+  .btn kbd {
+    display: none;
+  }
+  .view-layer.pip {
+    left: auto;
+    right: calc(10px + var(--safe-right));
+    top: calc(120px + var(--safe-top));
+    bottom: auto;
+    width: min(240px, 46vw);
+  }
+  .twin-layer.pip {
+    width: min(180px, 40vw);
   }
   .toasts {
     top: calc(118px + var(--safe-top));

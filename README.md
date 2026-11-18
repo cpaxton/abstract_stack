@@ -41,7 +41,8 @@ implemented.
 
 [Web teleoperation](docs/web_teleop/README.md) drives the simulation from a
 browser, phone or tablet: an interpolated 3D twin, draggable palm targets with
-IK, keyboard and touch controls, and the same engage/pause safety model. Run
+IK, stereo head-camera video, keyboard and touch controls, and the same
+engage/pause safety model. Run
 `abstract-stack teleop` after building `web/`.
 
 See [Shelf scene setup](docs/scene_setup.md) for dimensions, editable scene

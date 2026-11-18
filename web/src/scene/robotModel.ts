@@ -11,10 +11,9 @@ import {
   SphereGeometry,
   type Material,
 } from "three";
-import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 export interface ModelManifest {
-  format: "web_teleop_model_v1";
+  format: "web_teleop_model_v2";
   model_hash: string;
   bodies: { name: string; parent: number }[];
   geoms: {
@@ -30,14 +29,17 @@ export interface ModelManifest {
   }[];
   meshes: {
     name: string;
-    vertex_offset: number;
     vertex_count: number;
+    position_offset: number;
+    normal_offset: number;
     index_offset: number;
     index_count: number;
+    index_type: "uint16" | "uint32";
   }[];
   cameras: { name: string; body: number; fovy_deg: number }[];
   blob_bytes: number;
   face_count: number;
+  face_budget: number;
 }
 
 export interface RobotModel {
@@ -51,8 +53,6 @@ export interface RobotModel {
   groups: Map<number, Mesh[]>;
   dispose: () => void;
 }
-
-const CREASE_ANGLE = (35 * Math.PI) / 180;
 
 function primitive(geom: ModelManifest["geoms"][number]): BufferGeometry {
   const [a, b, c] = geom.size;
@@ -79,8 +79,12 @@ export async function loadRobotModel(
   origin: string,
   token: string | null,
   signal?: AbortSignal,
+  detail: "full" | "low" = "full",
 ): Promise<RobotModel> {
-  const query = token ? `token=${encodeURIComponent(token)}` : "";
+  const params = new URLSearchParams();
+  if (token) params.set("token", token);
+  if (detail === "low") params.set("detail", "low");
+  const query = params.toString();
   const manifestResponse = await fetch(new URL(`/api/model?${query}`, origin), { signal });
   if (!manifestResponse.ok) throw new Error(`model manifest: HTTP ${manifestResponse.status}`);
   const manifest = (await manifestResponse.json()) as ModelManifest;
@@ -92,18 +96,28 @@ export async function loadRobotModel(
   const blob = await blobResponse.arrayBuffer();
   if (blob.byteLength !== manifest.blob_bytes) throw new Error("model data size mismatch");
 
+  if (manifest.format !== "web_teleop_model_v2")
+    throw new Error(`unsupported model ${manifest.format}`);
+  // Views straight into the downloaded buffer: MuJoCo's compiled vertex normals,
+  // full-resolution faces, no per-vertex recomputation on the client.
   const meshGeometries = manifest.meshes.map((m) => {
     const geometry = new BufferGeometry();
+    const n = m.vertex_count;
     geometry.setAttribute(
       "position",
-      new BufferAttribute(new Float32Array(blob, m.vertex_offset, m.vertex_count * 3), 3),
+      new BufferAttribute(new Float32Array(blob, m.position_offset, n * 3), 3),
     );
-    geometry.setIndex(new BufferAttribute(new Uint32Array(blob, m.index_offset, m.index_count), 1));
-    // Simplified CAD meshes: crease hard edges, smooth curved surfaces.
-    const creased = toCreasedNormals(geometry, CREASE_ANGLE);
-    geometry.dispose();
-    creased.computeBoundingSphere();
-    return creased;
+    geometry.setAttribute(
+      "normal",
+      new BufferAttribute(new Int8Array(blob, m.normal_offset, n * 3), 3, true),
+    );
+    const indices =
+      m.index_type === "uint16"
+        ? new Uint16Array(blob, m.index_offset, m.index_count)
+        : new Uint32Array(blob, m.index_offset, m.index_count);
+    geometry.setIndex(new BufferAttribute(indices, 1));
+    geometry.computeBoundingSphere();
+    return geometry;
   });
 
   const materials = new Map<string, MeshStandardMaterial>();

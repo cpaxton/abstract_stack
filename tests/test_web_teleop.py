@@ -251,18 +251,30 @@ def test_model_export_is_consistent(clear_env, tmp_path, monkeypatch):
     from abstract_stack.web_teleop.geometry import load_model_export
 
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
-    manifest, blob = load_model_export(clear_env.model, face_budget=400)
+    manifest, blob = load_model_export(clear_env.model)
     assert manifest["blob_bytes"] == len(blob)
+    assert manifest["face_count"] == sum(m["index_count"] for m in manifest["meshes"]) // 3
     for mesh in manifest["meshes"]:
-        assert mesh["vertex_offset"] + mesh["vertex_count"] * 12 <= len(blob)
-        assert mesh["index_offset"] + mesh["index_count"] * 4 <= len(blob)
+        n = mesh["vertex_count"]
+        dtype = "<u2" if mesh["index_type"] == "uint16" else "<u4"
+        assert all(mesh[k] % 4 == 0 for k in ("position_offset", "normal_offset", "index_offset"))
         indices = np.frombuffer(
-            blob, dtype="<u4", count=mesh["index_count"], offset=mesh["index_offset"]
+            blob, dtype=dtype, count=mesh["index_count"], offset=mesh["index_offset"]
         )
-        assert indices.max() < mesh["vertex_count"]
+        assert indices.max() < n
+        normals = np.frombuffer(blob, dtype=np.int8, count=3 * n, offset=mesh["normal_offset"])
+        lengths = np.linalg.norm(normals.reshape(-1, 3) / 127.0, axis=1)
+        assert np.all(np.abs(lengths - 1) < 0.03)
+    # Full resolution keeps every compiled visual face.
+    visual = {
+        int(clear_env.model.geom_dataid[g])
+        for g in range(clear_env.model.ngeom)
+        if clear_env.model.geom_group[g] in (0, 2, 5) and clear_env.model.geom_type[g] == 7
+    }
+    assert manifest["face_count"] == int(sum(clear_env.model.mesh_facenum[m] for m in visual))
     assert {g["group"] for g in manifest["geoms"]} <= {0, 2, 5}
     assert all(-1 <= g["mesh"] < len(manifest["meshes"]) for g in manifest["geoms"])
-    cached, cached_blob = load_model_export(clear_env.model, face_budget=400)
+    cached, cached_blob = load_model_export(clear_env.model)
     assert cached == manifest and cached_blob == blob
 
 
@@ -279,7 +291,7 @@ def test_websocket_handshake_auth_and_state_stream(clear_env, tmp_path, monkeypa
     with TestClient(server.app) as client:
         assert client.get("/api/model").status_code == 401
         manifest = client.get("/api/model?token=secret").json()
-        assert manifest["format"] == "web_teleop_model_v1"
+        assert manifest["format"] == "web_teleop_model_v2"
         with pytest.raises(WebSocketDisconnect), client.websocket_connect("/teleop/control"):
             pass
         session = str(uuid.uuid4())
@@ -311,3 +323,54 @@ def test_websocket_handshake_auth_and_state_stream(clear_env, tmp_path, monkeypa
             while (reply := control.receive_json())["type"] == "status":
                 pass
             assert reply["type"] == "pong" and reply["t0"] == 1.0
+
+
+def test_stereo_pair_framing_round_trip():
+    from abstract_stack.web_teleop.video import pack_pair, unpack_pair
+
+    message = pack_pair({"pair_id": 3}, b"\xff\xd8left", b"\xff\xd8right!")
+    meta, left, right = unpack_pair(message)
+    assert meta == {"pair_id": 3} and left == b"\xff\xd8left" and right == b"\xff\xd8right!"
+    assert message[:4] == b"QTP1"
+    with pytest.raises(ValueError):
+        unpack_pair(message + b"x")
+
+
+@pytest.mark.mabel
+@pytest.mark.rendering
+def test_video_socket_streams_stereo_head_camera_pairs(clear_env, tmp_path, monkeypatch):
+    import io
+
+    from PIL import Image
+    from starlette.testclient import TestClient
+
+    from abstract_stack.web_teleop.core import TeleopCore
+    from abstract_stack.web_teleop.server import TeleopServer
+    from abstract_stack.web_teleop.video import StereoVideo, unpack_pair
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    video = StereoVideo(clear_env.model, width=160, height=120, fps=10)
+    server = TeleopServer(TeleopCore(clear_env, video=video), token=None, face_budget=200)
+    session = str(uuid.uuid4())
+    with TestClient(server.app) as client, client.websocket_connect("/teleop/control") as control:
+        hello = {
+            "schema_version": 1,
+            "type": "hello",
+            "session_id": session,
+            "profile": "web_teleop_v1",
+            "role": "operator",
+        }
+        control.send_text(json.dumps(hello))
+        ack = control.receive_json()
+        assert ack["video"]["cameras"] == ["zed_left", "zed_right"]
+        with client.websocket_connect("/teleop/video") as stream:
+            bind = {"schema_version": 1, "type": "video_bind", "session_id": session}
+            stream.send_text(json.dumps(bind))
+            meta, left, right = unpack_pair(stream.receive_bytes())
+    if video.error:
+        pytest.skip(video.error)
+    assert meta["eye_order"] == ["left", "right"] and meta["width"] == 160
+    eyes = [np.asarray(Image.open(io.BytesIO(eye))) for eye in (left, right)]
+    assert all(eye.shape == (120, 160, 3) for eye in eyes)
+    # 63 mm stereo baseline: the two eyes see measurably different images.
+    assert np.abs(eyes[0].astype(int) - eyes[1].astype(int)).mean() > 1.0

@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from abstract_stack.env import ShelfStockingEnv
 from abstract_stack.web_teleop import protocol
 from abstract_stack.web_teleop.retarget import RetargetConfig, WebRetargeter
+from abstract_stack.web_teleop.video import StereoVideo
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class TeleopCore:
         config: CoreConfig | None = None,
         retarget: RetargetConfig | None = None,
         realtime: bool = True,
+        video: StereoVideo | None = None,
     ):
         if not env.robot:
             raise ValueError("web teleop requires the MABEL robot")
@@ -59,6 +61,7 @@ class TeleopCore:
         self.config = config or CoreConfig()
         self.realtime = realtime
         self.retargeter = WebRetargeter(env.model, env.data, retarget)
+        self.video = video
         self._lock = threading.Lock()
         self._events: queue.SimpleQueue = queue.SimpleQueue()
         self._state = State.DISCONNECTED
@@ -89,9 +92,13 @@ class TeleopCore:
         self._running.set()
         self._thread = threading.Thread(target=self._run, name="web-teleop-sim", daemon=True)
         self._thread.start()
+        if self.video is not None:
+            self.video.start()
 
     def stop(self) -> None:
         self._running.clear()
+        if self.video is not None:
+            self.video.stop()
         if self._thread is not None:
             self._thread.join(timeout=5)
             self._thread = None
@@ -309,6 +316,8 @@ class TeleopCore:
         frame = protocol.pack_state(
             self._tick, float(data.time), time.monotonic(), data.xpos, data.xquat, flags
         )
+        if self.video is not None:
+            self.video.snapshot(data, self._generation)
         status = None
         if self._tick % self.config.status_every_ticks == 0:
             status = self._publish_status()
@@ -343,8 +352,21 @@ class TeleopCore:
                     )
                 },
                 **report,
+                "video": self._video_status(),
             }
             return dict(self._status)
+
+    def _video_status(self) -> dict | None:
+        video = self.video
+        if video is None:
+            return None
+        return {
+            "error": video.error,
+            "pair_id": video.pair_id,
+            "render_ms": round(video.stats["render_ms"], 1),
+            "encode_ms": round(video.stats["encode_ms"], 1),
+            "pair_bytes": video.stats["bytes"],
+        }
 
     def _run(self) -> None:
         dt = self.env.dt
