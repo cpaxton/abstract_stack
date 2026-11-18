@@ -20,6 +20,10 @@ TeX or download container images. The PDF is generated locally as `main.pdf`.
 - [sections/](sections/): motivation, related work, physical task, controller and
   task-policy proposal, planned evaluation, current status, reproducibility.
 - [references.bib](references.bib): verified source metadata; pin reviewed versions.
+- [Gripper design tracker](../docs/gripper_design_tracker.md): separate GET and
+  Dream Gripper references, released assets, evidence gaps and proposed tests.
+- [Technical feasibility plan](../docs/technical_feasibility.md): proposed gates
+  for dense contact, recovery, teleop, pace, sensing, learning and physical validation.
 - [reviews/agentic_gentamp.md](reviews/agentic_gentamp.md): paper review and our
   implementation priorities, with primary-source links.
 - [MABEL controller](../docs/mabel_controller.md): tracking API, diagnostics,

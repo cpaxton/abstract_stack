@@ -75,6 +75,33 @@ introduce prefilled shelves, deliberate jams and tipped products; finally test
 both hands and the house layout. Navigation and manipulation results must be
 reported separately before claiming whole-house behavior.
 
+\paragraph{Gripper and collection comparisons.}
+At a matched actuator and motion budget where feasible, compare conventional
+flat pads, GET-style three-contact geometry~\citep{burgess2025get}, and a
+rigid-tip/compliant-insert variant motivated by Dream Gripper~\citep{dreamgripper2026}.
+Test geometry before adding sensing, then compare sensing with mechanics fixed.
+Independent finger commands form another condition, not an assumed improvement.
+Declare any unmatched stroke, payload, mass or controller differences explicitly.
+These variants have not been built or evaluated in this repository.
+
+Measure retention against disturbances and the entire insertion/release/withdrawal
+sequence as shelf clearance decreases. Include snagging, neighbor displacement,
+slip, loads, wear and task time. Compare matched UMI demonstrations and robot-native
+corrections at equal operator labor and training budgets, with held-out objects,
+layouts and sessions. Simulated compliance does not validate printed pads or
+packaging damage; require independent bench characterization.
+
+\paragraph{Pace and observation access.}
+Freeze contact limits and task criteria while sweeping execution speed; establish
+a matched human task baseline before claiming human pace. Report success and
+force versus speed, median and tail task times, planning/inference wall latency,
+tracking lag, and assistance time. Compare exact-state control against explicitly
+specified sensor/estimator inputs under delay, noise and occlusion. A real-time
+video or faster free-space segment alone does not establish fast contact control.
+The proposed engineering gates and reference register are maintained in
+\path{docs/technical_feasibility.md} and \path{docs/gripper_design_tracker.md};
+their numerical targets are not measured outcomes.
+
 \paragraph{Comparisons.}
 Use the same measured-state interface, task success checks, physical model,
 and matched instance suites for: a hand-written task program; one-shot program

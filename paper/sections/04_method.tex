@@ -106,6 +106,29 @@ training information, actor observations, and independent evaluation diagnostics
 must be disclosed separately. No hardware deployment or policy promotion is
 implied by simulator training.
 
+\subsection{Proposed contact-interface and collection prototype}
+The next prototype is a GET-inspired one-actuator, three-contact configuration,
+with replaceable compliant pads and thin rigid nail modules. It is a mechanical
+baseline for the three-finger research direction, not a selected final hand.
+Independent finger actuation remains a separate comparison: introduce it when
+failure cases require moving one contact while retaining the others. Metal nail
+variants are proposed adaptations, not properties established by the references.
+Start with the native MABEL hand to preserve a reproducible control baseline.
+
+Design a robot/tool pair around the same contact geometry and calibrated opening,
+then instrument one finger and an independent force fixture. Validate the sensor's
+frame, latency, force response and coverage before using it as a substitute for
+simulator contact normals. VR teleoperation of a robot and robot-free handheld
+UMI collection are distinct data sources; both require explicit action/state
+contracts. Record nominal, applied and measured motion with intervention events.
+
+The interaction objective includes acquisition, retention and disengagement:
+pickup, carry under disturbance, insertion, release and withdrawal without
+dislodging earlier placements. A grasp that retains a product but cannot release
+through the available clearance does not satisfy the task. Changes to fingers,
+mass, collision geometry or actuation belong in explicit model variants; they
+must not alter the historical native-MABEL benchmark silently.
+
 \subsection{Recovery policy development}
 After a rejected grasp, the program should change a discrete choice: regenerate
 the pose, choose a different product, switch hands, clear an obstruction, or
