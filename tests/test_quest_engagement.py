@@ -505,6 +505,114 @@ def test_mailbox_keeps_one_detached_latest_input(gate):
     assert gate._tracking["head"]["pose"]["position_m"][0] != 999
 
 
+@pytest.mark.parametrize("loss_field", ["active", "focused", "worn"])
+def test_mailbox_preserves_received_lifecycle_loss_through_recovery(gate, loss_field):
+    from abstract_stack.teleop.session_bridge import OwnerMailbox
+
+    engaged(gate)
+    tracking, clock, lifecycle, video = observe(gate, 10.04)
+    mailbox = OwnerMailbox()
+    mailbox.observe(tracking, clock, replace(lifecycle, **{loss_field: False}), video)
+    mailbox.observe(tracking, clock, lifecycle, video)
+    mailbox.drain(gate, now=10.06)
+
+    assert mailbox.replaced_inputs == 1
+    assert gate.state == SessionState.PAUSED
+    assert gate.reason == "independent_lifecycle_inactive"
+    assert gate.generation == 2 and gate.calibration.artifact is None
+    observe(gate, 10.08)
+    ack = control(gate, "resume", 10.08)
+    assert not ack["accepted"] and ack["reason"] == "realignment_required"
+
+
+def test_mailbox_lifecycle_loss_cannot_pause_another_session(gate):
+    from abstract_stack.teleop.session_bridge import OwnerMailbox
+
+    engaged(gate)
+    tracking, clock, lifecycle, video = observe(gate, 10.04)
+    mailbox = OwnerMailbox()
+    other = str(uuid4())
+    loss = replace(lifecycle, session_id=other, active=False)
+    mailbox.observe(dict(tracking, session_id=other), clock, loss, video)
+    mailbox.observe(tracking, clock, lifecycle, video)
+    mailbox.drain(gate, now=10.06)
+
+    assert gate.state == SessionState.ENGAGED and gate.generation == 1
+    assert gate.calibration.artifact is not None
+
+
+def test_recenter_timeout_closes_session_and_cancels_queued_recenter(gate):
+    import asyncio
+    import time
+
+    from websockets.exceptions import ConnectionClosed
+
+    from abstract_stack.teleop.session_bridge import GateControlServer, OwnerMailbox
+
+    class Connection:
+        closed = False
+
+        async def close(self, *, code, reason):
+            self.closed = True
+            assert code == 1001 and reason == "simulator owner unavailable"
+
+        async def send(self, _):
+            assert self.closed  # The timeout must not advertise a usable ACK.
+            raise ConnectionClosed(None, None)
+
+    class RecordingMailbox(OwnerMailbox):
+        def submit(self, method, *args, **kwargs):
+            result = super().submit(method, *args, **kwargs)
+            if method == "control":
+                self.pending_control = result
+            return result
+
+    async def run():
+        mailbox = RecordingMailbox()
+        server = GateControlServer(mailbox)
+        connection = Connection()
+        session = server.registry.create(str(uuid4()), connection)
+        mailbox.submit("connect", session.session_id)
+        mailbox.drain(gate, now=time.monotonic())
+        for _ in range(24):
+            mailbox.submit("host_pause")
+        task = asyncio.create_task(
+            server.dispatch(
+                session,
+                dict(
+                    schema_version=1,
+                    session_id=session.session_id,
+                    type="control",
+                    action="reference_space_changed",
+                    event_id=0,
+                    calibration_generation=0,
+                ),
+            )
+        )
+        await asyncio.sleep(0)
+        # Keep owner status current while conservatively draining fewer than all
+        # requests ahead of the recenter. The owner is responsive but backlogged.
+        for _ in range(3):
+            await asyncio.sleep(0.06)
+            mailbox.drain(gate, now=time.monotonic(), max_controls=4)
+        assert time.monotonic() - mailbox.status()["host_monotonic_s"] < 0.15
+        with pytest.raises(ConnectionClosed):
+            await task
+        assert connection.closed and session.calibration_generation == 1
+        assert mailbox.pending_control.cancelled()
+        mailbox.drain(gate, now=time.monotonic(), max_controls=32)
+        assert gate.session_id is None and gate.generation == 0
+
+        # Cleanup allows a new session to establish matching generations.
+        await server.registry.disconnect(session)
+        new = server.registry.create(str(uuid4()), Connection())
+        result = mailbox.submit("connect", new.session_id)
+        mailbox.drain(gate, now=time.monotonic())
+        assert result.result() == new.calibration_generation == 0
+
+    asyncio.run(run())
+
+
 def test_real_websocket_status_and_actions_use_owner_mailbox(gate):
     import asyncio
     import threading

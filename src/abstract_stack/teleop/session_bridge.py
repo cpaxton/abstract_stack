@@ -7,9 +7,11 @@ import copy
 import queue
 import threading
 import time
+from collections.abc import Mapping
 from concurrent.futures import Future
 from dataclasses import asdict
 
+from abstract_stack.teleop.session import LifecycleEvidence
 from abstract_stack.teleop.transport import ControlServer, SessionRegistry
 
 
@@ -28,6 +30,7 @@ class OwnerMailbox:
         self.calibration_provider = calibration_provider
         self._lock = threading.Lock()
         self._input = None
+        self._lifecycle_losses = set()
         self._urgent_disconnects = set()
         self._pending_connects = {}
         self._urgent_pause = False
@@ -64,7 +67,21 @@ class OwnerMailbox:
 
     def observe(self, tracking, clock, lifecycle, video):
         observation = copy.deepcopy((tracking, clock, lifecycle, video))
+        tracking, _, lifecycle, _ = observation
         with self._lock:
+            if (
+                isinstance(tracking, Mapping)
+                and isinstance(lifecycle, LifecycleEvidence)
+                and isinstance(lifecycle.session_id, str)
+                and lifecycle.session_id == tracking.get("session_id")
+                and any(
+                    value is False
+                    for value in (lifecycle.active, lifecycle.focused, lifecycle.worn)
+                )
+            ):
+                # Coalesce loss per session, independent of replaceable pose data.
+                # SessionRegistry bounds unique IDs over the lifetime of the host.
+                self._lifecycle_losses.add(lifecycle.session_id)
             self.replaced_inputs += self._input is not None
             self._input = observation
 
@@ -75,17 +92,21 @@ class OwnerMailbox:
     def drain(self, gate, *, now, max_controls=8):
         gate._owner()
         with self._lock:
-            observation, disconnects, pause = (
+            observation, lifecycle_losses, disconnects, pause = (
                 self._input,
+                self._lifecycle_losses,
                 self._urgent_disconnects,
                 self._urgent_pause,
             )
             self._input, self._urgent_disconnects, self._urgent_pause = None, set(), False
+            self._lifecycle_losses = set()
         if gate.session_id in disconnects:
             gate.disconnect(gate.session_id, now=now)
         if pause:
             gate.host_pause(now=now)
-        if observation is not None:
+        if gate.session_id in lifecycle_losses:
+            gate.lifecycle_lost(gate.session_id, now=now)
+        elif observation is not None:
             gate.observe(*observation, now=now)
         for _ in range(max_controls):
             try:
@@ -132,8 +153,17 @@ class OwnerMailbox:
         )
         try:
             result = await asyncio.wait_for(asyncio.wrap_future(future), 0.2)
-        except (asyncio.TimeoutError, RuntimeError, ValueError):
-            self.request_pause()
+        except (asyncio.TimeoutError, RuntimeError, ValueError) as error:
+            if (
+                isinstance(error, asyncio.TimeoutError)
+                or message["action"] == "reference_space_changed"
+            ):
+                # The inherited dispatcher pre-advances transport generation on
+                # recenter. A failed owner request cannot leave this session open.
+                self.disconnect(session.session_id)
+                await session.connection.close(code=1001, reason="simulator owner unavailable")
+            else:
+                self.request_pause()
             return {"accepted": False, "reason": "owner_unavailable"}
         generation = result["calibration_generation"]
         if generation > session.calibration_generation:
