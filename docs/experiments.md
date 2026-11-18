@@ -1,5 +1,10 @@
 # Stocking workflows and experiment index
 
+Latest: [adjacent insertion toward a complete shelf](reports/adjacent_insertion_development.md)
+integrates the released selected-finger skill into ordinary stocking. A fresh
+tight three-carton episode completes all stages; four/ten-carton development
+failures and saved-state continuations remain explicit in its trial ledger.
+
 Current fixed-shelf focus: [grasp skills, held-out checks and longer execution](reports/grasp_skill_development.md),
 [skill entry distributions](skills.md), and the
 [predictive/compliant two-layer plan](receding_horizon_stocking.md#fixed-shelf-two-layer-controller).

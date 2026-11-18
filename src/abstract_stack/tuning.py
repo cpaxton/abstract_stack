@@ -33,6 +33,8 @@ CONTROL_BOUNDS = {
     "insertion_back_force_target": (0.3, 5.0),
     "insertion_lateral_position_gain": (0.2, 3.0),
     "insertion_tangent_admittance": (0.004, 0.04),
+    "front_alignment_position_gain_s": (0.5, 8.0),
+    "front_alignment_yaw_gain_s": (0.5, 8.0),
 }
 
 

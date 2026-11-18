@@ -15,9 +15,14 @@ SKILL_PHASES = {
     "push": "contact_finish",
     "finger_push": "contact_finish",
     "release": "release_retreat",
+    "stage_align": "front_release",
 }
 
 SKILL_CONTRACTS = {
+    "front_release": {
+        "entry": "Shelf-front supported carton; retained wrapping grip before pressure unload",
+        "success": "Measured unloaded support with pose/velocity recorded before pusher approach",
+    },
     "grasp_lift": {
         "entry": "Upright table-supported carton; empty hand; measured inventory poses",
         "success": "Opposing contacts, measured rise, retained hand contact and table support lost",
@@ -138,6 +143,20 @@ def record_skill_entry(script, phase):
         scene=scene,
         controller=dict(
             kind="stocking_skill_entry",
+            tool_class=type(script.controller).__name__,
+            tool_offset_m=script.controller.OFFSET.tolist(),
+            tool_preferred_rotation_world=script.controller.ROTATION.tolist(),
+            grasp_abduction_targets=dict(script.grasp_abduction_targets),
+            open_posture_overrides=dict(script.controller.open_posture_overrides),
+            abduction_targets=dict(script.controller.abduction_targets),
+            tip_body_references={
+                k: v.tolist()
+                for k, v in getattr(script.controller, "tip_body_references", {}).items()
+            },
+            tool_posture_constraints={
+                script.controller.ik.names[i]: float(value)
+                for i, value in script.controller.ik.posture_constraints.items()
+            },
             settings=asdict(script.config),
             nominal_subset=nominal,
             hand_nominal_subset=dict(
@@ -149,6 +168,7 @@ def record_skill_entry(script, phase):
             ),
             applied_controls=env.data.ctrl.tolist(),
             active_rotation_world=script.controller.active_rotation.tolist(),
+            nominal_cartesian_target_m=script.controller.last_target.tolist(),
             active_grip=script.active_grip,
             carry_reference=None
             if script.carry_reference is None

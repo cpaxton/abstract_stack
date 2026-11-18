@@ -62,6 +62,7 @@ def supported_withdrawal(
     )
     hand.command = nominal.copy()
     origin, rotation = hand.ik.forward(nominal)
+    plane_bias = 0.0
     hand.active_rotation = rotation.copy()
     measured_origin = hand.position().copy()
     applied_origin, _ = hand.ik.forward(applied[aids])
@@ -87,6 +88,7 @@ def supported_withdrawal(
     active_origin = data.xpos[active].copy()
     source_nominal = nominal.copy()
     release_held = 0.0
+    unloaded_held = 0.0
     max_tracking = 0.0
     joint_limits, rate_limits = set(), set()
     native_projection_count = rate_projection_count = 0
@@ -94,7 +96,7 @@ def supported_withdrawal(
     feedback_trace = []
 
     def record_step():
-        nonlocal failure, max_tracking, release_held
+        nonlocal failure, max_tracking, release_held, unloaded_held
         failure = monitor.sample(data, elapsed=model.opt.timestep)
         if on_physics_step is not None:
             on_physics_step(hand.env)
@@ -133,19 +135,58 @@ def supported_withdrawal(
             and np.linalg.norm(velocity[3:]) < 0.2
         )
         release_held = release_held + model.opt.timestep if released else 0.0
+        if tracker is not None and tracker.config.yaw_feedback:
+            unloaded_held = (
+                unloaded_held + model.opt.timestep
+                if released
+                and monitor.last.get("robot_product_N", 0) <= tracker.config.unload_force_goal_N
+                else 0.0
+            )
 
-    stages = [] if resume_withdrawal else [("unload", np.array([0.006, 0, 0]), 0.004, 3.0)]
+    unload_seconds = (
+        tracker.config.unload_seconds
+        if tracker is not None and tracker.config.yaw_feedback
+        else 3.0
+    )
+    unload_speed = (
+        tracker.config.unload_speed_m_s
+        if tracker is not None and tracker.config.yaw_feedback
+        else 0.004
+    )
+    stages = (
+        []
+        if resume_withdrawal
+        else [("unload", np.array([0.006, 0, 0]), unload_speed, unload_seconds)]
+    )
     displacement = np.array([clear_distance_m, 0, clear_height_m])
+    straight_first = (
+        tracker is not None
+        and tracker.config.yaw_feedback
+        and tracker.config.straight_retreat_first
+    )
     stages.append(
         (
             "retreat",
-            displacement,
+            np.array([clear_distance_m, 0, 0]) if straight_first else displacement,
             clear_speed_m_s,
             max(7.0, 1.5 * float(np.linalg.norm(displacement)) / clear_speed_m_s),
         )
     )
+    if straight_first:
+        stages.append(
+            (
+                "retreat_lift",
+                displacement,
+                clear_speed_m_s,
+                max(4.0, 1.5 * clear_height_m / clear_speed_m_s),
+            )
+        )
     for stage, displacement, speed, seconds in stages:
         goal = measured_origin + displacement
+        if stage.startswith("retreat") and tracker is not None and tracker.config.yaw_feedback:
+            # Keep the admitted lateral unload offset until the hand is clear;
+            # do not sweep back sideways across a barely unloaded carton.
+            goal[1] = hand.position()[1]
         reached = False
         for tick in range(int(seconds / hand.env.dt)):
             hand.command = nominal.copy()
@@ -154,15 +195,116 @@ def supported_withdrawal(
             # becomes inaccurate as load disappears; nominal FK alone cannot
             # establish that the physical hand reached its clearance target.
             remaining = goal - hand.position()
-            if stage == "unload" and release_held + 1e-12 >= 0.12:
+            unload_ready = (
+                unloaded_held + 1e-12 >= tracker.config.unload_dwell_s
+                if tracker is not None and tracker.config.yaw_feedback
+                else release_held + 1e-12 >= 0.12
+            )
+            if stage == "unload" and unload_ready:
                 # The unload phase ends on measured released support, not on
                 # an arbitrary extra translation after pressure is already gone.
                 reached = True
                 break
-            if np.linalg.norm(remaining) <= 0.0005:
+            force_unload = stage == "unload" and tracker is not None and tracker.config.yaw_feedback
+            if np.linalg.norm(remaining) <= 0.0005 and not force_unload:
                 reached = True
                 break
-            target = point + remaining * min(1, speed * hand.env.dt / np.linalg.norm(remaining))
+            if stage == "unload" and tracker is not None and tracker.config.yaw_feedback:
+                # Yaw control owns lateral motion during unloading. The old
+                # lateral origin must not consume the normal separation speed.
+                remaining[1] = 0.0
+                # Release is a force goal. Never reverse into the carton when
+                # the arbitrary 6 mm waypoint is reached before pressure clears.
+                remaining[0] = max(
+                    remaining[0],
+                    0.005
+                    * max(
+                        0.0,
+                        monitor.last.get("robot_product_N", 0) - tracker.config.unload_force_goal_N,
+                    ),
+                )
+            delta = remaining * min(1, speed * hand.env.dt / max(np.linalg.norm(remaining), 1e-12))
+            yaw_feedback = None
+            if stage == "unload" and tracker is not None and tracker.config.yaw_feedback:
+                contact = tracker.contact_center()
+                r = data.xmat[active].reshape(3, 3)
+                yaw = float(np.arctan2(r[1, 0], r[0, 0]))
+                yaw_error = yaw - np.radians(tracker.config.yaw_reference_deg)
+                velocity = np.empty(6)
+                mujoco.mj_objectVelocity(model, data, mujoco.mjtObj.mjOBJ_BODY, active, velocity, 0)
+                desired_lever = float(
+                    np.clip(
+                        -tracker.config.yaw_lever_gain_m_rad * yaw_error
+                        - tracker.config.yaw_lever_damping_m_s_rad * velocity[2],
+                        -0.006,
+                        0.006,
+                    )
+                )
+                measured_lever = (
+                    None if contact is None else float(contact[1] - data.xpos[active, 1])
+                )
+                contact_wrench = tracker.contact_wrench_on_product()
+                desired_moment = float(
+                    np.clip(
+                        -tracker.config.yaw_moment_stiffness_Nm_rad * yaw_error
+                        - tracker.config.yaw_moment_damping_Nms_rad * velocity[2],
+                        -0.01,
+                        0.01,
+                    )
+                )
+                delta[1] = (
+                    0.0
+                    if contact is None
+                    or monitor.last.get("robot_product_N", 0) <= tracker.config.unload_force_goal_N
+                    else float(
+                        np.clip(
+                            (
+                                2 * desired_lever
+                                + tracker.config.yaw_moment_admittance_m_Nms
+                                * (desired_moment - contact_wrench[5])
+                            )
+                            * hand.env.dt,
+                            -speed * hand.env.dt,
+                            speed * hand.env.dt,
+                        )
+                    )
+                )
+                plane_yaw = None
+                if tracker.config.paired_plane_feedback:
+                    if not hasattr(hand, "contact_plane_yaw"):
+                        raise ValueError("Paired withdrawal needs measured native pad references")
+                    plane_yaw = hand.contact_plane_yaw()
+                    if monitor.last.get("robot_product_N", 0) > tracker.config.unload_force_goal_N:
+                        plane_goal = np.radians(tracker.config.yaw_reference_deg) - 2 * yaw_error
+                        plane_bias = float(
+                            np.clip(
+                                plane_bias
+                                - np.clip(2 * (plane_yaw - plane_goal), -0.3, 0.3) * hand.env.dt,
+                                -np.radians(3),
+                                np.radians(3),
+                            )
+                        )
+                        c, s = np.cos(plane_bias), np.sin(plane_bias)
+                        hand.active_rotation = (
+                            np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]) @ rotation
+                        )
+                    delta[1] = 0.0
+                delta *= min(1.0, speed * hand.env.dt / max(np.linalg.norm(delta), 1e-12))
+                yaw_feedback = dict(
+                    yaw_deg=float(np.degrees(yaw)),
+                    yaw_error_deg=float(np.degrees(yaw_error)),
+                    yaw_reference_deg=tracker.config.yaw_reference_deg,
+                    desired_contact_lever_y_m=desired_lever,
+                    measured_contact_lever_y_m=measured_lever,
+                    nominal_step_m=delta.tolist(),
+                    contact_wrench_on_product_world_N_Nm=contact_wrench.tolist(),
+                    desired_yaw_moment_Nm=desired_moment,
+                    paired_plane_yaw_deg=None
+                    if plane_yaw is None
+                    else float(np.degrees(plane_yaw)),
+                    paired_plane_bias_deg=float(np.degrees(plane_bias)),
+                )
+            target = point + delta
             proposal = hand.predict(
                 target,
                 allowed_object=monitor.scene.active,
@@ -175,7 +317,16 @@ def supported_withdrawal(
                 plans.append(dict(stage=stage, tick=tick, prediction=proposal.report()))
                 failure = "withdrawal_endpoint_or_path_prefilter"
                 break
-            prediction = bounded_contact_prediction(hand, proposal, target, hand.env.dt, rates)
+            linear_bound = speed * hand.env.dt + 1e-6
+            angular_bound = 0.3 * hand.env.dt + 1e-6
+            motion_options = (
+                dict(max_translation_step_m=linear_bound, max_rotation_step_rad=angular_bound)
+                if tracker is not None and tracker.config.yaw_feedback
+                else {}
+            )
+            prediction = bounded_contact_prediction(
+                hand, proposal, target, hand.env.dt, rates, **motion_options
+            )
             diagnostics = prediction.bounded_feedback or {}
             joint_limits.update(diagnostics.get("active_joint_limits", []))
             rate_limits.update(diagnostics.get("active_rate_limits", []))
@@ -303,6 +454,7 @@ def supported_withdrawal(
                             zip((*hand.names, "Lift"), prediction.q.tolist(), strict=True)
                         ),
                         admitted_servo_endpoint=bounded[aids].tolist(),
+                        unload_yaw_feedback=yaw_feedback,
                         **tracker.last_report,
                     )
                 )

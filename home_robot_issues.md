@@ -212,3 +212,22 @@ project names, task descriptions, repository links, or private context.
   modules are unavailable and a small local occupancy grid is used instead.
 - **Not an upstream defect report:** this is a dependency-version conflict, not
   a bug. No reproduction is being sent upstream.
+
+## MODEL-001 — MABEL carriage geometry at small lift extensions
+
+- **Status:** local native-geometry observation, 2026-11-18; not filed or sent.
+  This is not established as an Emet defect.
+- **Model:** `open_mabel` d0181f04025c06e1790b7ab41fe44d602cc2ee5b,
+  unmodified `mabel_full.xml`, MuJoCo 3.17.0.
+- **Observation:** a scratch FK scan of aggregate lift extension measured
+  `lift_base`/`body_mount` collision-mesh distance as -19.400 mm at 0 mm,
+  +0.600 mm at 20 mm and +10.600 mm at 30 mm. The nominal joint interval
+  alone does not guarantee this pair's clearance. Existing collision rejection
+  correctly rejects further penetration; masks and native limits remain intact.
+- **Local mitigation under evaluation:** opt-in planning references reserve
+  30 mm minimum extension. A scratch bound is not execution evidence; keep
+  native geometry checks on the compensated command and live contact guards.
+- **Possible upstream question:** should the documented usable lift workspace
+  account for the carriage/base geometry? Any future reproduction must contain
+  only the upstream model and a scratch geometry scan, with no downstream paths
+  or task context. No upstream communication is authorized by this note.

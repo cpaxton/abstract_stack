@@ -179,6 +179,26 @@ class BaseNavigationSpace(ConfigurationSpace):
         return bool(np.all(dist >= self.footprint_radius))
 
 
+def coalesce_collinear_path(path):
+    """Remove intermediate stops without changing the geometric polyline."""
+    result = []
+    for point in path:
+        point = tuple(map(float, point))
+        if result and np.linalg.norm(np.asarray(point) - result[-1]) < 1e-12:
+            continue
+        while len(result) >= 2:
+            a = np.asarray(result[-1]) - result[-2]
+            b = np.asarray(point) - result[-1]
+            if (
+                abs(a[0] * b[1] - a[1] * b[0]) > 1e-10 * np.linalg.norm(a) * np.linalg.norm(b)
+                or a @ b < 0
+            ):
+                break
+            result.pop()
+        result.append(point)
+    return result
+
+
 def plan_base_path(
     env,
     start_xy,
@@ -187,6 +207,7 @@ def plan_base_path(
     footprint_radius: float = BaseNavigationSpace.FOOTPRINT_RADIUS_M,
     resolution: float = 0.02,
     exclude_products=(),
+    allow_goal_snap=False,
 ):
     """Plan a collision-free 2D base route with emet A*.
 
@@ -210,4 +231,9 @@ def plan_base_path(
     )
     if not result.success or not result.trajectory:
         return None
-    return [tuple(float(v) for v in node.state[:2]) for node in result.trajectory]
+    path = [tuple(float(v) for v in node.state[:2]) for node in result.trajectory]
+    # Emet can explicitly resolve a low-clearance request to a nearby safe grid
+    # endpoint. A successful planner result is not an exact-goal certificate.
+    if not allow_goal_snap and not np.allclose(path[-1], goal_xy, rtol=0, atol=1e-9):
+        return None
+    return coalesce_collinear_path(path)

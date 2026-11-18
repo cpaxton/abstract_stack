@@ -1,5 +1,7 @@
 """Reaction torque, reference-frame bookkeeping and native tracker admission."""
 
+from types import SimpleNamespace
+
 import mujoco
 import numpy as np
 import pytest
@@ -48,6 +50,19 @@ def test_contact_torque_matches_native_generalized_constraint_force(product_firs
     np.testing.assert_array_equal(data.qpos, qpos)
     np.testing.assert_array_equal(data.qvel, qvel)
     np.testing.assert_array_equal(data.ctrl, ctrl)
+    tracker = object.__new__(WithdrawalTracker)
+    tracker.hand = SimpleNamespace(model=model, data=data)
+    tracker.product = model.body("product").id
+    tracker.descendants = {model.body("robot").id, model.body("hand").id}
+    np.testing.assert_allclose(tracker.contact_center(), data.contact[0].pos, atol=1e-12)
+    product_wrench = tracker.contact_wrench_on_product()
+    reaction_about_wrist = -product_wrench[3:] - np.cross(
+        data.xpos[tracker.product] - data.xanchor[wrist], product_wrench[:3]
+    )
+    assert data.xaxis[wrist] @ reaction_about_wrist == pytest.approx(torque, abs=1e-9)
+    tracker.descendants = set()
+    assert tracker.contact_center() is None
+    np.testing.assert_array_equal(tracker.contact_wrench_on_product(), np.zeros(6))
 
 
 @pytest.mark.parametrize(
@@ -56,6 +71,9 @@ def test_contact_torque_matches_native_generalized_constraint_force(product_firs
         dict(servo_speed_m_s=0.1),
         dict(contact_effort_limit_Nm=0.31),
         dict(wrist_offset_limit_rad=np.nan),
+        dict(yaw_reference_deg=0.14),
+        dict(yaw_reference_deg=-0.14),
+        dict(yaw_reference_deg=np.nan),
     ],
 )
 def test_compensation_configuration_cannot_silently_expand_limits(settings):

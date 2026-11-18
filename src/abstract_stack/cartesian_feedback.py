@@ -252,7 +252,16 @@ def bounded_cartesian_step(
 
 
 def bounded_contact_prediction(
-    hand, proposal, target, dt, rates, *, config=None, reference_envelope=None
+    hand,
+    proposal,
+    target,
+    dt,
+    rates,
+    *,
+    config=None,
+    reference_envelope=None,
+    max_translation_step_m=None,
+    max_rotation_step_rad=None,
 ):
     """Replace a fresh contact proposal with a checked bounded nominal step.
 
@@ -285,6 +294,57 @@ def bounded_contact_prediction(
         reference=proposal.reference_qpos,
         config=config,
     )
+    motion_projection = None
+    if max_translation_step_m is not None or max_rotation_step_rad is not None:
+        if (
+            max_translation_step_m is None
+            or max_rotation_step_rad is None
+            or not np.isfinite([max_translation_step_m, max_rotation_step_rad]).all()
+            or min(max_translation_step_m, max_rotation_step_rad) <= 0
+        ):
+            raise ValueError(
+                "Cartesian motion projection needs positive translation/rotation bounds"
+            )
+        start_point, start_rotation = ik.forward(previous, proposal.reference_qpos)
+        for power in range(17):
+            fraction = 2.0**-power if power < 16 else 0.0
+            q = previous + fraction * (step.q - previous)
+            position, rotation = ik.forward(q, proposal.reference_qpos)
+            linear = float(np.linalg.norm(position - start_point))
+            angular = float(np.linalg.norm(rotation_error(start_rotation, rotation)))
+            if linear <= max_translation_step_m and angular <= max_rotation_step_rad:
+                break
+        step = replace(
+            step,
+            q=q,
+            position=position,
+            rotation=rotation,
+            position_error_m=float(np.linalg.norm(position - target)),
+            orientation_error_rad=float(
+                np.linalg.norm(rotation_error(rotation, proposal.requested_rotation))
+            ),
+            ramped_postures={
+                name: dict(value, ramped=float(q[ik.names.index(name)]))
+                for name, value in step.ramped_postures.items()
+            },
+            active_rate_limits=[
+                name
+                for i, name in enumerate(ik.names)
+                if abs(abs(q[i] - previous[i]) - rates[i] * dt) <= 1e-8
+            ],
+            active_joint_limits=[
+                name
+                for i, name in enumerate(ik.names)
+                if min(q[i] - ik.lower[i], ik.upper[i] - q[i]) <= 1e-8
+            ],
+        )
+        motion_projection = dict(
+            fraction=fraction,
+            translation_step_m=linear,
+            rotation_step_rad=angular,
+            max_translation_step_m=max_translation_step_m,
+            max_rotation_step_rad=max_rotation_step_rad,
+        )
     projection = None
     if reference_envelope is not None:
         q, projection = reference_envelope.project(
@@ -336,7 +396,18 @@ def bounded_contact_prediction(
         "global_proposal_position_error_m": proposal.position_error_m,
         "allowed_contact_object": object_name,
         "paired_reference_projection": projection,
+        "cartesian_motion_projection": motion_projection,
     }
+    motion_admitted = True
+    if motion_projection is not None:
+        linear = float(np.linalg.norm(step.position - start_point))
+        angular = float(np.linalg.norm(rotation_error(start_rotation, step.rotation)))
+        motion_admitted = linear <= max_translation_step_m and angular <= max_rotation_step_rad
+        motion_projection.update(
+            final_translation_step_m=linear,
+            final_rotation_step_rad=angular,
+            admitted=bool(motion_admitted),
+        )
     feasible = (
         step.position_error_m <= proposal.position_tolerance_m
         and step.orientation_error_rad <= np.radians(proposal.angle_tolerance_degrees)
@@ -344,6 +415,7 @@ def bounded_contact_prediction(
         and not path_collisions
         and diagnostics["solver"]["projected_gradient_inf"] <= 1e-6
         and (projection is None or projection["feasible"])
+        and motion_admitted
     )
     return replace(
         proposal,

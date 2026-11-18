@@ -12,12 +12,12 @@ from abstract_stack.assets import mabel_model_path
 from abstract_stack.config import load_scene_config
 from abstract_stack.dense_interactions import DenseStockingScript
 from abstract_stack.env import ShelfStockingEnv
-from abstract_stack.interactions import InteractionFailure, StockingScript
+from abstract_stack.interactions import InteractionFailure
 from abstract_stack.packing import dense_shelf_config, row_geometry
 from abstract_stack.scene import products_for
 
 
-def test_carton_force_guard_sums_all_contact_points_in_each_pair(monkeypatch):
+def test_carton_force_guard_sums_all_contact_points_in_each_pair():
     # Independent material/contact fixture: four contacts each below 25 N,
     # but the combined pair load supports a 3 kg upper box (>25 N).
     model = mujoco.MjModel.from_xml_string("""
@@ -35,14 +35,34 @@ def test_carton_force_guard_sums_all_contact_points_in_each_pair(monkeypatch):
     script.product_bodies = {model.body("a").id, model.body("b").id}
     script.object_pair_peak, script.object_pair_bins = 0.0, {}
     script.config = SimpleNamespace(max_force=25.0)
-    monkeypatch.setattr(StockingScript, "_sample", lambda *args: None)
+    script._carton_wall_geoms, script.carton_wall_peak = set(), 0.0
     env = SimpleNamespace(model=model, data=data, dt=0.02)
     before = data.qpos.copy()
     with pytest.raises(InteractionFailure, match="carton/carton force limit"):
-        script._sample(env)
+        script._sample_carton_pairs(env)
     assert script.object_pair_peak == pytest.approx(3 * 9.81, abs=0.01)
     assert len(script.object_pair_bins) == 1
     np.testing.assert_array_equal(data.qpos, before)
+
+
+def test_sidewall_guard_sums_all_normals_instead_of_max_contact_point():
+    model = mujoco.MjModel.from_xml_string("""<mujoco><option gravity="0 -9.81 0"/>
+      <worldbody><geom name="wall" type="box" size=".2 .1 .2"/>
+        <body name="carton" pos="0 .2 0"><freejoint/>
+          <geom type="box" size=".1 .1 .1" mass="3"/>
+        </body></worldbody></mujoco>""")
+    data = mujoco.MjData(model)
+    for _ in range(1000):
+        mujoco.mj_step(model, data)
+    mujoco.mj_forward(model, data)
+    script = DenseStockingScript.__new__(DenseStockingScript)
+    script.product_bodies = {model.body("carton").id}
+    script._carton_wall_geoms = {model.geom("wall").id}
+    script.carton_wall_peak, script.object_pair_peak, script.object_pair_bins = 0.0, 0.0, {}
+    script.config = SimpleNamespace(max_force=25.0)
+    with pytest.raises(InteractionFailure, match="summed carton/sidewall force limit"):
+        script._sample_carton_pairs(SimpleNamespace(model=model, data=data, dt=0.02))
+    assert script.carton_wall_peak == pytest.approx(3 * 9.81, abs=0.01)
 
 
 @pytest.mark.parametrize("count", [2, 3, 6, 10, 12])

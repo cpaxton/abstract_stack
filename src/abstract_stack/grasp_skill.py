@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import time
 
 import mujoco
 import numpy as np
@@ -60,12 +61,24 @@ def loaded_staging_reachable(env, controller, config, product, *, base_xy=(0.0, 
     return False
 
 
-def empty_reachable(env, controller, config, target, *, base_xy=(0.0, 0.0)):
+def empty_reachable(
+    env,
+    controller,
+    config,
+    target,
+    *,
+    base_xy=(0.0, 0.0),
+    alternatives=True,
+    active_rotation=None,
+    path_mode="joint",
+):
     """Planning-only: is an empty-hand target reachable from a candidate base?
 
     Shifts only the base in scratch; the target is a world-frame waypoint (for
-    example the pregrasp approach point). This is a kinematic reachability
-    screen, not a tracking or contact guarantee.
+    example the pregrasp approach point). ``alternatives``, ``active_rotation``
+    and ``path_mode`` mirror the caller's execution posture so the screen is no
+    more lenient than the real move. This is a kinematic reachability screen,
+    not a tracking or contact guarantee.
     """
     from abstract_stack.env import PlanningState
 
@@ -78,8 +91,16 @@ def empty_reachable(env, controller, config, target, *, base_xy=(0.0, 0.0)):
 
     hand = CartesianHand(PlanningState(env.model, data, env.dt), config)
     hand.command = controller.command.copy()
+    hand.abduction_targets = dict(controller.abduction_targets)
+    hand.open_posture_overrides = dict(controller.open_posture_overrides)
+    if active_rotation is not None:
+        hand.active_rotation = np.asarray(active_rotation, dtype=float).copy()
     prediction = hand.predict(
-        np.asarray(target, dtype=float), alternatives=True, grip=0, check_path=False
+        np.asarray(target, dtype=float),
+        alternatives=alternatives,
+        grip=0,
+        check_path=False,
+        path_mode=path_mode,
     )
     return prediction.feasible
 
@@ -129,6 +150,68 @@ def select_grasp(script, pending):
                 script.events[-1]["decision"] = "select_candidate"
                 return target.copy(), prediction
     raise InteractionFailure("No checked object-aligned grasp candidate; no grasp motion commanded")
+
+
+def plan_pregrasp_route(script, target, rotation):
+    """Check empty-hand transit around the shelf roof on independent data.
+
+    A reachable pregrasp endpoint does not certify the route from the raised
+    hand after a base relocation. Recheck each segment again before execution.
+    """
+    from abstract_stack.interactions import CartesianHand
+
+    env, live = script.env, script.controller
+    target = np.asarray(target)
+    start = live.position().copy()
+    script._stage("pregrasp_route")
+    event = script.events[-1]
+    event.update(candidates=[], wall_budget_seconds=12.0, empty_hand=True)
+    routes = [[]]
+    for clearance in (0.20, 0.26):
+        front = env.config.front_x + clearance
+        routes.append(
+            [
+                np.array([front, start[1], start[2]]),
+                np.array([front, target[1], target[2]]),
+            ]
+        )
+        sign = -1 if target[1] < env.config.center_y else 1
+        outside = target[1] + sign * 0.08
+        routes.append(
+            [
+                np.array([front, start[1], start[2]]),
+                np.array([front, outside, target[2]]),
+                np.array([target[0], outside, target[2]]),
+            ]
+        )
+    started = time.monotonic()
+    for waypoints in routes:
+        if time.monotonic() - started > 12:
+            break
+        clone = CartesianHand(env.clone_for_planning(), script.config)
+        clone.command = live.command.copy()
+        clone.abduction_targets = dict(live.abduction_targets)
+        clone.open_posture_overrides = dict(live.open_posture_overrides)
+        clone.active_rotation = np.asarray(rotation).copy()
+        row = dict(waypoints_m=[p.tolist() for p in waypoints], predictions=[])
+        event["candidates"].append(row)
+        for point in [*waypoints, target]:
+            prediction = clone.predict(
+                point, alternatives=False, grip=0, carrying=False, path_mode="cartesian"
+            )
+            row["predictions"].append(prediction.report())
+            if not prediction.feasible:
+                break
+            script._planning_pose(clone, prediction)
+        else:
+            event.update(
+                selected_waypoints_m=row["waypoints_m"],
+                wall_seconds=time.monotonic() - started,
+                decision="execute_rechecked_empty_cartesian_route",
+            )
+            return waypoints
+    event.update(wall_seconds=time.monotonic() - started, decision="hold_for_base_or_route_replan")
+    raise InteractionFailure("pregrasp_route: no checked empty-hand route around shelf fixtures")
 
 
 class GraspSkillProbe(StockingScript):

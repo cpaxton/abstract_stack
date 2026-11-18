@@ -589,8 +589,10 @@ class PoseIK:
             seed = self.home.copy()
             seed[[0, 1, 2, 3]] += [sign * 0.6, 0.5, -sign * 0.4, 0.7]
             seeds.append(np.clip(seed, self.lower, self.upper))
-        if path_mode == "cartesian":
-            seeds = seeds[:1]
+        # Cartesian execution keeps a deterministic warm-started straight-line
+        # path; the endpoint screen may still try every seed so a long checked
+        # approach (for example the pregrasp) is not rejected by a single poor
+        # seed.
         rotations = (
             self.orientations(preferred, orientation_span_degrees)
             if alternatives

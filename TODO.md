@@ -6,6 +6,41 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
 
 ## Current focus: fixed shelf and perfect state
 
+Active development ladder (`feat/sim-checkpoints`, 2026-11-18): preserve the
+successful spacious three-carton baseline, integrate released-carton selected-
+finger insertion, then run fresh tight three/four/ten-carton episodes. Use
+`scripts/run_stocking_case.py` with the presets under `configs/scenes/` and
+`configs/controllers/adjacent_insertion.json`. Freeze source per run; retain
+all failures under `outputs/adjacent-insertion-v1/`. These are development
+trials, not a generalization success rate.
+
+- [x] Share the existing dense selected-finger skill with ordinary stocking;
+  opt in with `--ungrasped-insertion`. Recheck the pusher after native base moves.
+- [x] Choose neighbor-clear front staging during carried transfer, hold the arm
+  during grasp unloading, and ramp opening from applied native finger controls.
+- [x] Integrate guarded short native forecasts for backstop squaring and measured
+  contact-wrench feedback through release/retreat. Saved-state continuations
+  remain zero fresh-task credit.
+- [x] Complete the fresh tight three-carton sequence: all stages 3/3, zero
+  prefills/incidents, 208.198 simulated seconds (`tight-three-14`). This has
+  spacious walls and 3 mm target inter-carton gaps; it is not the whole-row test.
+- [ ] Complete four cartons without restarting between objects.
+- [x] Test two native fingertip pads through insertion, backstop squaring,
+  unloading and retreat from saved four-/ten-carton skill entries. These are
+  zero-credit continuations, not fresh episodes. Check partial thumb extension
+  against both walls and the planned departure before opening.
+- [ ] Close lateral registration under load: the ten-carton entry finishes
+  square but drifts 8.6 mm sideways. Measure the actual pad plane, including
+  native finger-servo deflection; keep its reference bias within three degrees. Retain
+  the 25 N guards and unchanged final geometry criteria.
+- [ ] Complete ten cartons, zero prefills, 10 mm **total** row free space. Both
+  sidewalls participate in planning and native summed-force guards. Then 5 mm.
+- [ ] Freeze the successful controller, validate untouched scenes, and generate
+  exact actuator-replay third-/first-person videos and a stage-by-stage report.
+- [ ] Resolve intermittent native crashes before declaring validation complete.
+  Retain the unknown four-carton episode and native-test crash logs; a later
+  successful retry does not replace either outcome.
+
 Keep one fixed single-level shelf, carton geometry and reset seed while closing
 the manipulation loop. The randomized suite remains available for later testing;
 do not tune on its private held-out cases. Use a predictive planner for short
@@ -273,9 +308,10 @@ worker is independently locked; collection remains in the main simulator env.
 - [ ] Produce a report and synchronized third/first-person MP4s of full episodes.
   Do not infer a success rate from selected videos or prefilled fixtures.
 
-Existing foundation: PRs 2–6 merged; PR 7 draft and PR 8 unmerged. Historical
-full-ten attempt stopped at its first loaded transfer; ten-carton success remains
-open. New work is isolated on `feat/contact-rich-packing` based on `037c61e`.
+The historical full-ten attempt stopped at its first loaded transfer. Current
+continuation work is on `feat/sim-checkpoints`; complete ten-carton success
+remains open. See [adjacent insertion development](docs/reports/adjacent_insertion_development.md)
+for the newer three-carton success and retained four/ten-carton failures.
 
 Design and references: [receding-horizon plan](docs/receding_horizon_stocking.md).
 Initial evidence: [planning probes](docs/reports/replanning_development.md) and
