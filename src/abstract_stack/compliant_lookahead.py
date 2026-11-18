@@ -44,7 +44,7 @@ class PushAdmittance:
         if (
             not np.isfinite(lateral_bias)
             or not np.isfinite(normal_scale)
-            or not 0 < normal_scale <= 1
+            or not 0 <= normal_scale <= 1
         ):
             raise ValueError("Invalid bounded admittance alternative")
         vx = -self.normal_gain_m_Ns * (self.normal_target_N - force[0]) * normal_scale
@@ -182,6 +182,12 @@ def generate_push_candidates(
     candidates = [baseline]
     rejected = []
     alternatives = [
+        # Hold normal position while correcting shear. Retreating every moving
+        # proposal can lose contact on a stiff backstop, leaving only the
+        # immobile baseline eligible even when a lateral correction is needed.
+        (0, 0, 0),
+        (0, -0.004, 0),
+        (0, 0.004, 0),
         (1, 0.004, 0),
         (0.5, 0.004, 0),
         (1, 0, 0),

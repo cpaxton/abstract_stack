@@ -10,14 +10,20 @@ from dataclasses import replace
 import mujoco
 import numpy as np
 
+from abstract_stack.contact_progress import ContactProgress
 from abstract_stack.mabel_controller import MabelController
+from abstract_stack.skill_entries import record_skill_entry
 
 
 class SelectedFingerInsertion:
     FORWARD_UNLOAD_DOWNFORCE_N = 0.6
 
     def _pusher_class(self):
-        from abstract_stack.finger_pusher import FingerPusher, PairedFingerPusher, WallFingerPusher
+        from abstract_stack.finger_pusher import (
+            FingerPusher,
+            PairedFingerPusher,
+            WallFingerPusher,
+        )
 
         if (
             self.config.paired_finger_insertion
@@ -25,7 +31,7 @@ class SelectedFingerInsertion:
         ):
             return WallFingerPusher
         return (
-            PairedFingerPusher
+            getattr(self, "PAIRED_PUSHER_CLASS", PairedFingerPusher)
             if self.config.paired_finger_insertion
             else getattr(self, "PUSHER_CLASS", FingerPusher)
         )
@@ -196,7 +202,7 @@ class SelectedFingerInsertion:
 
     def _pusher_settings(self):
         for finger in self._pushing_finger_candidates():
-            for tilt in (20, 30, 10, 40):
+            for tilt in getattr(self, "PUSHER_TILTS", (20, 30, 10, 40)):
                 for wrist in getattr(self._pusher_class(), "WRISTS", (0.2, 0.4, 0.0, 0.6)):
                     yield dict(finger=finger, tilt_degrees=tilt, wrist_posture=wrist)
 
@@ -214,6 +220,31 @@ class SelectedFingerInsertion:
                 orientation_alternatives=False,
             )
         self._move("staging_clear", retreat + [0.12, 0, 0.02], orientation_alternatives=False)
+        if self.config.ungrasped_insertion:
+            from abstract_stack.interactions import InteractionFailure
+
+            # Reobserve after the grasp hand has cleared. A successful seat
+            # does not establish that release left an executable push entry.
+            body = self.env.data.body(self.product.name)
+            forces = self.last_forces
+            supported = forces[self.FRONT_SUPPORT] > 0.2
+            clear = forces["robot_product"] <= 0.2
+            upright = body.xmat[8] >= np.cos(np.radians(self.config.payload_upright_degrees))
+            self._stage(
+                "free_landing_verified"
+                if supported and clear and upright
+                else "free_landing_rejected"
+            )
+            self.events[-1].update(
+                measured_landing_world_m=body.xpos.tolist(),
+                measured_landing_quaternion_wxyz=body.xquat.tolist(),
+                canonical_final_target_world_m=list(self.product.target),
+                support_normal_N=forces[self.FRONT_SUPPORT],
+                robot_product_normal_N=forces["robot_product"],
+                upright=bool(upright),
+            )
+            if not (supported and clear and upright):
+                raise InteractionFailure("free_landing: carton not supported, upright and clear")
         if self._wall_front_staging_y() != self.product.target[1]:
             self._register_front_laterally()
         self._stage("front_registered")
@@ -236,6 +267,36 @@ class SelectedFingerInsertion:
         staging = self._wall_front_staging_y()
         canonical = self.product.target[1]
         if staging == canonical:
+            if self.config.wall_packing:
+                from abstract_stack.interactions import InteractionFailure
+
+                completed = self.observer.completed
+                higher = [
+                    p
+                    for p in self.env.products
+                    if p.level == self.product.level
+                    and p.target[1] > canonical
+                    and p.name in completed
+                ]
+                if higher:
+                    neighbor = min(higher, key=lambda p: p.target[1])
+                    body = self.env.data.body(neighbor.name)
+                    extent = float((np.abs(body.xmat.reshape(3, 3)) @ neighbor.half_size)[1])
+                    goal = float(body.xpos[1] - extent - self.product.half_size[1])
+                    lower_width = sum(
+                        2 * p.half_size[1]
+                        for p in self.env.products
+                        if p.level == self.product.level and p.target[1] < canonical
+                    )
+                    reserve = (
+                        self.env.config.center_y
+                        - self.env.config.width / 2
+                        + lower_width
+                        + self.product.half_size[1]
+                    )
+                    if goal < reserve or abs(goal - canonical) > 0.02:
+                        raise InteractionFailure("wall_packing: measured row needs rearrangement")
+                    return goal
             return float(canonical)
         direction = 1 if canonical > staging else -1
         return float(
@@ -584,6 +645,22 @@ class SelectedFingerInsertion:
             )
         for _ in range(int((0.4 if precise_handoff else 0.2) / env.dt)):
             tick(opening=opened)
+        separated = False
+        if precise_handoff and self.last_forces["hand"] > 0.2:
+            # An open native finger can retain a small gravity/contact load.
+            # Use the already screened departure direction, then verify the
+            # same force/support gates; waiting is not evidence of release.
+            self._cartesian_move(
+                "release_front_separate",
+                hand.last_target + [0.005, 0, 0],
+                speed_m_s=0.002,
+                allowed_object=product.name,
+            )
+            self.events[-1].update(
+                maximum_separation_m=0.005,
+                unchanged_hand_release_gate_N=0.2,
+            )
+            separated = True
         if self.last_forces[self.FRONT_SUPPORT] < 0.2 or self.last_forces["hand"] > 0.2:
             raise InteractionFailure("release_front: no unloaded support after opening")
         if env.data.body(product.name).xmat.reshape(3, 3)[2, 2] < np.cos(
@@ -594,7 +671,7 @@ class SelectedFingerInsertion:
             verified_release=True,
             support_surface=self.FRONT_SUPPORT,
             placement_conditions=False,
-            stationary_opening=True,
+            stationary_opening=not separated,
         )
         self.release_origin = None
 
@@ -960,12 +1037,34 @@ class SelectedFingerInsertion:
                 return
         raise InteractionFailure("pusher_preshape: measured native hand did not settle")
 
-    def _insert_from_front(self, *, partial_stop_x=None):
+    def _insert_from_front(self, *, partial_stop_x=None, front_squaring=False):
         from abstract_stack.interactions import InteractionFailure
 
         env, config, product = self.env, self.config, self.product
         body = env.data.body(product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
+        if config.wall_packing and partial_stop_x is None and self.observer.completed:
+            yaw = float(np.arctan2(body.xmat.reshape(3, 3)[1, 0], body.xmat.reshape(3, 3)[0, 0]))
+            if abs(yaw) > np.radians(0.15):
+                stops = []
+                for other in env.products:
+                    if other.name in self.observer.completed and other.level == product.level:
+                        occupied = env.data.body(other.name)
+                        occupied_extent = np.abs(occupied.xmat.reshape(3, 3)) @ other.half_size
+                        stops.append(
+                            float(occupied.xpos[0] + occupied_extent[0] + extent[0] + 0.008)
+                        )
+                if stops and body.xpos[0] - max(stops) > 0.015:
+                    self._stage("front_square_plan")
+                    self.events[-1].update(
+                        stop_object_x_m=max(stops),
+                        measured_yaw_deg=float(np.degrees(yaw)),
+                        decision="square_before_overlap_with_occupied_row",
+                        fresh_task_credit=0,
+                    )
+                    self._insert_from_front(partial_stop_x=max(stops), front_squaring=True)
+                    body = env.data.body(product.name)
+                    extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
         height = env.config.levels[product.level] + 0.028
         precontact = np.array([body.xpos[0] + extent[0] + 0.02, body.xpos[1], height])
         end = np.array(
@@ -1047,6 +1146,9 @@ class SelectedFingerInsertion:
         object_velocity = np.zeros(6)
         limited_seconds = 0.0
         last_limit_replan = -np.inf
+        progress = ContactProgress((-1, 0, 0))
+        watch_progress = config.wall_packing and paired and partial_stop_x is None
+        push_force_target = config.push_force_target
         if getattr(self, "contact_recovery", False):
             self._start_free_push()
         for _ in range(int(45.0 / env.dt)):
@@ -1073,6 +1175,59 @@ class SelectedFingerInsertion:
                 event["paired_plane_reference_bias_deg"] = float(np.degrees(plane_bias))
             if rotation[2, 2] < np.cos(np.radians(15)):
                 raise InteractionFailure("finger_push: carton tilting; replan required")
+            if watch_progress:
+                now = float(env.data.time)
+                push_force = self.last_forces["push_force"]
+                if self.last_forces["back"] >= config.contact_threshold:
+                    progress.reset()
+                else:
+                    measurement = progress.observe(body.xpos, now, contact=push_force >= 1.0)
+                    if measurement is None:
+                        measurement = (0.0, 0.0)
+                    stalled_s, advance_m = measurement
+                    if (
+                        stalled_s >= 1
+                        and push_force >= 1.0
+                        and push_force_target < 3.5 < config.max_force
+                    ):
+                        event["stall_breakaway"] = dict(
+                            sim_time=now,
+                            object_x_m=float(body.xpos[0]),
+                            previous_target_N=push_force_target,
+                            new_target_N=3.5,
+                            progress_threshold_m=0.001,
+                            progress_window_s=1.0,
+                        )
+                        if config.record_skill_starts:
+                            record_skill_entry(
+                                self, "loaded_push_stall", case=event["stall_breakaway"]
+                            )
+                        push_force_target = 3.5
+                        progress.reset()
+                        progress.observe(body.xpos, now, contact=True)
+                    elif stalled_s >= 3:
+                        extent_x = float((np.abs(rotation) @ product.half_size)[0])
+                        gap = float(
+                            body.xpos[0] - extent_x - (env.config.front_x - env.config.depth)
+                        )
+                        event["stall_abort"] = dict(
+                            sim_time=now,
+                            stalled_seconds=stalled_s,
+                            advance_m=advance_m,
+                            backstop_gap_m=gap,
+                            measured_push_force_N=push_force,
+                            push_force_target_N=push_force_target,
+                            backstop_normal_N=self.last_forces["back"],
+                            breakaway_attempted="stall_breakaway" in event,
+                        )
+                        if config.record_skill_starts:
+                            record_skill_entry(
+                                self, "push_recovery_exhausted", case=event["stall_abort"]
+                            )
+                        raise InteractionFailure(
+                            f"finger_push: {product.name} stalled {gap * 1000:.0f} mm "
+                            "short of backstop; retreat not started"
+                        )
             if self.last_forces["back"] >= config.contact_threshold:
                 scale = np.clip(
                     (config.insertion_back_force_target - self.last_forces["back"])
@@ -1083,8 +1238,7 @@ class SelectedFingerInsertion:
                 speed = 0.01
             else:
                 scale = np.clip(
-                    (config.push_force_target - self.last_forces["push_force"])
-                    / config.push_force_target,
+                    (push_force_target - self.last_forces["push_force"]) / push_force_target,
                     -1,
                     1,
                 )
@@ -1169,6 +1323,10 @@ class SelectedFingerInsertion:
                 # Keep the physical tool centered; canonical registration still
                 # acts through the bounded lateral velocity above.
                 target[1] = np.clip(target[1], body.xpos[1] - 0.006, body.xpos[1] + 0.006)
+                if config.wall_packing and partial_stop_x is None and self.observer.completed:
+                    # Preserve pad clearance on the occupied side during advance.
+                    # Squaring and final registration are checked separately at the backstop.
+                    target[1] = min(target[1], body.xpos[1] - 0.001)
             measured_height = contact[2] if contact is not None else hand.position()[2]
             force_z = self.last_forces.get("hand_force_world_N", [0, 0, 0])[2]
             vertical_speed = -0.012 * force_z + 0.2 * (height - measured_height)
@@ -1300,6 +1458,13 @@ class SelectedFingerInsertion:
                 event["verified_shelf_support"] = True
             if partial_stop_x is not None:
                 partial_state = self._partial_push_state(partial_stop_x)
+                if front_squaring:
+                    partial_state["yaw_deg"] = float(np.degrees(yaw))
+                    partial_state["accepted"] = bool(
+                        partial_state["accepted"]
+                        and abs(yaw) <= np.radians(0.15)
+                        and rotation[2, 2] >= np.cos(np.radians(config.payload_upright_degrees))
+                    )
                 event["partial_state"] = partial_state
                 held = held + env.dt if partial_state["accepted"] else 0.0
                 if held >= config.contact_dwell:
@@ -1340,6 +1505,22 @@ class SelectedFingerInsertion:
         else:
             raise InteractionFailure("finger_push: contact dwell timeout")
         self.supported_slide = False
+        if front_squaring:
+            self._cartesian_move(
+                "front_square_clear",
+                hand.last_target + [0.04, 0, 0],
+                speed_m_s=0.01,
+                allowed_object=product.name,
+            )
+            final_partial = self._partial_push_state(partial_stop_x, unloaded=True)
+            if not final_partial["accepted"]:
+                raise InteractionFailure("front_square: support/clearance verification failed")
+            event.update(
+                verified_front_squaring=True,
+                partial_state_after_retreat=final_partial,
+                fresh_task_credit=0,
+            )
+            return
         if self.config.ungrasped_insertion and partial_stop_x is None:
             from abstract_stack.contact_execution import squared_contact_retreat
 

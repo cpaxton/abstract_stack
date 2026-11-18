@@ -16,6 +16,8 @@ def test_contact_feedback_signs_unload_excess_normal_shear_and_downward_load():
     overloaded = policy.velocity([1, 1, 1, 0, 0, 0])
     assert overloaded[0] == 0  # Raise hand before pushing a downward-loaded carton.
     assert overloaded[1] > 0 and overloaded[2] > 0
+    shear_only = policy.velocity([4, -1, 1, 0, 0, 0], normal_scale=0)
+    assert shear_only[0] == 0 and shear_only[1] < 0 and shear_only[2] > 0
     np.testing.assert_array_equal(policy.velocity([1, 0, 0, 0, 0, 0]), forward)
 
 

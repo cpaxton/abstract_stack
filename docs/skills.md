@@ -123,3 +123,60 @@ which re-marks every measured product footprint as an obstacle, so randomized
 object positions are reflected in the map. The idle right hand is swung outward
 first, and the pregrasp move uses a checked Cartesian entry. See the
 [three-carton report](reports/navigation_three_carton.md).
+
+## Contact skill cases for later training
+
+With `--record-skill-starts`, the episode's `skill-entries/index.json` catalogs
+restorable cases. Each entry stores measured poses, velocities, mass, support
+and hand loads, completed neighbors, tool and controller state, and the seed.
+Checkpoints share one native model binary per episode through hard links. The
+native state and validation witness remain specific to each entry.
+
+| Case | Entry variation to retain | What to measure during execution |
+|---|---|---|
+| Acquire and lift | Mass, footprint, grasp skew, support material | Opposing contacts, lift, slip |
+| Transfer and seat | Grasp offset, obstacle and fixture clearance | Load retention, shelf support |
+| Side registration | Exposed side, wall or neighbor, lateral error | Signed advance, yaw, unload |
+| Front squaring | Skew, projected clearance beside stocked items | Yaw, support, displacement |
+| Forward insertion | Depth error, mass, friction, free space | Signed advance, wrench, support |
+| Loaded push recovery | Force without motion, depth remaining | Renewed advance, load, recovery choice |
+| Recovery exhausted | Remaining gap, force and elapsed stall time | Failure evidence for alternative skills |
+| Contact refinement and retreat | Pose error, preload, neighbors and support | Final pose, stable release, safe clearance |
+
+Preload changes are one recovery. Unload and re-contact at a different height
+or offset, a side push, and a pivot are separate candidate skills. Record
+their outcomes under the same evaluation criteria when implemented. The entry
+catalog describes reached states and should retain failures and unreached
+cases. Split later evaluation by scene seed and object properties to avoid
+putting correlated checkpoints from one episode into both training and
+testing. Entry snapshots by themselves carry zero fresh-task credit and are
+ineligible as causal training demonstrations.
+
+### Plan the landing and contact moves together
+
+![Flow from observation through free landing, hand preshape, compliant pushing, recovery and withdrawal](media/contact_skill_flow.svg)
+
+The dashed box shows the proposed joint search. Solid boxes show the skill
+sequence and its measured outcomes. The current full withdrawal forecast
+runs after contact execution. The earlier tight insertion supplies the paired,
+folded and side-push postures. A planner candidate must check its own hand
+transition, approach, push and exit.
+
+Regenerate both formats from `docs/media/contact_skill_flow.dot` with Graphviz
+using `dot -Tsvg` for the docs and `dot -Tpdf` for the paper.
+
+The current controller now verifies and records the free landing after the
+grasp hand clears. The landed carton must be upright, supported, and unloaded
+before side registration or forward insertion can start. The landing and final
+task targets appear separately in the event log.
+
+The remaining planner gap is landing selection. For each candidate landing
+pose, check the carried approach, opening and grasp-hand exit, then check
+access for a separate pusher and its exit at the proposed final pose. Compare
+direct forward advance, forward-then-side registration, and a pre-squaring
+step only when measured geometry calls for it. Use remaining free space as
+working room. Choose a target depth that leaves room behind the object unless
+the task calls for backstop contact. Reobserve at every handoff and replan the
+next step from the actual pose. A candidate without an exit should be rejected
+before choosing the landing. Keep each phase independently measurable and
+retain failed candidates for the skill catalog.

@@ -17,9 +17,44 @@ SKILL_PHASES = {
     "release": "release_retreat",
     "stage_align": "front_release",
     "front_registered": "front_insertion",
+    "free_landing_verified": "free_landing",
+    "lateral_push": "side_registration",
+    "front_square_plan": "front_squaring",
+    "contact_refine": "contact_refinement",
+    "release_forecast": "withdrawal_planning",
+    "loaded_push_stall": "loaded_push_recovery",
+    "push_recovery_exhausted": "push_recovery_exhausted",
 }
 
 SKILL_CONTRACTS = {
+    "free_landing": {
+        "entry": "Measured supported landing with the grasp hand clear",
+        "success": "A separate checked push plan starts from the observed landing pose",
+    },
+    "withdrawal_planning": {
+        "entry": "Aligned supported object with the loaded tool still at final depth",
+        "success": "A guarded full-exit reference passes pose, motion and neighbor checks",
+    },
+    "side_registration": {
+        "entry": "Shelf-supported object approached on an exposed side",
+        "success": "Measured lateral displacement, support, unloaded hand and safe exit",
+    },
+    "front_squaring": {
+        "entry": "Released, skewed carton at shelf front before advancing beside a neighbor",
+        "success": "Measured yaw and support at the intermediate pose after unloading",
+    },
+    "contact_refinement": {
+        "entry": "Supported carton near final depth with measured contact and pose error",
+        "success": "Verified contact and pose dwell before release",
+    },
+    "loaded_push_recovery": {
+        "entry": "Supported carton with measured pushing force and insufficient advance",
+        "success": "Renewed measured advance without a force or support violation",
+    },
+    "push_recovery_exhausted": {
+        "entry": "Terminal lack of advance after the allowed recovery window",
+        "success": "Diagnostic failure fixture for future recovery evaluation",
+    },
     "front_insertion": {
         "entry": "Released shelf-front carton after optional lateral registration; empty hand",
         "success": "Native insertion, squared contact, unloaded release and complete shelf exit",
@@ -70,7 +105,7 @@ def entry_distribution(entries):
     return result
 
 
-def record_skill_entry(script, phase):
+def record_skill_entry(script, phase, *, case=None):
     skill = SKILL_PHASES.get(phase)
     if skill is None or any(
         entry["skill"] == skill and entry["active_product"] == script.product.name
@@ -96,7 +131,7 @@ def record_skill_entry(script, phase):
             tilt_deg=float(np.degrees(np.arccos(np.clip(rotation[2, 2], -1, 1)))),
             angular_then_linear_velocity_world=velocity.tolist(),
             half_size_m=list(product.half_size),
-            mass_kg=product.mass,
+            mass_kg=float(env.model.body_mass[body.id]),
             target_world_m=list(product.target),
             table_normal_N=force["table"],
             shelf_normal_N=force["shelf"],
@@ -118,6 +153,8 @@ def record_skill_entry(script, phase):
         sim_time_s=float(env.data.time),
         reset_seed=env._seed,
         objects=objects,
+        completed_products=sorted(script.observer.completed) if script.observer else [],
+        case=dict(case or {}),
         robot_base_position_world_m=env.data.body("mabel_chassis").xpos.tolist(),
         tool_position_world_m=script.controller.position().tolist(),
         checkpoint="checkpoint",
@@ -213,7 +250,11 @@ def record_skill_entry(script, phase):
     (directory / "checkpoint/model.mjb").chmod(0o444)
     (directory / "entry.json").write_text(json.dumps(entry, indent=2, allow_nan=False) + "\n")
     script.skill_entries.append(entry)
-    script.events[-1]["skill_entry"] = entry["entry_file"]
+    event = script.events[-1]
+    if phase == script.phase:
+        event["skill_entry"] = entry["entry_file"]
+    else:
+        event.setdefault("recovery_skill_entries", {})[skill] = entry["entry_file"]
     (script.directory / "skill-entries/index.json").write_text(
         json.dumps(
             dict(

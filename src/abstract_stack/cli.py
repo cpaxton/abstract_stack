@@ -208,6 +208,11 @@ def _parser():
                 help="Experimental two-fingertip squaring surface for released insertion",
             )
             sub.add_argument(
+                "--wall-packing",
+                action="store_true",
+                help="Fill a fresh dense row from the positive wall inward",
+            )
+            sub.add_argument(
                 "--payload-wrist-compensation",
                 action="store_true",
                 help="Use measured payload wrist load, reserved references "
@@ -583,6 +588,7 @@ def main(argv=None):
                         ungrasped_insertion=args.ungrasped_insertion,
                         payload_wrist_compensation=args.payload_wrist_compensation,
                         paired_finger_insertion=args.paired_finger_insertion,
+                        wall_packing=args.wall_packing,
                         record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,

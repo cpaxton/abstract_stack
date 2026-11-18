@@ -103,3 +103,79 @@ def test_bad_scene_configs_fail_before_simulation(tmp_path, values):
     config.write_text(json.dumps(values))
     with pytest.raises(ValueError):
         load_scene_config(config)
+
+
+@pytest.mark.mabel
+@pytest.mark.parametrize("local_pairs", [False, True])
+def test_rigid_contact_recipe_preserves_native_robot_and_static_carton(local_pairs):
+    """The explicit fixture recipe must neither edit MABEL nor let a carton creep."""
+    import xml.etree.ElementTree as ET
+    from dataclasses import replace
+
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.scene import build_scene_xml
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    baseline = replace(
+        load_scene_config("configs/scenes/tight_ten_cartons.json"),
+        product_count=1,
+        initially_stocked=1,
+        row_free_space=None,
+    )
+    recipe = (
+        replace(baseline, rigid_fixture_contacts=True)
+        if local_pairs
+        else replace(baseline, contact_impratio=10, scene_contact_time_constant_s=0.005)
+    )
+    roots = [ET.fromstring(build_scene_xml(c)) for c in (baseline, recipe)]
+    for selector in ("./worldbody/body[@name='mabel_chassis']", "default", "actuator", "equality"):
+        assert ET.tostring(roots[0].find(selector)) == ET.tostring(roots[1].find(selector))
+    env = ShelfStockingEnv(recipe)
+    try:
+        assert env.model.opt.impratio == (1 if local_pairs else 10)
+        assert env.model.geom("carton_0_geom").solref[0] == pytest.approx(
+            0.02 if local_pairs else 0.005
+        )
+        if local_pairs:
+            assert [ET.tostring(g) for g in roots[0].find("worldbody").iter("geom")] == [
+                ET.tostring(g) for g in roots[1].find("worldbody").iter("geom")
+            ]
+            pairs = roots[1].findall("./contact/pair")
+            assert pairs and all(p.get("geom1") == "carton_0_geom" for p in pairs)
+            assert all(p.get("geom2").startswith("shelf_") for p in pairs)
+        product = env.products[0]
+        bid = env.model.body(product.name).id
+        joint = int(env.model.body_jntadr[bid])
+        address = int(env.model.jnt_qposadr[joint])
+        # Reset fixture: a slightly skewed, released carton touching the back.
+        # This is not a physical placement or a manipulation success test.
+        env.data.qpos[address] = recipe.front_x - recipe.depth + product.half_size[0] - 0.00008
+        angle = np.radians(-0.04)
+        env.data.qpos[address + 3 : address + 7] = [np.cos(angle / 2), 0, 0, np.sin(angle / 2)]
+        mujoco.mj_forward(env.model, env.data)
+        for _ in range(int(2 / env.dt)):
+            env.step()
+        before = env.data.xpos[bid].copy(), env.data.xmat[bid].copy()
+        for _ in range(int(8 / env.dt)):
+            env.step()
+        assert np.linalg.norm(env.data.xpos[bid] - before[0]) < 0.00002
+        assert np.linalg.norm(env.data.xmat[bid] - before[1]) < np.radians(0.01)
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"contact_impratio": True},
+        {"contact_impratio": 0.5},
+        {"scene_contact_time_constant_s": 0.001},
+        {"scene_contact_time_constant_s": float("nan")},
+    ],
+)
+def test_contact_recipe_rejects_invalid_or_unresolved_settings(values):
+    with pytest.raises(ValueError):
+        ShelfConfig(**values)

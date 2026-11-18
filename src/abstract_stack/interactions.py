@@ -88,6 +88,7 @@ class ScriptConfig:
     payload_wrist_compensation: bool = False
     minimum_lift_reference_m: float = 0.03
     paired_finger_insertion: bool = False
+    wall_packing: bool = False
 
     def __post_init__(self):
         values = asdict(self)
@@ -106,6 +107,7 @@ class ScriptConfig:
         values.pop("continuous_finger_opening")
         values.pop("payload_wrist_compensation")
         values.pop("paired_finger_insertion")
+        values.pop("wall_packing")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
@@ -141,6 +143,12 @@ class ScriptConfig:
             raise ValueError("payload_wrist_compensation must be boolean")
         if not isinstance(self.paired_finger_insertion, bool):
             raise ValueError("paired_finger_insertion must be boolean")
+        if (
+            type(self.wall_packing) is not bool
+            or self.wall_packing
+            and not self.paired_finger_insertion
+        ):
+            raise ValueError("Wall packing requires the dense selected-finger protocol")
         if self.paired_finger_insertion and not self.ungrasped_insertion:
             raise ValueError("Paired fingertips require the released insertion mode")
         if not isinstance(self.gravity_compensation, bool):
@@ -926,11 +934,37 @@ class StockingScript(SelectedFingerInsertion):
 
             targets, report = finger_tracker.propose(targets, self.product.name)
             self.events[-1].setdefault("selected_finger_tracking", []).append(report)
-            guard_payload_targets(
-                self,
-                targets,
-                intended_contact=self.phase in ("lateral_push", "lateral_unload", "finger_push"),
+            intended_contact = self.phase in (
+                "lateral_push",
+                "lateral_unload",
+                "finger_push",
+                "front_square_clear",
             )
+            try:
+                guard_payload_targets(self, targets, intended_contact=intended_contact)
+            except InteractionFailure as rejection:
+                # A load correction can bring adjacent finger links together.
+                # Try smaller rate-bounded corrections with the same arm motion.
+                ids = [joint["actuator"] for joint in finger_tracker.joints.values()]
+                previous = self.env.data.ctrl[ids].copy()
+                failed = self.events[-1].pop("applied_tracking_geometry_rejection")
+                for fraction in (0.5, 0.25, 0.0):
+                    candidate = targets.copy()
+                    candidate[ids] = previous + fraction * (targets[ids] - previous)
+                    try:
+                        guard_payload_targets(self, candidate, intended_contact=intended_contact)
+                    except InteractionFailure:
+                        continue
+                    self.events[-1].pop("applied_tracking_geometry_rejection", None)
+                    report["admitted_correction_fraction"] = fraction
+                    report["full_correction_rejection"] = failed
+                    for name, joint in finger_tracker.joints.items():
+                        applied = float(candidate[joint["actuator"]])
+                        report["joints"][name]["admitted_servo_rad"] = applied
+                    targets = candidate
+                    break
+                else:
+                    raise rejection
         self._check_tracked_targets(targets)
         if finger_tracker is not None:
             finger_tracker.acknowledge(targets)
@@ -1468,7 +1502,17 @@ class StockingScript(SelectedFingerInsertion):
             return False
         from abstract_stack.grasp_skill import loaded_staging_reachable
 
-        if loaded_staging_reachable(self.env, self.controller, self.config, self.product):
+        placement = np.array(self.product.target)
+        placement[1] = self._front_reference_y()
+        if loaded_staging_reachable(
+            self.env,
+            self.controller,
+            self.config,
+            self.product,
+            placement=placement,
+            grip=grasp_grip,
+            front_center=self._front_center_x,
+        ):
             return True
         self._stage("base_reposition_search")
         candidates = []
@@ -1480,6 +1524,9 @@ class StockingScript(SelectedFingerInsertion):
                     self.config,
                     self.product,
                     base_xy=(dx, dy),
+                    placement=placement,
+                    grip=grasp_grip,
+                    front_center=self._front_center_x,
                 )
                 candidates.append(dict(displacement_xy_m=[dx, dy], reachable=reachable))
                 if reachable:
@@ -1792,8 +1839,15 @@ class StockingScript(SelectedFingerInsertion):
                 )
                 for reach in (0.12, 0.16, 0.08):
                     dy = float(placement[1] + reach - base_y)
-                    reachable = abs(dy) <= 0.25 and loaded_staging_reachable(
-                        env, self.controller, config, product, base_xy=(0, dy)
+                    reachable = abs(dy) <= 0.60 and loaded_staging_reachable(
+                        env,
+                        self.controller,
+                        config,
+                        product,
+                        base_xy=(0, dy),
+                        placement=placement,
+                        grip=grasp_grip,
+                        front_center=self._front_center_x,
                     )
                     event["candidates"].append(dict(displacement_y_m=dy, reachable=reachable))
                     if reachable:
@@ -1842,6 +1896,17 @@ class StockingScript(SelectedFingerInsertion):
                     if (
                         prediction.feasible
                         and prediction.minimum_seconds * 1.05 <= config.max_motion_seconds
+                        and loaded_staging_reachable(
+                            env,
+                            self.controller,
+                            config,
+                            product,
+                            placement=placement,
+                            grip=grasp_grip,
+                            front_center=self._front_center_x,
+                            front_clearance=front_clearance,
+                            report=attempts[-1].setdefault("full_route", []),
+                        )
                     ):
                         staging = proposed
                         break
@@ -1853,6 +1918,10 @@ class StockingScript(SelectedFingerInsertion):
                         raise InteractionFailure(
                             "loaded_stage: no checked shelf approach candidate"
                         )
+                    offset = self.controller.position() - env.data.body(product.name).xpos
+                    staging = placement + offset + [0, 0, config.lift_height]
+                    staging[0] = env.config.front_x + 0.20 + offset[0]
+                    staging[2] = max(staging[2], self.controller.position()[2])
                     continue
                 break
             self.events[-1].update(
@@ -2138,10 +2207,24 @@ class StockingScript(SelectedFingerInsertion):
     def _execute_task(self, result):
         """Execute the stocking composition; isolated skills override this loop."""
         pending = [p for p in self.env.products if not p.initially_stocked]
+        if self.config.wall_packing:
+            if self.env.config.row_free_space is None or self.env.config.initially_stocked:
+                raise ValueError("Wall packing requires a fresh, single dense carton row")
+            pending.sort(key=lambda p: p.target[1], reverse=True)
         while pending:
-            selected = self._select_grasp(pending) if self.config.adaptive_grasps else None
+            choices = pending[:1] if self.config.wall_packing else pending
+            selected = self._select_grasp(choices) if self.config.adaptive_grasps else None
             if selected is None:
                 self.product = pending[0]
+            if self.config.wall_packing:
+                self._stage("wall_packing_plan")
+                self.events[-1].update(
+                    order="positive wall inward",
+                    canonical_task_target_m=list(self.product.target),
+                    controller_contact_goal_y_m=self.lateral_goal_y,
+                    total_free_row_width_m=self.env.config.row_free_space,
+                    completed_neighbors=sorted(self.observer.completed),
+                )
             self._one_box(selected)
             result["completed_products"].append(self.product.name)
             pending.remove(self.product)

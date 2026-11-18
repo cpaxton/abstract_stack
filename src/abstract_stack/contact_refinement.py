@@ -39,9 +39,17 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
     origin = hand.ik.forward(hand.command)[0]
     lower = np.array([origin[0] - 0.03, script.product.target[1] - 0.02, level + 0.023])
     upper = np.array([origin[0] + 0.03, script.product.target[1] + 0.02, level + 0.053])
+    # Nominal IK and measured tracking use distinct, fixed corridors. Native
+    # compensation can put the measured tool outside the nominal reference box
+    # already at entry; do not confuse that offset with unbounded motion.
+    measured_shift = hand.position() - origin
+    measured_lower, measured_upper = lower + measured_shift, upper + measured_shift
     event.update(
         fixed_tool_lower_world_m=lower.tolist(),
         fixed_tool_upper_world_m=upper.tolist(),
+        fixed_measured_tool_lower_world_m=measured_lower.tolist(),
+        fixed_measured_tool_upper_world_m=measured_upper.tolist(),
+        initial_measured_minus_nominal_m=measured_shift.tolist(),
         normal_target_N=config.insertion_back_force_target,
         yaw_lever_gain_m_rad=config.insertion_yaw_lever_gain,
         native_timestep_s=float(model.opt.timestep),
@@ -209,7 +217,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             failure = monitor.sample(data, elapsed=model.opt.timestep)
             if failure:
                 raise InteractionFailure(f"contact_refine: {failure}")
-            if np.any(hand.position() < lower) or np.any(hand.position() > upper):
+            if np.any(hand.position() < measured_lower) or np.any(hand.position() > measured_upper):
                 raise InteractionFailure("contact_refine: measured tool left fixed corridor")
             dwell.update(data.time, monitor.last, data.xmat[monitor.active].reshape(3, 3))
             body = data.xmat[monitor.active].reshape(3, 3)

@@ -13,6 +13,7 @@ class WithdrawalFeedbackConfig:
     # Virtual compensated targets need room to remove stale load offsets.
     # Nominal Cartesian speed, corridor, native rates and task gates stay separate.
     servo_speed_m_s: float = 0.02
+    nominal_servo_speed_fraction: float = 0.9
     contact_effort_limit_Nm: float = 0.3
     wrist_offset_limit_rad: float = 0.5
     yaw_feedback: bool = False
@@ -33,6 +34,7 @@ class WithdrawalFeedbackConfig:
         if (
             not np.isfinite(list(vars(self).values())).all()
             or not 0 < self.servo_speed_m_s <= 0.025
+            or not 0.5 <= self.nominal_servo_speed_fraction <= 1.0
             or not 0 < self.contact_effort_limit_Nm <= 0.3
             or not 0 < self.wrist_offset_limit_rad <= 0.5
             or type(self.yaw_feedback) is not bool

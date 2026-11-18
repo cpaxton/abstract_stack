@@ -159,3 +159,57 @@ def test_grasp_closure_checks_future_fingers_and_rejects_before_actuation(
     np.testing.assert_array_equal(script.controller.command, nominal)
     np.testing.assert_array_equal(robot.data.qpos, qpos)
     np.testing.assert_array_equal(robot.data.ctrl, ctrl)
+
+
+@pytest.mark.mabel
+@pytest.mark.parametrize("blocked_stage", [2, 3])
+def test_loaded_admission_checks_later_segments_and_keeps_live_state(
+    robot, monkeypatch, blocked_stage
+):
+    from types import SimpleNamespace
+
+    from abstract_stack.checkpoints import native_state
+    from abstract_stack.grasp_skill import loaded_staging_reachable
+
+    config = ScriptConfig(ungrasped_insertion=True)
+    hand = CartesianHand(robot, config)
+    hand.abduction_targets = {"Left Index Abd": -0.2}
+    initial = native_state(robot.model, robot.data)
+    product = robot.products[0]
+    offset = hand.position() - robot.data.body(product.name).xpos
+    placement = np.asarray(product.target).copy()
+    placement[0] = -0.61
+    calls = []
+
+    def prediction(clone, target, **kwargs):
+        assert clone.abduction_targets == hand.abduction_targets
+        assert kwargs["carrying"] and kwargs["grip"] == 0.35
+        calls.append(np.asarray(target).copy())
+        feasible = len(calls) != blocked_stage
+        return SimpleNamespace(
+            feasible=feasible,
+            minimum_seconds=0.1,
+            q=clone.command.copy(),
+            reference_qpos=clone.data.qpos.copy(),
+            report=lambda: {"status": "accepted" if feasible else "blocked"},
+        )
+
+    monkeypatch.setattr(CartesianHand, "predict", prediction)
+    report = []
+    assert not loaded_staging_reachable(
+        robot,
+        hand,
+        config,
+        product,
+        base_xy=(0.03, 0.04),
+        placement=placement,
+        grip=0.35,
+        front_clearance=0.20,
+        front_center=lambda extent: -0.611,
+        report=report,
+    )
+    assert len(calls) == blocked_stage
+    assert calls[1][0] == pytest.approx(placement[0] + offset[0])
+    assert report[0]["stages"][-1]["name"] == ("transfer" if blocked_stage == 2 else "seat")
+    assert not report[0]["complete"]
+    np.testing.assert_array_equal(initial, native_state(robot.model, robot.data))
