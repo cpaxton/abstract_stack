@@ -89,6 +89,16 @@ def test_valid_targets_do_not_teleport_and_measured_physics_is_separate(sim):
         assert moved.applied_targets[moved.actuator_names.index(name)] == 0
 
 
+def test_complex_command_is_rejected_without_changing_targets(sim):
+    before = sim.read_state()
+    complex_targets = before.applied_targets.astype(complex) + 1j
+    named_targets = dict(zip(before.actuator_names, complex_targets, strict=True))
+    for command in (complex_targets, complex_targets.astype(object), named_targets):
+        with pytest.raises(ValueError, match="targets must be real"):
+            sim.apply_actuator_targets(command)
+        np.testing.assert_array_equal(sim.read_state().applied_targets, before.applied_targets)
+
+
 def test_reset_and_repeated_physics_are_deterministic(sim):
     initial = sim.read_state()
     first = None
@@ -164,6 +174,28 @@ def test_product_reset_replays_seed_and_resets_previous_commands(adapter):
         np.testing.assert_array_equal(reset.qpos, initial.qpos)
         np.testing.assert_array_equal(reset.applied_targets, initial.applied_targets)
         assert not np.array_equal(sim.reset(seed=8).qpos, initial.qpos)
+
+
+def test_invalid_reset_preserves_the_active_episode_and_seed(adapter):
+    with MujocoTeleopAdapter(ShelfConfig(product_count=2), seed=7) as sim:
+        initial = sim.read_state()
+        targets = initial.applied_targets.copy()
+        targets[initial.actuator_names.index("Neck Yaw")] += 0.03
+        sim.apply_actuator_targets(targets)
+        before = sim.step()
+
+        with pytest.raises(ValueError):
+            sim.reset(seed=-1)
+
+        after = sim.read_state()
+        assert after.reset_generation == before.reset_generation
+        assert after.step_index == before.step_index
+        assert after.sim_time_s == before.sim_time_s
+        np.testing.assert_array_equal(after.qpos, before.qpos)
+        np.testing.assert_array_equal(after.qvel, before.qvel)
+        np.testing.assert_array_equal(after.applied_targets, before.applied_targets)
+        assert sim.step().step_index == before.step_index + 1
+        np.testing.assert_array_equal(sim.reset().qpos, initial.qpos)
 
 
 def test_all_live_operations_reject_other_threads(sim):

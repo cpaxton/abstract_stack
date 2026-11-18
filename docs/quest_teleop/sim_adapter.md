@@ -29,10 +29,10 @@ with MujocoTeleopAdapter(ShelfConfig(product_count=0), seed=0) as sim:
 | Operation | Contract |
 | --- | --- |
 | `read_state()` | Detached qpos/qvel, actuator names, applied targets, measured actuator lengths/velocities, modeled actuator forces, world root pose and terminal flags. |
-| `apply_actuator_targets(vector_or_complete_mapping)` | Validate all channels before writing `ctrl`; no physics step or pose assignment. Partial named updates fail. Return a detached copy of the applied vector. |
+| `apply_actuator_targets(vector_or_complete_mapping)` | Validate all channels before writing `ctrl`; no physics step or pose assignment. Partial named updates and complex targets fail. Return a detached copy of the applied vector. |
 | `stationary_command()` | Measured actuator-length hold with reset-measured base steering references and zero wheel speed; validates native command ranges and can fail. |
 | `step()` | One configured control interval using the existing environment's native stepping and task evaluation; returns measured state. |
-| `reset(seed=...)` | Explicit episode reset, previous commands discarded; increments `reset_generation`, resets step index. |
+| `reset(seed=...)` | Explicit episode reset, previous commands discarded; increments `reset_generation`, resets step index. An invalid seed leaves the episode and its seed intact. |
 | `render_camera(name, ...)` | Named-camera RGB8 copy, native-root-relative optical pose, FOV and pinhole intrinsics. |
 | `render_stereo_pair(...)` | Native `zed_left` and `zed_right` from one simulation state, one monotonic capture time and one pair ID. |
 | `describe()` | Scene config/seed, counts, timestep/frame skip, model/source XML hashes, MuJoCo version and effective base policy. |
