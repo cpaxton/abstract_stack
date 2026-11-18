@@ -4,10 +4,84 @@ import copy
 import hashlib
 import json
 
+import mujoco
 import numpy as np
 
 from abstract_stack.grasping import object_aligned_rotation, open_hand_clearance
-from abstract_stack.interactions import InteractionFailure, StockingScript
+from abstract_stack.interactions import CartesianHand, InteractionFailure, StockingScript
+
+
+def loaded_staging_reachable(env, controller, config, product, *, base_xy=(0.0, 0.0)):
+    """Planning-only forecast of the loaded shelf staging reachability.
+
+    Uses the **actual** measured carried state (grasp offset and world-aligned
+    payload orientation), shifting both the base and the carried carton together
+    to model a base relocation with the load retained. This mirrors
+    ``StockingScript._transfer_and_place_front``'s bounded shelf-front staging
+    search; live execution still rechecks every segment and retains all guards.
+    """
+    from abstract_stack.env import PlanningState
+
+    body = env.data.body(product.name)
+    offset = controller.position() - body.xpos
+    palm_rotation = env.data.xmat[controller.palm].reshape(3, 3)
+    active_rotation = np.eye(3) @ body.xmat.reshape(3, 3).T @ palm_rotation
+
+    placement = np.asarray(product.target, dtype=float)
+    placement[0] = env.config.front_x - product.half_size[0] - 0.006
+
+    data = mujoco.MjData(env.model)
+    mujoco.mj_copyData(data, env.model, env.data)
+    shift = np.asarray(base_xy, dtype=float)
+    base_adr = int(env.model.joint("base_root").qposadr[0])
+    carton_adr = int(env.model.joint(f"{product.name}_joint").qposadr[0])
+    data.qpos[base_adr : base_adr + 2] += shift
+    data.qpos[carton_adr : carton_adr + 2] += shift
+    mujoco.mj_forward(env.model, data)
+
+    hand = CartesianHand(PlanningState(env.model, data, env.dt), config)
+    hand.command = controller.command.copy()
+    hand.active_rotation = active_rotation.copy()
+
+    staging = placement + offset + [0, 0, config.lift_height]
+    staging[0] = env.config.front_x + 0.20 + offset[0]
+    staging[2] = max(staging[2], hand.position()[2])
+    for front_clearance in (0.20, 0.16, 0.12, 0.08):
+        proposed = staging.copy()
+        proposed[0] = env.config.front_x + front_clearance + offset[0]
+        prediction = hand.predict(
+            proposed,
+            allowed_object=product.name,
+            alternatives=False,
+            grip=config.grip,
+        )
+        if prediction.feasible and prediction.minimum_seconds * 1.05 <= config.max_motion_seconds:
+            return True
+    return False
+
+
+def empty_reachable(env, controller, config, target, *, base_xy=(0.0, 0.0)):
+    """Planning-only: is an empty-hand target reachable from a candidate base?
+
+    Shifts only the base in scratch; the target is a world-frame waypoint (for
+    example the pregrasp approach point). This is a kinematic reachability
+    screen, not a tracking or contact guarantee.
+    """
+    from abstract_stack.env import PlanningState
+
+    data = mujoco.MjData(env.model)
+    mujoco.mj_copyData(data, env.model, env.data)
+    shift = np.asarray(base_xy, dtype=float)
+    base_adr = int(env.model.joint("base_root").qposadr[0])
+    data.qpos[base_adr : base_adr + 2] += shift
+    mujoco.mj_forward(env.model, data)
+
+    hand = CartesianHand(PlanningState(env.model, data, env.dt), config)
+    hand.command = controller.command.copy()
+    prediction = hand.predict(
+        np.asarray(target, dtype=float), alternatives=True, grip=0, check_path=False
+    )
+    return prediction.feasible
 
 
 def select_grasp(script, pending):

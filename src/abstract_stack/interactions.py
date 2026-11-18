@@ -77,6 +77,7 @@ class ScriptConfig:
     front_staging_depth: float = 0.07
     insertion_lateral_position_gain: float = 0.2
     insertion_tangent_admittance: float = 0.004
+    base_reposition: bool = False
 
     def __post_init__(self):
         values = asdict(self)
@@ -90,6 +91,7 @@ class ScriptConfig:
         values.pop("record_skill_starts")
         values.pop("thumb_preshape")
         values.pop("fixture_avoidance")
+        values.pop("base_reposition")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
@@ -125,6 +127,8 @@ class ScriptConfig:
             self.fixture_avoidance, bool
         ):
             raise ValueError("guarded_approach and fixture_avoidance must be boolean")
+        if not isinstance(self.base_reposition, bool):
+            raise ValueError("base_reposition must be boolean")
         if self.ik_orientation_span_deg > 90 or self.ik_orientation_tolerance_deg > 45:
             raise ValueError("IK orientation relaxation/tolerance exceeds the grasp search bounds")
 
@@ -595,6 +599,9 @@ class StockingScript:
         self.fixture_unloading = False
         self.fixture_feedback = np.zeros(3)
         self.skill_entries = []
+        self._base_guard = None
+        self._base_translation_origin = None
+        self.base_repositions = []
 
     def _new_cartesian_hand(self):
         """Construct the empty hand again after settling, preserving subclass policy."""
@@ -699,6 +706,8 @@ class StockingScript:
             )
         if env.data.body("mabel_chassis").xmat.reshape(3, 3)[2, 2] < 0.95:
             raise InteractionFailure(f"{self.phase}: robot tilt limit exceeded")
+        if self._base_guard is not None:
+            self._base_guard.step(env)
 
     def _tick(self, target, grip):
         if self.phase == "push" and self.payload_rotation_goal is not None:
@@ -857,7 +866,16 @@ class StockingScript:
             )
             self.events[-1]["payload_orientation_goal"] = self.payload_rotation_goal.tolist()
         target = np.asarray(target, dtype=float)
-        cartesian_entry = self.config.grasp_skill and name == "approach" and grip == 0
+        if self._base_translation_origin is not None and name in (
+            "clear_high",
+            "retract",
+            "raise",
+        ):
+            target = target.copy()
+            target[:2] += (
+                self.env.data.body("mabel_chassis").xpos[:2] - self._base_translation_origin
+            )
+        cartesian_entry = self.config.grasp_skill and name in ("approach", "pregrasp") and grip == 0
         allow_object = (
             self.product.name
             if not cartesian_entry and (grip > 0 or name in ("approach", "place"))
@@ -901,7 +919,7 @@ class StockingScript:
             from abstract_stack.grasping import timed_joint_path
 
             if prediction.joint_path is None:
-                raise InteractionFailure("approach: Cartesian entry lacks checked waypoints")
+                raise InteractionFailure(f"{name}: Cartesian entry lacks checked waypoints")
             rates = np.r_[np.full(len(self.controller.names), self.config.max_joint_speed), 0.08]
             path, knots, minimum = timed_joint_path(prediction.joint_path, rates)
             duration = max(duration, minimum * 1.05)
@@ -991,6 +1009,216 @@ class StockingScript:
             raise InteractionFailure(f"{name}: measured tracking error {error:.3f} m")
         return contact_stopped
 
+    def _stow_right_arm(self):
+        """Swing the idle right arm outward, clear of the shelf side, before motion.
+
+        The right hand rests near the shelf's right panel at home; base
+        translation would sweep it into the panel. A bounded shoulder-abduction
+        command moves it clear through native position servos; the normal force
+        and tilt guards remain active throughout.
+        """
+        self._stage("right_arm_stow")
+        target = {"Right Arm 3": 0.5}
+        for _ in range(int(np.ceil(1.5 / self.env.dt))):
+            if self._apply_tick(target):
+                raise InteractionFailure("right_arm_stow: task ended before stow validation")
+        self.events[-1].update(verified_right_arm_stow=True, right_arm_target=target)
+
+    def _drive_base_to(self, goal_xy, body, swerve, settings, reference_yaw):
+        """Drive the base to one world-XY waypoint with native wheels and guards."""
+        env = self.env
+        goal_xy = np.asarray(goal_xy, dtype=float)
+        velocity, held = np.zeros(6), 0.0
+        for _ in range(int(settings.motion_timeout_s / env.dt)):
+            rotation = env.data.xmat[body].reshape(3, 3)
+            yaw = float(np.arctan2(rotation[1, 0], rotation[0, 0]))
+            yaw_error = float(np.arctan2(np.sin(reference_yaw - yaw), np.cos(reference_yaw - yaw)))
+            error = goal_xy - env.data.xpos[body, :2]
+            mujoco.mj_objectVelocity(
+                env.model, env.data, mujoco.mjtObj.mjOBJ_BODY, body, velocity, 0
+            )
+            arrived = (
+                np.linalg.norm(error) <= settings.position_tolerance_m
+                and abs(yaw_error) <= settings.yaw_tolerance_rad
+            )
+            twist = np.r_[1.2 * error - 0.3 * velocity[3:5], 2 * yaw_error - 0.4 * velocity[2]]
+            if arrived:
+                twist[:] = 0
+            if self._apply_tick(swerve.targets(twist, dt=env.dt)):
+                raise InteractionFailure("base_reposition: task ended before stocking validation")
+            mujoco.mj_objectVelocity(
+                env.model, env.data, mujoco.mjtObj.mjOBJ_BODY, body, velocity, 0
+            )
+            stopped = np.linalg.norm(velocity[3:5]) < 0.003 and abs(velocity[2]) < 0.01
+            held = held + env.dt if arrived and stopped else 0.0
+            if held >= 0.3:
+                break
+        else:
+            raise InteractionFailure("base_reposition: measured pose/stop dwell timeout")
+        return float(np.linalg.norm(goal_xy - env.data.xpos[body, :2]))
+
+    def _move_base(self, displacement, *, reason, carrying=False):
+        """Move with native wheels; ``carrying`` admits a retained load.
+
+        An empty-hand move requires no grasp/carry reference. A loaded move
+        requires both and excludes the carried product from the absolute
+        displacement guard; its relative grasp is still monitored by the normal
+        carried-object slip check in ``_sample``. The route is planned on the
+        scene's 2D occupancy grid (so randomized products become obstacles) and
+        executed as waypoints through the native swerve controller.
+        """
+        if carrying:
+            if self.active_grip is None or self.carry_reference is None:
+                raise InteractionFailure("base_reposition: loaded move without a retained grasp")
+        elif self.active_grip is not None or self.carry_reference is not None:
+            raise InteractionFailure("base_reposition: empty-hand move while loaded")
+        from abstract_stack.base_motion import (
+            BaseContactGuard,
+            BaseMotionConfig,
+            NativeSwerve,
+        )
+        from abstract_stack.navigation import plan_base_path
+
+        env = self.env
+        displacement = np.asarray(displacement, dtype=float)
+        settings = BaseMotionConfig(fixture_force_limit_N=min(25.0, self.config.max_force))
+        self._stow_right_arm()
+        body = env.model.body("mabel_chassis").id
+        start = env.data.xpos[body].copy()
+        if self._base_translation_origin is None:
+            self._base_translation_origin = start[:2].copy()
+        goal = start[:2] + displacement
+        rotation = env.data.xmat[body].reshape(3, 3)
+        reference_yaw = float(np.arctan2(rotation[1, 0], rotation[0, 0]))
+        self._stage("base_reposition_plan")
+        path = plan_base_path(
+            env,
+            start[:2],
+            goal,
+            exclude_products={self.product.name} if carrying else (),
+        )
+        self.events[-1].update(
+            reason=reason,
+            carrying=carrying,
+            navigable=path is not None,
+            start_xy_m=start[:2].tolist(),
+            goal_xy_m=goal.tolist(),
+        )
+        if path is None:
+            raise InteractionFailure("base_reposition: no navigable base route")
+        guard = BaseContactGuard(
+            env,
+            config=settings,
+            reference_yaw=reference_yaw,
+            max_product_displacement_m=0.002,
+            exclude_products={self.product.name} if carrying else set(),
+        )
+        swerve = NativeSwerve(env.model, env.data, settings)
+        self._stage("base_reposition")
+        event = self.events[-1]
+        self.base_repositions.append(event)
+        event.update(
+            reason=reason,
+            carrying=carrying,
+            start_xy_m=start[:2].tolist(),
+            goal_xy_m=goal.tolist(),
+            waypoints=[list(map(float, waypoint)) for waypoint in path],
+        )
+        self._base_guard = guard
+        try:
+            for waypoint in path:
+                self._drive_base_to(waypoint, body, swerve, settings, reference_yaw)
+            for _ in range(int(0.5 / env.dt)):
+                self._apply_tick(swerve.targets([0, 0, 0], dt=env.dt))
+            final_error = float(np.linalg.norm(goal - env.data.xpos[body, :2]))
+            if final_error > settings.position_tolerance_m:
+                raise InteractionFailure("base_reposition: final position guard")
+            event.update(verified_base_reposition=True, final_position_error_m=final_error)
+            self.controller.last_target = self.controller.position().copy()
+        finally:
+            event.update(end_time=float(env.data.time), guard=guard.report())
+            self._base_guard = None
+
+    def _ensure_grasp_reachable(self, grasp_target):
+        """Reposition (empty-hand) when the pregrasp approach is unreachable.
+
+        A prior base move (for example a loaded place relocation) can leave a
+        far supply carton outside the arm's reach at the pregrasp height. A
+        bounded planning-only search shifts a scratch base and rechecks the
+        pregrasp waypoint; the first accepted candidate is executed with native
+        wheels before any grasp motion.
+        """
+        if not self.config.base_reposition:
+            return
+        from abstract_stack.grasp_skill import empty_reachable
+
+        pregrasp = np.asarray(grasp_target, dtype=float) + [0, 0, self.config.pregrasp_height]
+        if empty_reachable(self.env, self.controller, self.config, pregrasp):
+            return
+        self._stage("base_reposition_search_grasp")
+        candidates = []
+        for dy in (-0.03, -0.06, -0.09, -0.12):
+            for dx in (0.0, -0.04, -0.08):
+                if empty_reachable(
+                    self.env, self.controller, self.config, pregrasp, base_xy=(dx, dy)
+                ):
+                    candidates.append(dict(displacement_xy_m=[dx, dy], reachable=True))
+                    self.events[-1].update(
+                        decision="reposition_base_for_grasp_approach",
+                        base_search_candidates=candidates,
+                        selected_displacement_xy_m=[dx, dy],
+                    )
+                    self._move_base([dx, dy], reason="grasp_approach_reachability")
+                    return
+                candidates.append(dict(displacement_xy_m=[dx, dy], reachable=False))
+        self.events[-1].update(
+            decision="no_reachable_grasp_base_candidate",
+            base_search_candidates=candidates,
+        )
+
+    def _ensure_loaded_reachable(self, grasp_grip):
+        """Reposition (possibly loaded) when the loaded shelf route is unreachable.
+
+        Called after the actual grasp/lift, so the measured carried offset and
+        orientation are known. A bounded planning-only search shifts a scratch
+        base (and the carried carton) and rechecks the loaded staging
+        reachability; the first accepted candidate is executed with native
+        wheels, then the caller re-runs its staging search.
+        """
+        if not self.config.base_reposition:
+            return False
+        from abstract_stack.grasp_skill import loaded_staging_reachable
+
+        if loaded_staging_reachable(self.env, self.controller, self.config, self.product):
+            return True
+        self._stage("base_reposition_search")
+        candidates = []
+        for dy in (0.03, 0.06, 0.09, 0.12, 0.15):
+            for dx in (0.0, 0.03, -0.03):
+                reachable = loaded_staging_reachable(
+                    self.env,
+                    self.controller,
+                    self.config,
+                    self.product,
+                    base_xy=(dx, dy),
+                )
+                candidates.append(dict(displacement_xy_m=[dx, dy], reachable=reachable))
+                if reachable:
+                    self.events[-1].update(
+                        decision="reposition_base_for_loaded_route",
+                        base_search_candidates=candidates,
+                        selected_displacement_xy_m=[dx, dy],
+                    )
+                    self._move_base(
+                        [dx, dy], reason="loaded_shelf_route_reachability", carrying=True
+                    )
+                    return True
+        self.events[-1].update(
+            decision="no_reachable_base_candidate",
+            base_search_candidates=candidates,
+        )
+        return False
+
     def _select_grasp(self, pending):
         """Regenerate object/height choices before committing to an approach."""
         if self.config.grasp_skill:
@@ -1048,6 +1276,7 @@ class StockingScript:
             raise InteractionFailure("Grasp candidate rejected; replan required")
         self.events[-1]["decision"] = "accept_grasp_candidate"
         grasp_rotation = grasp.requested_rotation.copy()
+        self._ensure_grasp_reachable(grasp_target)
         self._move("retract", [-0.44, -0.20, 1.00])
         self._move("raise", [-0.44, -0.20, box[2] + config.pregrasp_height])
         if config.grasp_skill:
@@ -1194,34 +1423,42 @@ class StockingScript:
             # the native arm cannot supply. Search outward shelf approaches
             # from the same measured grasp instead of accepting a poor IK fit.
             self._stage("loaded_stage_plan")
-            attempts = []
             body = env.data.body(product.name)
             self.controller.active_rotation = (
                 self.payload_rotation_goal
                 @ body.xmat.reshape(3, 3).T
                 @ env.data.xmat[self.controller.palm].reshape(3, 3)
             )
-            for front_clearance in (0.20, 0.16, 0.12, 0.08):
-                proposed = staging.copy()
-                proposed[0] = env.config.front_x + front_clearance + offset[0]
-                prediction = self.controller.predict(
-                    proposed,
-                    allowed_object=product.name,
-                    alternatives=False,
-                    grip=grasp_grip,
-                )
-                attempts.append(
-                    dict(front_clearance_m=front_clearance, prediction=prediction.report())
-                )
-                if (
-                    prediction.feasible
-                    and prediction.minimum_seconds * 1.05 <= config.max_motion_seconds
-                ):
-                    staging = proposed
-                    break
-            else:
-                self.events[-1].update(candidates=attempts, decision="hold_for_replan")
-                raise InteractionFailure("loaded_stage: no checked shelf approach candidate")
+            for _ in range(2):
+                attempts = []
+                for front_clearance in (0.20, 0.16, 0.12, 0.08):
+                    proposed = staging.copy()
+                    proposed[0] = env.config.front_x + front_clearance + offset[0]
+                    prediction = self.controller.predict(
+                        proposed,
+                        allowed_object=product.name,
+                        alternatives=False,
+                        grip=grasp_grip,
+                    )
+                    attempts.append(
+                        dict(front_clearance_m=front_clearance, prediction=prediction.report())
+                    )
+                    if (
+                        prediction.feasible
+                        and prediction.minimum_seconds * 1.05 <= config.max_motion_seconds
+                    ):
+                        staging = proposed
+                        break
+                else:
+                    # No checked candidate. Reposition the base once (retaining
+                    # the carried load) and retry the bounded staging search.
+                    if not self._ensure_loaded_reachable(grasp_grip):
+                        self.events[-1].update(candidates=attempts, decision="hold_for_replan")
+                        raise InteractionFailure(
+                            "loaded_stage: no checked shelf approach candidate"
+                        )
+                    continue
+                break
             self.events[-1].update(
                 candidates=attempts,
                 decision="execute_checked_shelf_approach",
@@ -1607,6 +1844,7 @@ class StockingScript:
                     self.env.data.body("mabel_chassis").xpos - self.base_start,
                 )
             )
+            result["base_repositions"] = self.base_repositions
             result["base_orientation_wxyz"] = self.env.data.body("mabel_chassis").xquat.tolist()
             result["last_nominal_targets"] = dict(
                 zip(

@@ -199,3 +199,16 @@ project names, task descriptions, repository links, or private context.
 - **Next diagnostic:** a minimal upstream-only state-helper compilation example
   without robot assets, downstream imports, paths or task context. Do not file
   or send this draft without authorization.
+
+## HR-005 — `emet.mapping` import needs NumPy 2 in a NumPy 1 project
+
+- **Status:** observed 2026-11-18; not filed. Local dependency-conflict note only.
+- **Environment:** CPython 3.11.12, NumPy 1.26.4 (project-pinned), `emet` main.
+- **Observation:** importing `emet.mapping` (or `emet.mapping.grid`) raises
+  `ImportError: pyarrow requires NumPy 2.0 or newer, found 1.26.4`, pulled in
+  through `emet.mapping -> emet.utils.point_cloud -> rerun -> pyarrow`.
+  `emet.motion` and its A* planner import cleanly. The downstream project pins
+  NumPy 1.26.4 for native MuJoCo compatibility, so `emet.mapping`'s occupancy
+  modules are unavailable and a small local occupancy grid is used instead.
+- **Not an upstream defect report:** this is a dependency-version conflict, not
+  a bug. No reproduction is being sent upstream.

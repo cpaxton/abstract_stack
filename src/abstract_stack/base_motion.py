@@ -208,8 +208,13 @@ class NativeSwerve:
         return result
 
 
-def screen_base_translation(env, displacement_xy, *, config=None):
-    """Screen translation, yaw uncertainty and steering sweeps using scratch data."""
+def screen_base_translation(env, displacement_xy, *, config=None, carried_product=None):
+    """Screen translation, yaw uncertainty and steering sweeps using scratch data.
+
+    A named ``carried_product`` moves rigidly with the robot: its geoms are
+    removed from the fixture set and its free-joint position tracks the base, so
+    a retained load is not mistaken for a stationary obstacle.
+    """
     config = config or BaseMotionConfig()
     displacement = np.asarray(displacement_xy, dtype=float)
     if (
@@ -218,12 +223,20 @@ def screen_base_translation(env, displacement_xy, *, config=None):
         or np.linalg.norm(displacement) > 0.15
     ):
         raise ValueError("Base probe displacement must be finite and within 0.15 m")
+    if carried_product is not None and not isinstance(carried_product, str):
+        raise ValueError("carried_product must be a product name or None")
     snapshot = env.clone_for_planning()
     model, data = snapshot.model, snapshot.data
     swerve = NativeSwerve(model, data, config)
     desired, _, _ = swerve.module_requests([*displacement, 0])
     initial = data.qpos.copy()
     base_adr = int(model.joint("base_root").qposadr[0])
+    carried_body = model.body(carried_product).id if carried_product is not None else None
+    carried_joint_adr = (
+        int(model.joint(f"{carried_product}_joint").qposadr[0])
+        if carried_product is not None
+        else None
+    )
     root, robot = model.body("mabel_chassis").id, set()
     for body in range(model.nbody):
         ancestor = body
@@ -242,6 +255,7 @@ def screen_base_translation(env, displacement_xy, *, config=None):
             g
             for g in range(model.ngeom)
             if model.geom_bodyid[g] not in robot
+            and model.geom_bodyid[g] != carried_body
             and (model.geom_contype[g] or model.geom_conaffinity[g])
         ]
     )
@@ -252,6 +266,8 @@ def screen_base_translation(env, displacement_xy, *, config=None):
             for steer_alpha in (0, 0.5, 1):
                 data.qpos[:] = initial
                 data.qpos[base_adr : base_adr + 2] += alpha * displacement
+                if carried_joint_adr is not None:
+                    data.qpos[carried_joint_adr : carried_joint_adr + 2] += alpha * displacement
                 quat = np.array([np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)])
                 mujoco.mju_mulQuat(
                     data.qpos[base_adr + 3 : base_adr + 7],
@@ -319,7 +335,15 @@ class BaseContactGuard:
     Force aborts are terminal action failures, not permission to drive again.
     """
 
-    def __init__(self, env, config=None, *, reference_yaw=None, max_product_displacement_m=None):
+    def __init__(
+        self,
+        env,
+        config=None,
+        *,
+        reference_yaw=None,
+        max_product_displacement_m=None,
+        exclude_products=(),
+    ):
         self.model = env.model
         self.config = config or BaseMotionConfig()
         if max_product_displacement_m is not None and (
@@ -327,6 +351,9 @@ class BaseContactGuard:
         ):
             raise ValueError("Product displacement bound must be finite and positive")
         self.displacement_limit = max_product_displacement_m
+        excluded = set(exclude_products)
+        if not excluded <= {p.name for p in env.products}:
+            raise ValueError("Excluded products must be named scene products")
         self.base = self.model.body("mabel_chassis").id
         rotation = env.data.xmat[self.base].reshape(3, 3)
         self.reference_yaw = (
@@ -346,6 +373,12 @@ class BaseContactGuard:
                 ancestor = int(self.model.body_parentid[ancestor])
         self.products = {self.model.body(p.name).id: p.name for p in env.products}
         self.initial_products = {p.name: env.data.body(p.name).xpos.copy() for p in env.products}
+        # Absolute world-frame displacement guards the products that must stay
+        # put; a retained carried load is excluded and monitored by the caller's
+        # relative grasp-slip check instead.
+        self.displacement_products = {
+            body_id: name for body_id, name in self.products.items() if name not in excluded
+        }
         self.maximum_product_displacement_m = dict.fromkeys(self.initial_products, 0.0)
         self.floor = self.model.geom("floor").id
         self.actuator_ids = [
@@ -398,11 +431,12 @@ class BaseContactGuard:
             np.arctan2(np.sin(yaw - self.reference_yaw), np.cos(yaw - self.reference_yaw))
         )
         mujoco.mj_objectVelocity(model, data, mujoco.mjtObj.mjOBJ_BODY, self.base, self.velocity, 0)
-        for body, name in self.products.items():
+        for body, name in self.displacement_products.items():
             displacement = float(np.linalg.norm(data.xpos[body] - self.initial_products[name]))
             self.maximum_product_displacement_m[name] = max(
                 self.maximum_product_displacement_m[name], displacement
             )
+        for body, name in self.products.items():
             tipped = data.xmat[body].reshape(3, 3)[2, 2] < np.cos(np.radians(45))
             dropped = data.xpos[body, 2] < 0.25
             if tipped or dropped:

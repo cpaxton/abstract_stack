@@ -44,9 +44,15 @@ the [two-layer contract](docs/receding_horizon_stocking.md#fixed-shelf-two-layer
   strict native sequence replay and a passed-held-out-first recovery tool.
 - [x] Align the lifted carton to the shelf frame instead of preserving table
   yaw. Generate an exact actuator-replay video of two consecutive complete stocks.
-- [ ] Extend to three cartons. The supply layout requires a 0.42 m table; the
-  first pickup passes, but loaded staging hits native shoulder limits. Plan a
-  loaded route/base action from that grasp without relaxing IK acceptance.
+- [x] Extend to three cartons. The supply layout requires a 0.42 m table; the
+  first pickup passes, but loaded staging hits native shoulder limits. A checked
+  loaded base relocation (planned on a scene occupancy grid with `emet` A*) and a
+  checked Cartesian pregrasp route now complete all three: pick/place/final
+  position/retreat 3/3, zero prefills or tip/drop incidents, 8.06 N peak
+  robot/product load. See [navigation and three-carton](docs/reports/navigation_three_carton.md).
+- [ ] Extend to four cartons, then begin dense packing with the same base-navigation
+  and grasp/transfer admission. The 2D occupancy grid already re-marks randomized
+  product positions as obstacles.
 - [x] Add a separate fixed 60 mm rear-clearance layout and labeled prefill preview.
 - [ ] Implement pose-based depth registration and final rear-gap checks for that
   layout; the current backstop controller does not solve it.
