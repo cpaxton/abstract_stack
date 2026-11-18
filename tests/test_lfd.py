@@ -1,7 +1,10 @@
 """Causal native observations, honest action labels and local writer admission."""
 
 import hashlib
+import io
 import json
+import sys
+from types import SimpleNamespace
 
 import mujoco
 import numpy as np
@@ -16,7 +19,7 @@ from abstract_stack.lfd import (
 )
 from abstract_stack.lfd.episode import student_observation, teacher_observation
 from abstract_stack.lfd.legacy import audit_legacy_bundle, import_legacy_for_bc
-from abstract_stack.lfd.lerobot import export_lerobot
+from abstract_stack.lfd.lerobot import _auxiliary_features, export_lerobot, verify_lerobot
 from abstract_stack.lfd.native import action_contract, proprioception
 
 
@@ -154,6 +157,32 @@ def test_export_rejects_float32_action_overflow_before_creating_dataset(
     assert not (tmp_path / "refused").exists()
 
 
+@pytest.mark.parametrize(
+    "key,changed",
+    [
+        ("sensor_contract", {"tactile_order": ["different_body_local_geom"]}),
+        ("proprioception_order", ["different_native_actuator"]),
+        ("proprioception_units", ["different_units"]),
+    ],
+)
+def test_export_rejects_changed_native_channel_meaning_before_writer(
+    tmp_path, plant, monkeypatch, key, changed
+):
+    first = collect(tmp_path / "first", plant)
+    second = collect(tmp_path / "second", plant)
+    path = second / "episode.json"
+    metadata = json.loads(path.read_text())
+    metadata["provenance"][key] = changed
+    path.write_text(json.dumps(metadata))
+    monkeypatch.setattr(
+        "abstract_stack.lfd.lerobot._dataset_class",
+        lambda: pytest.fail("Incompatible native semantics must fail before writer initialization"),
+    )
+    with pytest.raises(ValueError, match=f"identical native {key} semantics"):
+        export_lerobot([first, second], tmp_path / "refused", include_failed=True)
+    assert not (tmp_path / "refused").exists()
+
+
 @pytest.mark.parametrize("stamp", [0.001, -0.001, float("nan")])
 def test_future_stale_or_nonfinite_sensor_timestamps_cannot_enter_student_data(plant, stamp):
     _, data = plant
@@ -252,6 +281,14 @@ def test_real_writer_api_contract_keeps_failures_actions_and_finalize(tmp_path, 
         export_lerobot([source], tmp_path / "refused")
     result = export_lerobot([source], tmp_path / "export", include_failed=True)
     assert captured["saved"] and captured["finalized"] and not result["uploaded"]
+    assert not any(
+        "image" in key and feature["dtype"] not in {"image", "video"}
+        for key, feature in captured["features"].items()
+    )
+    camera_aux = result["sensor_auxiliary_features"]["observation.images.front"]
+    assert captured["frames"][0][camera_aux["available"]][0] == 0
+    assert captured["frames"][0][camera_aux["sample_time_s"]][0] == -1
+    assert "observation.images.front.available" not in captured["frames"][0]
     assert captured["frames"][0]["action"][0] == pytest.approx(0.1)
     assert captured["frames"][0]["diagnostics.applied_action"][0] == pytest.approx(0.12)
     assert "timestamp" not in captured["frames"][0]
@@ -263,6 +300,73 @@ def test_real_writer_api_contract_keeps_failures_actions_and_finalize(tmp_path, 
         not any("object_pose" in k or k.startswith("teacher") for k in f)
         for f in captured["frames"]
     )
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_verification_keeps_new_scalar_mapping_and_legacy_camera_metadata(
+    tmp_path, plant, monkeypatch, legacy
+):
+    from PIL import Image
+
+    source = load_episode(collect(tmp_path, plant))
+    output = tmp_path / "dataset"
+    (output / "data").mkdir(parents=True)
+    (output / "data/part.parquet").touch()
+    auxiliary = _auxiliary_features(source.metadata["fields"])
+    stored, decoded = [], []
+    for i, frame in enumerate(source.student_frames()):
+        raw, row = dict(index=i), {}
+        for field in source.metadata["fields"]:
+            name = field["name"]
+            raw[name] = source.arrays[name][i].tolist()
+            row[name] = source.arrays[name][i]
+            if field["dtype"] == "uint8":
+                encoded = io.BytesIO()
+                Image.fromarray(source.arrays[name][i]).save(encoded, format="PNG")
+                raw[name] = dict(bytes=encoded.getvalue())
+                row[name] = source.arrays[name][i].transpose(2, 0, 1).astype(np.float32) / 255
+            for suffix in ("available", "sample_time_s"):
+                old = name + "." + suffix
+                key = old if legacy else auxiliary[name][suffix]
+                row[key] = frame[old]
+                raw[key] = frame[old].tolist()
+        clock = source.arrays["observation_time_s"][i]
+        raw["diagnostics.observation_time_s"] = float(clock)
+        row.update(
+            {
+                "diagnostics.observation_time_s": np.asarray(clock, np.float32),
+                "action": source.arrays["action.nominal"][i].astype(np.float32),
+                "diagnostics.applied_action": source.arrays["action.applied"][i].astype(np.float32),
+                "next.done": np.asarray(i == source.metadata["transitions"] - 1, np.float32),
+                "next.success": np.asarray(False, np.float32),
+                "quality.training_eligible": np.asarray(False, np.float32),
+            }
+        )
+        stored.append(raw)
+        decoded.append(row)
+
+    class Reader:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __len__(self):
+            return len(decoded)
+
+        def get_raw_item(self, index):
+            return decoded[index]
+
+    metadata = dict(episodes=[dict(source=str(source.directory), metadata=source.metadata)])
+    if not legacy:
+        metadata["sensor_auxiliary_features"] = auxiliary
+    (output / "collection_provenance.json").write_text(json.dumps(metadata))
+    parquet = SimpleNamespace(read_table=lambda path: SimpleNamespace(to_pylist=lambda: stored))
+    monkeypatch.setitem(sys.modules, "pyarrow", SimpleNamespace(parquet=parquet))
+    monkeypatch.setitem(sys.modules, "pyarrow.parquet", parquet)
+    monkeypatch.setattr("abstract_stack.lfd.lerobot._dataset_class", lambda: Reader)
+    result = verify_lerobot(output)
+    assert result["frames"] == 2 and result["masks_and_outcomes_preserved"]
+    assert result["native_clock_float64_storage_exact"]
+    assert result["raw_image_storage_uint8_pixels_exact"]
 
 
 @pytest.mark.mabel

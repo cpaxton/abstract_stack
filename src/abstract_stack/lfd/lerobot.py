@@ -13,6 +13,24 @@ from abstract_stack.lfd.episode import _finite_cast, load_episode
 SUPPORTED_VERSION = "0.7.0"
 
 
+def _auxiliary_features(fields):
+    """Avoid v0.7 aggregate_stats treating scalar names containing 'image' as RGB."""
+    result, camera = {}, 0
+    for field in fields:
+        name = field["name"]
+        if field["dtype"] == "uint8":
+            result[name] = dict(
+                available=f"observation.camera_available.{camera}",
+                sample_time_s=f"observation.camera_sample_time_s.{camera}",
+            )
+            camera += 1
+        else:
+            result[name] = dict(
+                available=name + ".available", sample_time_s=name + ".sample_time_s"
+            )
+    return result
+
+
 def _dataset_class():
     try:
         version = importlib.metadata.version("lerobot")
@@ -48,6 +66,12 @@ def export_lerobot(directories, output, *, repo_id="local/mabel-lfd", include_fa
             )
         if any(metadata[k] != first[k] for k in ("action", "fields", "fps")):
             raise ValueError("LeRobot export requires identical action/sensor/clock contracts")
+        # Equal array dimensions do not establish equal channel meanings. Native
+        # tactile IDs, wrist frames and measured actuator ordering stay explicit;
+        # refuse a scene-dependent change rather than silently flattening it.
+        for key in ("sensor_contract", "proprioception_order", "proprioception_units"):
+            if metadata["provenance"].get(key) != first["provenance"].get(key):
+                raise ValueError(f"LeRobot export requires identical native {key} semantics")
         for name in ("action.nominal", "action.applied"):
             _finite_cast(episode.arrays[name], "float32", name)
     output = Path(output).resolve()
@@ -58,6 +82,7 @@ def export_lerobot(directories, output, *, repo_id="local/mabel-lfd", include_fa
         raise ValueError("Use a fresh output outside the source episodes")
     dataset_class = _dataset_class()
     features = {}
+    auxiliary = _auxiliary_features(first["fields"])
     for field in first["fields"]:
         name = field["name"]
         image = field["dtype"] == "uint8"
@@ -66,8 +91,10 @@ def export_lerobot(directories, output, *, repo_id="local/mabel-lfd", include_fa
             shape=tuple(field["shape"]),
             names=["height", "width", "channels"] if image else None,
         )
-        features[name + ".available"] = dict(dtype="float32", shape=(1,), names=["available"])
-        features[name + ".sample_time_s"] = dict(
+        features[auxiliary[name]["available"]] = dict(
+            dtype="float32", shape=(1,), names=["available"]
+        )
+        features[auxiliary[name]["sample_time_s"]] = dict(
             dtype="float64", shape=(1,), names=["native_sample_time_s"]
         )
     action = first["action"]
@@ -98,6 +125,9 @@ def export_lerobot(directories, output, *, repo_id="local/mabel-lfd", include_fa
         for episode in episodes:
             metadata = episode.metadata
             for index, frame in enumerate(episode.student_frames()):
+                for name, mapping in auxiliary.items():
+                    for suffix, exported_name in mapping.items():
+                        frame[exported_name] = frame.pop(name + "." + suffix)
                 frame["action"] = episode.arrays["action.nominal"][index].astype(np.float32)
                 frame["diagnostics.applied_action"] = episode.arrays["action.applied"][
                     index
@@ -125,6 +155,7 @@ def export_lerobot(directories, output, *, repo_id="local/mabel-lfd", include_fa
         repo_id=repo_id,
         episodes=saved,
         student_inputs=[f["name"] for f in first["fields"]],
+        sensor_auxiliary_features=auxiliary,
         teacher_privileged_exported=False,
         uploaded=False,
         fresh_task_credit=0,
@@ -171,6 +202,7 @@ def verify_lerobot(output):
 
     output = Path(output)
     sidecar = json.loads((output / "collection_provenance.json").read_text())
+    auxiliary = sidecar.get("sensor_auxiliary_features", {})
     dataset = _dataset_class()(
         sidecar.get("repo_id", "local/mabel-lfd"),
         root=output,
@@ -213,21 +245,25 @@ def verify_lerobot(output):
             np.testing.assert_array_equal(clock_view, np.asarray(clock, dtype=clock_view.dtype))
             for field in episode.metadata["fields"]:
                 name = field["name"]
+                mapping = auxiliary.get(
+                    name,
+                    dict(available=name + ".available", sample_time_s=name + ".sample_time_s"),
+                )
                 expected = episode.arrays[name][index]
                 observed = np.asarray(row[name])
                 if field["dtype"] == "uint8":
                     reader_image_representations.add(_verify_image(raw[name], observed, expected))
                 else:
                     np.testing.assert_array_equal(observed, expected)
-                if bool(np.asarray(row[name + ".available"]).item()) != bool(
+                if bool(np.asarray(row[mapping["available"]]).item()) != bool(
                     episode.arrays[name + ".available"][index]
                 ):
                     raise ValueError("Sensor availability changed")
-                if raw[name + ".sample_time_s"] != [
+                if raw[mapping["sample_time_s"]] != [
                     float(episode.arrays[name + ".sample_time_s"][index])
                 ]:
                     # Arrow may expose a one-element list or a scalar.
-                    if raw[name + ".sample_time_s"] != float(
+                    if raw[mapping["sample_time_s"]] != float(
                         episode.arrays[name + ".sample_time_s"][index]
                     ):
                         raise ValueError("Stored native sensor timestamp changed")

@@ -78,9 +78,18 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   after release. Actual hand clearance was 39.924 mm back / 20.011 mm up, with
   no tip/drop incidents. Native verified replay now covers 20.166 seconds; see
   [longer sequence and videos](docs/reports/squaring_withdrawal_development.md).
-- [ ] Connect the cleared withdrawal checkpoint to a checked grasp-preshape
-  transition and next table pickup. Integrate the primitive into normal episode
-  stepping with stage/data observers before claiming consecutive stocking.
+- [x] Connect the cleared withdrawal checkpoint to checked shelf clearance,
+  grasp-preshape transition and next physical table pickup. Normal environment
+  stepping retains per-physics-step product/stage observers. A 153.386-second
+  verified replay now includes carry, shelf support, insertion and unfinished
+  backstop recovery; see [continuous development](docs/reports/continuous_stocking_development.md).
+- [ ] Finish the second carton's unchanged final-position/retreat gates. Current
+  recovery reaches 3.228 degrees yaw, with lateral drift; diagnose compensated
+  contact-corridor rejection and add measured lateral registration before
+  claiming consecutive complete stocks.
+- [x] Replace repeated Python trees in new continuation/contact/video runs with
+  shared immutable source bundles, Git/dirty metadata and pinned checkpoint refs.
+  Portable/legacy checkpoints remain supported; historical evidence is retained.
 - [x] Prototype measured wrist-load compensation for grasp/carry; reserve nominal
   wrist and lift headroom without changing native ranges, gains or force limits.
   Test native torque sign and applied geometry before actuation. Not promoted.
@@ -166,6 +175,19 @@ See [learning from demonstrations](docs/learning_from_demonstration.md) and
 worker is independently locked; collection remains in the main simulator env.
 
 ## 6. Acceptance and evidence
+
+- [x] Add a deterministic geometry DR curriculum with separate private held-out
+  seeds, 2–10 objects, 1–3 shelf levels, dense/carton/mixed-house profiles and
+  all-object evaluation ledgers. Four native construction/hold checks passed;
+  the first development teacher case failed before pick. This is not robustness
+  proof; see [DR suite and evaluation](docs/domain_randomization.md).
+- [x] Carry the raw-camera LfD pilot forward and collect two DR sensing fixtures
+  (40 transitions/84 RGB). Official LeRobot export/reload passed; they remain
+  training-ineligible and no student has been trained.
+- [ ] Hook causal collection into actual manipulation before all compensation,
+  collect verified development demonstrations, then evaluate a frozen teacher
+  on the untouched held-out suite. Add supported multi-level/bottle adapters;
+  keep unsupported domains and unrun objects explicit in the report.
 
 - [ ] Close native process stability gate: primitive-only named-view accesses
   reproduce an intermittent signal. Retained model/data wrappers passed one
