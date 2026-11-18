@@ -338,6 +338,19 @@ class EngagementGate:
         self.session_id = None
         self._pause("control_disconnected", now)
 
+    def lifecycle_lost(self, session_id, *, now):
+        """Apply a received inactive edge independently of the latest pose."""
+        self._owner()
+        if (
+            session_id is not None
+            and session_id == self.session_id
+            and (
+                self.state in (SessionState.ENGAGED, SessionState.READY)
+                or self.calibration.artifact is not None
+            )
+        ):
+            self._pause("independent_lifecycle_inactive", finite(now, "now"))
+
     def observe(self, tracking, clock, lifecycle: LifecycleEvidence, video: VideoEvidence, *, now):
         """Receive a detached, canonical observation plus trusted provider evidence."""
         self._owner()

@@ -121,11 +121,15 @@ hide it. No loaded-hold/grasp/lift/release acceptance is claimed.
 ## Bounded networking integration
 
 `OwnerMailbox` offers a reliable capacity32 command queue (configurable1–64), one
-newest detached input, and urgent disconnect/pause flags. Queue overflow requests
-host pause. Cancelled pending commands do not execute. Control decisions use the
-actual owner-drain time, not old enqueue time. Calibration callbacks run on that
-owner. A200 ms control RPC timeout requests pause. Drain at most8 reliable
-requests before the control tick to avoid unbounded network work.
+newest detached input, and urgent disconnect/pause flags. Received inactive
+lifecycle events are coalesced separately by session. The owner applies a loss
+before consuming replacement input, so recovery cannot erase it or reuse the
+old alignment. Queue overflow requests host pause. Cancelled pending commands do
+not execute. Control decisions use the actual owner-drain time, not old enqueue
+time. Calibration callbacks run on that owner. A 200 ms control RPC timeout or a
+failed recenter RPC retires the session and closes its connection. Reconnect
+with a fresh session and alignment. Drain at most8 reliable requests before the
+control tick to avoid unbounded network work.
 
 `GateControlServer` extends #15 without modifying its files. It publishes the
 actual owner status rather than the base server's fixed Paused placeholder,
