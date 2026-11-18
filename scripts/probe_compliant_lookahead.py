@@ -38,6 +38,7 @@ def worker(args):
     from abstract_stack.sim_sensors import ContactSensorSuite
     from abstract_stack.squaring_fixture import neighbor_reset
     from abstract_stack.withdrawal import supported_withdrawal
+    from abstract_stack.withdrawal_feedback import WithdrawalFeedbackConfig
 
     started = time.monotonic()
     source = args.output / "inputs"
@@ -157,6 +158,9 @@ def worker(args):
                 restored.controller,
                 planning_wrist_range=wrist_range,
                 push_admittance=asdict(configuration),
+                withdrawal_feedback_settings=(
+                    asdict(WithdrawalFeedbackConfig()) if args.withdrawal_feedback else None
+                ),
                 motion_bounds=dict(lower_m=lower.tolist(), upper_m=upper.tolist()),
                 mode_flags=dict(sweep_side=args.sweep_side, front_face_sweep=args.front_face_sweep),
             ),
@@ -494,7 +498,11 @@ def worker(args):
         withdrawal = None
         if args.withdraw and actor_failure is None and dwell is not None and dwell.verified:
             withdrawal, withdrawal_controls, withdrawal_trace = supported_withdrawal(
-                hand, nominal, monitor, dwell
+                hand,
+                nominal,
+                monitor,
+                dwell,
+                feedback=WithdrawalFeedbackConfig() if args.withdrawal_feedback else None,
             )
             executed.extend(withdrawal_controls)
             contact_trace.extend(withdrawal_trace.tolist())
@@ -575,6 +583,7 @@ def worker(args):
                     sweep_side=args.sweep_side,
                     front_face_sweep=args.front_face_sweep,
                     withdraw=args.withdraw,
+                    withdrawal_feedback=args.withdrawal_feedback,
                     squaring_reserve_deg=args.squaring_reserve_deg,
                 ),
                 planning_wrist_range=wrist_range,
@@ -645,6 +654,7 @@ def main():
     parser.add_argument("--front-face-sweep", action="store_true")
     parser.add_argument("--withdraw", action="store_true")
     parser.add_argument("--withdraw-only", action="store_true")
+    parser.add_argument("--withdrawal-feedback", action="store_true")
     parser.add_argument("--squaring-reserve-deg", type=float)
     parser.add_argument("--replans", type=int, default=1)
     parser.add_argument("--worker", action="store_true")
@@ -671,6 +681,7 @@ def main():
         )
         and (not args.withdraw or args.require_dwell)
         and (not args.withdraw_only or args.checkpoint)
+        and (not args.withdrawal_feedback or args.withdraw)
         and (
             args.squaring_reserve_deg is None
             or (
@@ -776,6 +787,8 @@ def main():
         command.append("--withdraw")
     if args.withdraw_only:
         command.append("--withdraw-only")
+    if args.withdrawal_feedback:
+        command.append("--withdrawal-feedback")
     if args.squaring_reserve_deg is not None:
         command += ["--squaring-reserve-deg", str(args.squaring_reserve_deg)]
     for flag, value in (

@@ -161,9 +161,13 @@ Reports, source IDs and videos: [grasp and longer execution](docs/reports/grasp_
   bounds. Matched 1 N contact dwell: existing 0/2, projected 1/2 saved states;
   separate 2 N development probes pass both in 0.856–1.046 s. Not fresh stocks.
   See [compliance projection evidence](docs/reports/compliance_reference_projection.md).
-- [ ] Fix unloading with refreshed compensation and measured Cartesian/force
-  feedback. Both new release probes exhaust the unchanged three-second budget;
-  retain their checkpoints, then validate release/retreat and fresh full sequences.
+- [x] Prototype refreshed gravity/contact-torque compensation for unloading.
+  Matched release: frozen 0/2, refreshed 2/2 saved states; combined square/release/
+  retreat passes 2/2 in 7.704–7.926 s. Preserve failures and narrow final yaw margin;
+  see [release evidence](docs/reports/compliance_unload_feedback.md).
+- [ ] Validate load-aware withdrawal on new skill-entry states and bounded
+  actuation/observation errors, improve yaw margin, then integrate fresh full
+  sequences. No default promotion or held-out robustness claim from checkpoints.
 - [ ] Detect jams by force plus lack of object progress; unload, back off and try
   a bounded alternative. Force aborts remain terminal until safe recovery exists.
 - [ ] Validate the opt-in released/supported contact-reacquisition mode end to
