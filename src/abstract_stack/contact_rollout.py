@@ -138,6 +138,43 @@ class ContactMonitor:
         )
         self.last = {}
         self.incidents = []
+        self.phase = "push"
+        self.withdrawal_started_s = None
+
+    def begin_withdrawal(self, data, squared_dwell):
+        """Admit intentional hand unloading after fresh supported square dwell.
+
+        This changes only the contact-retention requirement. Force, support,
+        robot-link, external-input and every-product tip/drop guards persist.
+        A subsequent release/retreat result needs its own measured admission.
+        """
+        if (
+            self.phase != "push"
+            or not squared_dwell.verified
+            or squared_dwell.last_time_s is None
+            or abs(squared_dwell.last_time_s - data.time) > 1e-8
+            or squared_dwell.physics_dt_s != self.model.opt.timestep
+            or squared_dwell.required_seconds < 0.12
+            or squared_dwell.yaw_limit_degrees > 0.15
+            or squared_dwell.upright_limit_degrees > 5
+            or squared_dwell.force_threshold_N < 0.4
+            or squared_dwell.held_seconds + 1e-12 < squared_dwell.required_seconds
+        ):
+            raise ValueError("Withdrawal requires fresh verified supported squared dwell")
+        failure = self.sample(data, elapsed=0)
+        rotation = data.xmat[self.active].reshape(3, 3)
+        yaw = np.arctan2(rotation[1, 0], rotation[0, 0])
+        if (
+            failure
+            or self.last["back_N"] < 0.4
+            or self.last["hand_N"] <= 0.2
+            or self.last["support_N"] <= 0.2
+            or abs(yaw) > np.radians(0.15)
+            or rotation[2, 2] < np.cos(np.radians(5))
+        ):
+            raise ValueError("Withdrawal source no longer has admitted squared support")
+        self.phase = "withdrawal"
+        self.withdrawal_started_s = float(data.time)
 
     def state_dict(self):
         """Explicit continuation memory; incidents and timers must not reset."""
@@ -156,6 +193,8 @@ class ContactMonitor:
                 peaks=self.peaks,
                 last=self.last,
                 incidents=self.incidents,
+                phase=self.phase,
+                withdrawal_started_s=self.withdrawal_started_s,
             )
         )
 
@@ -191,6 +230,20 @@ class ContactMonitor:
         ):
             raise ValueError("Contact monitor checkpoint clock/timers are invalid")
         json.dumps(state, allow_nan=False)
+        phase = state.get("phase", "push")
+        withdrawal_started = state.get("withdrawal_started_s")
+        if phase not in ("push", "withdrawal") or (
+            phase == "push"
+            and withdrawal_started is not None
+            or phase == "withdrawal"
+            and (
+                withdrawal_started is None
+                or not np.isfinite(withdrawal_started)
+                or not 0 <= withdrawal_started <= data.time
+            )
+        ):
+            raise ValueError("Invalid contact monitor phase history")
+        self.phase, self.withdrawal_started_s = phase, withdrawal_started
         self.initial = {body: positions[name] for body, name in self.products.items()}
         for name in (
             "initial_yaw",
@@ -286,7 +339,7 @@ class ContactMonitor:
         self.contact_loss = 0.0 if hand > 0.2 else self.contact_loss + elapsed
         if self.support_loss > scene.support_loss_seconds:
             return "lost_surface_support"
-        if self.contact_loss > scene.contact_loss_seconds:
+        if self.phase == "push" and self.contact_loss > scene.contact_loss_seconds:
             return "lost_push_contact"
         return None
 
