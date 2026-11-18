@@ -56,7 +56,16 @@ def _parser():
     tune.add_argument("--objects", type=_positive_int, default=2)
     tune.add_argument("--rounds", type=_positive_int, default=1)
     tune.add_argument("--output-dir", type=Path, default=Path("outputs/compliance-search"))
-    for command in ("sim", "export", "inspect", "serve", "build-scene", "script", "solve"):
+    for command in (
+        "sim",
+        "export",
+        "inspect",
+        "serve",
+        "build-scene",
+        "script",
+        "solve",
+        "teleop",
+    ):
         sub = commands.add_parser(command)
         sub.add_argument("--mabel-root", type=Path, help="Existing open_mabel checkout")
         sub.add_argument("--seed", type=int, default=0)
@@ -68,13 +77,50 @@ def _parser():
         )
         selection.add_argument("--config", type=Path, help="Custom JSON scene configuration")
         sub.add_argument("--fetch-mabel", action="store_true", help="Fetch MABEL if missing")
-        if command not in ("serve", "script", "solve"):
+        if command not in ("serve", "script", "solve", "teleop"):
             sub.add_argument("--robot", choices=("mabel", "none"), default="mabel")
         sub.add_argument(
             "--enable-sensors", action="store_true", help="Enable onboard sensors/LiDAR"
         )
         if command == "export":
             sub.add_argument("--output", type=Path, default=Path("outputs/shelf.xml"))
+        if command == "teleop":
+            sub.add_argument("--host", default="127.0.0.1", help="Bind address (0.0.0.0 for LAN)")
+            sub.add_argument("--port", type=int, default=8080)
+            sub.add_argument("--token", help="Access token (default: generated per run)")
+            sub.add_argument(
+                "--insecure-no-token",
+                action="store_true",
+                help="Disable the access token (trusted local development only)",
+            )
+            sub.add_argument(
+                "--allow-origin",
+                action="append",
+                default=[],
+                help="Extra browser origin allowed to open sockets (e.g. a Vite dev server)",
+            )
+            sub.add_argument(
+                "--input-timeout",
+                type=float,
+                default=0.15,
+                help="Pause when operator input is older than this many seconds "
+                "(contract budget 0.15; raise only for high-latency links or slow test rigs)",
+            )
+            sub.add_argument(
+                "--time-limit",
+                type=float,
+                default=3600.0,
+                help="Simulated seconds before the episode must be reset",
+            )
+            sub.add_argument(
+                "--web-dir", type=Path, help="Built web client (default: <checkout>/web/dist)"
+            )
+            sub.add_argument(
+                "--face-budget",
+                type=_positive_int,
+                default=800,
+                help="Maximum faces per visual mesh in the browser preview",
+            )
         if command == "build-scene":
             sub.add_argument("--output-dir", type=Path, default=Path("outputs/scene"))
             sub.add_argument("--render", action="store_true", help="Render scene preview images")
@@ -231,6 +277,34 @@ def _simulate(env, args):
     print(summary)
 
 
+def _teleop(env, args):
+    import logging
+
+    if not 0.02 <= args.input_timeout <= 2.0:
+        raise ValueError("--input-timeout must be between 0.02 and 2.0 seconds")
+    try:
+        from abstract_stack.web_teleop.core import CoreConfig, TeleopCore
+        from abstract_stack.web_teleop.server import generate_token, serve
+    except ImportError as error:
+        raise RuntimeError(
+            f"web teleop needs the 'teleop' extra ({error.name} missing): uv sync --extra teleop"
+        ) from error
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s")
+    web_dir = args.web_dir or Path(__file__).resolve().parents[2] / "web" / "dist"
+    if not web_dir.is_dir():
+        print(f"Web client not built at {web_dir}; serving the API only.", flush=True)
+    token = None if args.insecure_no_token else (args.token or generate_token())
+    serve(
+        TeleopCore(env, config=CoreConfig(input_timeout_s=args.input_timeout)),
+        host=args.host,
+        port=args.port,
+        token=token,
+        static_dir=web_dir,
+        allowed_origins=tuple(args.allow_origin),
+        face_budget=args.face_budget,
+    )
+
+
 def main(argv=None):
     parser = _parser()
     args = parser.parse_args(argv)
@@ -320,6 +394,9 @@ def main(argv=None):
             if getattr(args, "objects", None) is not None:
                 raise ValueError("--objects requires --random-scene")
             config = load_scene_config(args.config, scene=args.scene)
+        if args.command == "teleop":
+            # An operator keeps working after success; the long cap only bounds a run.
+            config = replace(config, terminate_on_success=False, time_limit=args.time_limit)
         if args.command == "script":
             # Keep checking geometric success while the physical protocol
             # verifies final contact/release and retreat; retain the time cap.
@@ -394,6 +471,8 @@ def main(argv=None):
                 print(
                     "Cameras:", ", ".join(env.model.camera(i).name for i in range(env.model.ncam))
                 )
+            elif args.command == "teleop":
+                _teleop(env, args)
             elif args.command == "serve":
                 from abstract_stack.robots.mabel import serve_environment
 
