@@ -131,6 +131,12 @@ def _parser():
                 help="Save measured per-skill entry distributions and native checkpoints",
             )
             sub.add_argument(
+                "--base-reposition",
+                action="store_true",
+                help="Reposition an empty hand via native wheels when a loaded shelf route "
+                "is unreachable",
+            )
+            sub.add_argument(
                 "--fixture-avoidance",
                 action=argparse.BooleanOptionalAction,
                 default=True,
@@ -418,6 +424,7 @@ def main(argv=None):
                         record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,
+                        base_reposition=args.base_reposition,
                         **resolve_control_settings(args.force_profile, args.control_config),
                     ),
                     force_profile=args.force_profile,

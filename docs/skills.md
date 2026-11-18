@@ -112,3 +112,14 @@ to claim the new task complete. Keep the old backstop test as a separate skill
 fixture. The new layout itself establishes no manipulation success.
 
 Current evidence and videos: [grasp development](reports/grasp_skill_development.md).
+
+## Base relocation and 2D navigation
+
+When a loaded shelf route is out of the left arm's reach (its `Left Arm 2`
+adduction range bottoms out at `-0.175 rad`), the opt-in `--base-reposition`
+mode relocates the base through native swerve wheels. The route is planned on a
+scene occupancy grid with `emet` A* ([`navigation.py`](../src/abstract_stack/navigation.py)),
+which re-marks every measured product footprint as an obstacle, so randomized
+object positions are reflected in the map. The idle right hand is swung outward
+first, and the pregrasp move uses a checked Cartesian entry. See the
+[three-carton report](reports/navigation_three_carton.md).
