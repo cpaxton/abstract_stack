@@ -10,6 +10,22 @@ adapter. A world-state solver completes initial seeded carton scenes and records
 dual-view MP4s. VR control, demonstration replay, generalized recovery and mjlab
 training remain future work.
 
+## Planning and gripper design
+
+- [Technical feasibility plan](docs/technical_feasibility.md): proposed experiments
+  and acceptance gates for dense stocking, recovery, teleoperation, human pace,
+  realistic sensing, learning and bimanual mobile execution.
+- [Proof-of-concept critique](docs/poc_critique.md): what current results establish
+  and the technical gaps still to close.
+- [Gripper design tracker](docs/gripper_design_tracker.md): GET, Dream Gripper,
+  build assets, sensing/actuation choices and matched UMI/tooling experiments.
+- [Experiment index](docs/experiments.md): supported workflows and measured results.
+
+Track candidate grippers and their next experiments in the design tracker;
+acceptance targets in the feasibility plan are proposals, not achieved results.
+
+## Current manipulation results
+
 The [first physical stocking script](docs/scripted_interactions.md) attempts
 box pickup and push-to-contact with per-step force traces. Development trials
 have completed two-carton shelves with verified pickup, lift, back contact,
