@@ -6,6 +6,9 @@ the supported front-face squaring recovery, see
 Reset fixtures are separate experiments; checkpoint continuations preserve their
 fixture lineage and earn no new pick or stocking credit.
 
+For synchronized MP4s of a continuous checkpoint/control chain and the longer
+square/unload/retreat probe, see [video replay and withdrawal](reports/squaring_withdrawal_development.md).
+
 Use a native checkpoint to repeat a difficult insertion state without repeating
 the pickup. Checkpoints contain the **compiled model and complete integration
 state**, not just poses. Restores create new model/data objects; they never

@@ -73,6 +73,14 @@ uninterrupted native-MABEL episode. Start with 10 mm total unused row width, the
   stays open. See [squaring evidence](docs/reports/environmental_squaring_development.md).
 - [ ] Establish measured left/right neighbor bracing; current carton-pair forces
   are zero. Test both yaw signs, unloading and retreat, then consecutive stocks.
+- [x] Verify supported unloading/retreat in the saved squaring fixture. A tighter
+  0.05-degree controller target preserved the unchanged 0.15-degree task gate
+  after release. Actual hand clearance was 39.924 mm back / 20.011 mm up, with
+  no tip/drop incidents. Native verified replay now covers 20.166 seconds; see
+  [longer sequence and videos](docs/reports/squaring_withdrawal_development.md).
+- [ ] Connect the cleared withdrawal checkpoint to a checked grasp-preshape
+  transition and next table pickup. Integrate the primitive into normal episode
+  stepping with stage/data observers before claiming consecutive stocking.
 - [x] Prototype measured wrist-load compensation for grasp/carry; reserve nominal
   wrist and lift headroom without changing native ranges, gains or force limits.
   Test native torque sign and applied geometry before actuation. Not promoted.

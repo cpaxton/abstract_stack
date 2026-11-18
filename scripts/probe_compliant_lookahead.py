@@ -38,6 +38,7 @@ def worker(args):
     from abstract_stack.native_views import retain_data_views, retain_model_views
     from abstract_stack.sim_sensors import ContactSensorSuite
     from abstract_stack.squaring_fixture import neighbor_reset
+    from abstract_stack.withdrawal import supported_withdrawal
 
     started = time.monotonic()
     source = args.output / "inputs"
@@ -273,10 +274,16 @@ def worker(args):
         start_x = float(data.xpos[active_body, 0])
         start_position = data.xpos[active_body].copy()
         contact_trace = []
+
+        def reserve_reached():
+            rotation = data.xmat[active_body].reshape(3, 3)
+            yaw = float(np.degrees(np.arctan2(rotation[1, 0], rotation[0, 0])))
+            return args.squaring_reserve_deg is None or abs(yaw) <= args.squaring_reserve_deg
+
         yaw_integral_lever = (
             float(restored.controller.get("yaw_integral_lever_m", 0)) if restored else 0.0
         )
-        for cycle in range(args.replans):
+        for cycle in range(0 if args.withdraw_only else args.replans):
             lateral_goal = lateral_measured = None
             objective = "advance"
             if cycle or restored is not None and (args.square_feedback or args.sweep_side):
@@ -444,8 +451,10 @@ def worker(args):
                 if np.any(hand.position() < lower) or np.any(hand.position() > upper):
                     actor_failure = "measured_tool_left_corridor"
                     break
-                if dwell is not None and dwell.update(
-                    data.time, monitor.last, data.xmat[active_body].reshape(3, 3)
+                if (
+                    dwell is not None
+                    and dwell.update(data.time, monitor.last, data.xmat[active_body].reshape(3, 3))
+                    and reserve_reached()
                 ):
                     break
             record.update(
@@ -456,7 +465,7 @@ def worker(args):
             nominal = latest_nominal.copy()
             hand.command = nominal.copy()
             contact_finished = (
-                dwell.verified
+                dwell.verified and reserve_reached()
                 if dwell is not None
                 else monitor.last.get("back_N", 0) >= hand.config.contact_threshold
             )
@@ -464,6 +473,21 @@ def worker(args):
                 break
         if dwell is not None and not dwell.verified and actor_failure is None:
             actor_failure = "backstop_dwell_decision_budget_exhausted"
+        if (
+            args.squaring_reserve_deg is not None
+            and not reserve_reached()
+            and actor_failure is None
+        ):
+            actor_failure = "controller_squaring_reserve_budget_exhausted"
+        withdrawal = None
+        if args.withdraw and actor_failure is None and dwell is not None and dwell.verified:
+            withdrawal, withdrawal_controls, withdrawal_trace = supported_withdrawal(
+                hand, nominal, monitor, dwell
+            )
+            executed.extend(withdrawal_controls)
+            contact_trace.extend(withdrawal_trace.tolist())
+            nominal = np.asarray(withdrawal["terminal_nominal"])
+            actor_failure = withdrawal["failure"]
         report["continuation"] = dict(
             kind="declared_reset_fixture_probe"
             if reset_created
@@ -490,6 +514,7 @@ def worker(args):
             full_stocking_success=False,
             fresh_task_credit=0,
             terminal_nominal_subset=dict(zip([*hand.names, "Lift"], nominal.tolist(), strict=True)),
+            withdrawal=withdrawal,
         )
         np.savez_compressed(
             args.output / "continuation.npz",
@@ -521,7 +546,7 @@ def worker(args):
             write(args.output / "summary.json", report)
             checkpoint_path = args.output / "terminal-checkpoint"
             controller_state = dict(
-                kind="retained_finger_push",
+                kind="retained_finger_withdrawal" if withdrawal else "retained_finger_push",
                 settings=original["controller"],
                 pusher_settings=choices,
                 nominal_subset=report["continuation"]["terminal_nominal_subset"],
@@ -536,6 +561,8 @@ def worker(args):
                     square_feedback=args.square_feedback,
                     sweep_side=args.sweep_side,
                     front_face_sweep=args.front_face_sweep,
+                    withdraw=args.withdraw,
+                    squaring_reserve_deg=args.squaring_reserve_deg,
                 ),
                 planning_wrist_range=wrist_range,
                 push_admittance=asdict(configuration),
@@ -557,7 +584,8 @@ def worker(args):
                         original_outcome=original.get("failure"),
                         fixture=fixture,
                         contact_monitor=monitor.state_dict(),
-                        backstop_dwell=None if dwell is None else dwell.report(),
+                        backstop_dwell=None if dwell is None or withdrawal else dwell.report(),
+                        completed_backstop_dwell=dwell.report() if withdrawal else None,
                         control_phase_step=len(executed) % control_steps,
                     ),
                     scene_xml=xml_path.read_text() if xml_path.exists() else None,
@@ -601,9 +629,13 @@ def main():
     parser.add_argument("--normal-target", type=float)
     parser.add_argument("--wrist-freedom-deg", type=float, default=0)
     parser.add_argument("--front-face-sweep", action="store_true")
+    parser.add_argument("--withdraw", action="store_true")
+    parser.add_argument("--withdraw-only", action="store_true")
+    parser.add_argument("--squaring-reserve-deg", type=float)
     parser.add_argument("--replans", type=int, default=1)
     parser.add_argument("--worker", action="store_true")
     args = parser.parse_args()
+    args.withdraw = args.withdraw or args.withdraw_only
     if not (
         1 <= args.candidates <= 16
         and 1 <= args.shortlist <= args.candidates
@@ -619,6 +651,16 @@ def main():
         and (args.normal_target is None or 0 < args.normal_target < 25)
         and 0 <= args.wrist_freedom_deg <= 20
         and (not args.front_face_sweep or args.sweep_side and args.require_dwell)
+        and (not args.withdraw or args.require_dwell)
+        and (not args.withdraw_only or args.checkpoint)
+        and (
+            args.squaring_reserve_deg is None
+            or (
+                0 < args.squaring_reserve_deg <= 0.15
+                and args.require_dwell
+                and not args.withdraw_only
+            )
+        )
     ):
         parser.error("Keep candidate, shortlist and compute budgets bounded")
     args.output = args.output.resolve()
@@ -698,6 +740,12 @@ def main():
         command.append("--square-feedback")
     if args.front_face_sweep:
         command.append("--front-face-sweep")
+    if args.withdraw:
+        command.append("--withdraw")
+    if args.withdraw_only:
+        command.append("--withdraw-only")
+    if args.squaring_reserve_deg is not None:
+        command += ["--squaring-reserve-deg", str(args.squaring_reserve_deg)]
     for flag, value in (
         ("--reset-neighbor", args.reset_neighbor),
         ("--sweep-side", args.sweep_side),

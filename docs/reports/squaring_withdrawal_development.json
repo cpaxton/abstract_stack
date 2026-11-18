@@ -1,0 +1,1273 @@
+{
+  "kind": "squaring_withdrawal_development",
+  "fresh_task_credit": 0,
+  "pick_credit": 0,
+  "task_success": false,
+  "neighbor_bracing_verified": false,
+  "source_scope": "Each development process frozen; these are tuned fixture continuations, not fresh episodes or a frozen-policy success rate.",
+  "selected_attempt": "outputs/squaring-longer-v4/force-unload-measured-retreat",
+  "latest_telemetry_attempt": "outputs/squaring-longer-v5/limit-diagnostics",
+  "telemetry_repeat": {
+    "controls_bit_equal": true,
+    "terminal_state_bit_equal": true
+  },
+  "attempts": [
+    {
+      "artifact": "outputs/squaring-longer-v1/withdrawal",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 5.924799244996393,
+        "wall_budget_seconds": 90.0,
+        "verification_status": "completed_forecast",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v1/withdrawal/source_snapshot/probe.py",
+          "--worker",
+          "--output",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v1/withdrawal",
+          "--horizon",
+          "0.2",
+          "--candidates",
+          "1",
+          "--shortlist",
+          "1",
+          "--generation-seconds",
+          "10",
+          "--execute-prefix",
+          "0.1",
+          "--replans",
+          "1",
+          "--require-dwell",
+          "--withdraw",
+          "--withdraw-only",
+          "--wrist-freedom-deg",
+          "0",
+          "--checkpoint",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v1/withdrawal/inputs/checkpoint",
+          "--save-checkpoint"
+        ],
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "a044acdd6157749cda063b2c8a1d4bf86c0260913c0ae40c56c0c6b95eecd818",
+      "source_revision": "392a8fefe8c29bb6c3b7f89c20d8f5b97fd7d0a5",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/squaring-focus-v3/left-front-face-last-mm/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v1/withdrawal",
+        "horizon": 0.2,
+        "candidates": 1,
+        "shortlist": 1,
+        "generation_seconds": 10,
+        "wall_seconds": 90.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": null,
+        "normal_target": null,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": false,
+        "withdraw": true,
+        "withdraw_only": true,
+        "replans": 1,
+        "worker": false
+      },
+      "simulated_seconds": 5.82,
+      "failure": "withdrawal_released_squared_support_or_clearance_not_verified",
+      "withdrawal": {
+        "kind": "supported_withdrawal_continuation",
+        "failure": "withdrawal_released_squared_support_or_clearance_not_verified",
+        "release_retreat_verified": false,
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 5.82000000002779,
+        "plans": [
+          {
+            "stage": "unload",
+            "reached_nominal_goal": true,
+            "goal_m": [
+              -0.6936491415924616,
+              -0.09787513890992447,
+              0.8386281154617398
+            ],
+            "measured_tool_m": [
+              -0.6966241461684886,
+              -0.09801804246224628,
+              0.845689400399099
+            ],
+            "forces": {
+              "sim_time": 168.9500000000786,
+              "hand_N": 0.10851665697657271,
+              "support_N": 1.707334819755886,
+              "active_force_world_N": [
+                -0.10848542716238853,
+                0.006667940435179323,
+                0.10834288322953793
+              ],
+              "robot_product_N": 0.10851665697657271,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.4273876713975386
+            }
+          },
+          {
+            "stage": "retreat",
+            "reached_nominal_goal": true,
+            "goal_m": [
+              -0.6596491415924616,
+              -0.09787513890992447,
+              0.8586281154617398
+            ],
+            "measured_tool_m": [
+              -0.6639846503801542,
+              -0.09762270412405066,
+              0.8695286654669374
+            ],
+            "forces": {
+              "sim_time": 172.89000000009742,
+              "hand_N": 0.0,
+              "support_N": 1.7876511818122884,
+              "active_force_world_N": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "robot_product_N": 0.0,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.34893037708389185
+            }
+          }
+        ],
+        "release_held_seconds": 0.0,
+        "measured_tool_displacement_m": [
+          0.034802577859165296,
+          0.00042695025812120035,
+          0.03451175273906559
+        ],
+        "measured_base_nominal_fk_tracking_peak_m": 0.011886685154934887,
+        "initial_nominal": [
+          0.09960241520676648,
+          -0.17443130306239216,
+          0.21090283986333247,
+          0.024774815139143626,
+          -1.5705814063350532,
+          0.020028158928506228,
+          0.19298525448221082,
+          -0.016209691900012216,
+          0.33683563165394736
+        ],
+        "terminal_nominal": [
+          0.2849043822114771,
+          -0.15637538416408767,
+          0.2555587899033731,
+          -0.14155495585692895,
+          -1.5344554433970208,
+          0.08465995537951411,
+          0.2063509471528569,
+          -0.06663563752912104,
+          0.3412415267824805
+        ],
+        "active_displacement_m": [
+          8.066986537391685e-05,
+          9.499879048729953e-05,
+          4.424930174495856e-07
+        ],
+        "last_forces": {
+          "sim_time": 173.3900000000998,
+          "hand_N": 0.0,
+          "support_N": 1.788571125594086,
+          "active_force_world_N": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "robot_product_N": 0.0,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.34381392847113124
+        },
+        "peak_forces_N": {
+          "robot_product_N": 2.654725123215037,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.083346074579177
+        },
+        "incidents": [],
+        "motion_bounds": {
+          "nominal_lower_m": [
+            -0.7146491415924616,
+            -0.11287513890992447,
+            0.8236281154617398
+          ],
+          "nominal_upper_m": [
+            -0.6446491415924616,
+            -0.08287513890992447,
+            0.8736281154617398
+          ],
+          "measured_lower_m": [
+            -0.7134869087703556,
+            -0.1130408019981213,
+            0.8200909479109787
+          ],
+          "measured_upper_m": [
+            -0.6434869087703553,
+            -0.08304080199812133,
+            0.8700909479109787
+          ]
+        }
+      },
+      "final_trace": {
+        "time_s": 173.3900000000998,
+        "x_m": -0.7318766815164631,
+        "y_m": -0.08296638488293051,
+        "z_m": 0.9174026077776457,
+        "yaw_deg": 0.19363915337702461,
+        "hand_N": 0.0,
+        "back_N": 0.34381392847113124,
+        "carton_pair_N": 0.0,
+        "support_N": 1.788571125594086
+      },
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    {
+      "artifact": "outputs/squaring-longer-v2/reserve-withdrawal",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 12.645930031001626,
+        "wall_budget_seconds": 120.0,
+        "verification_status": "completed_forecast",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v2/reserve-withdrawal/source_snapshot/probe.py",
+          "--worker",
+          "--output",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v2/reserve-withdrawal",
+          "--horizon",
+          "0.2",
+          "--candidates",
+          "10",
+          "--shortlist",
+          "4",
+          "--generation-seconds",
+          "10",
+          "--execute-prefix",
+          "0.1",
+          "--replans",
+          "60",
+          "--require-dwell",
+          "--front-face-sweep",
+          "--withdraw",
+          "--squaring-reserve-deg",
+          "0.05",
+          "--sweep-side",
+          "left",
+          "--normal-target",
+          "1.0",
+          "--wrist-freedom-deg",
+          "0",
+          "--checkpoint",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v2/reserve-withdrawal/inputs/checkpoint",
+          "--save-checkpoint"
+        ],
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "403ba157efcb01ef354753bedf03399c33d9db487b4c693b9377f648c9eae522",
+      "source_revision": "392a8fefe8c29bb6c3b7f89c20d8f5b97fd7d0a5",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/squaring-focus-v3/left-front-face-last-mm/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v2/reserve-withdrawal",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 120.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": true,
+        "withdraw": true,
+        "withdraw_only": false,
+        "squaring_reserve_deg": 0.05,
+        "replans": 60,
+        "worker": false
+      },
+      "simulated_seconds": 6.496,
+      "failure": null,
+      "withdrawal": {
+        "kind": "supported_withdrawal_continuation",
+        "failure": null,
+        "release_retreat_verified": true,
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 5.840000000027885,
+        "plans": [
+          {
+            "stage": "unload",
+            "reached_nominal_goal": true,
+            "goal_m": [
+              -0.6939100250002571,
+              -0.09870101747167417,
+              0.8381225405305747
+            ],
+            "measured_tool_m": [
+              -0.6967643599545612,
+              -0.09913343115647429,
+              0.8445380093553368
+            ],
+            "forces": {
+              "sim_time": 169.62600000008183,
+              "hand_N": 0.0,
+              "support_N": 1.7325728020224294,
+              "active_force_world_N": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "robot_product_N": 0.0,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.6419605762776617
+            }
+          },
+          {
+            "stage": "retreat",
+            "reached_nominal_goal": true,
+            "goal_m": [
+              -0.6599100250002571,
+              -0.09870101747167417,
+              0.8581225405305747
+            ],
+            "measured_tool_m": [
+              -0.6643141147522545,
+              -0.09844040012813607,
+              0.8689496813663721
+            ],
+            "forces": {
+              "sim_time": 173.56600000010064,
+              "hand_N": 0.0,
+              "support_N": 1.6836282659495496,
+              "active_force_world_N": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "robot_product_N": 0.0,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.6061329191026998
+            }
+          }
+        ],
+        "release_held_seconds": 4.7399999999997,
+        "measured_tool_displacement_m": [
+          0.035129549574822505,
+          0.000635448233529956,
+          0.03318427616437147
+        ],
+        "measured_base_nominal_fk_tracking_peak_m": 0.011831691726315203,
+        "initial_nominal": [
+          0.09699259692749201,
+          -0.17452299999999998,
+          0.2057217919515765,
+          0.023100494518845695,
+          -1.570786,
+          0.016797079937907997,
+          0.1879701321662016,
+          -0.027955176556654568,
+          0.3369611203318604
+        ],
+        "terminal_nominal": [
+          0.28280408298589566,
+          -0.15711548022478666,
+          0.25026288040211614,
+          -0.1441118556792108,
+          -1.5350551603148541,
+          0.08131690125284909,
+          0.20096978009413993,
+          -0.07860259218910225,
+          0.3413561115265586
+        ],
+        "active_displacement_m": [
+          1.410151777037072e-05,
+          -4.1188897874355757e-07,
+          3.838205436701436e-06
+        ],
+        "last_forces": {
+          "sim_time": 174.06600000010303,
+          "hand_N": 0.0,
+          "support_N": 1.6844673921607174,
+          "active_force_world_N": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "robot_product_N": 0.0,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.6034597689127501
+        },
+        "peak_forces_N": {
+          "robot_product_N": 2.654725123215037,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.083346074579177
+        },
+        "incidents": [],
+        "motion_bounds": {
+          "nominal_lower_m": [
+            -0.7149100250002571,
+            -0.11370101747167417,
+            0.8231225405305747
+          ],
+          "nominal_upper_m": [
+            -0.6449100250002571,
+            -0.08370101747167417,
+            0.8731225405305747
+          ],
+          "measured_lower_m": [
+            -0.7141420441796468,
+            -0.11406699471308315,
+            0.8208395268356733
+          ],
+          "measured_upper_m": [
+            -0.6441420441796467,
+            -0.08406699471308318,
+            0.8708395268356731
+          ]
+        }
+      },
+      "final_trace": {
+        "time_s": 174.06600000010303,
+        "x_m": -0.7319708659517323,
+        "y_m": -0.08311680493209317,
+        "z_m": 0.9173986959172095,
+        "yaw_deg": 4.178403063966345e-05,
+        "hand_N": 0.0,
+        "back_N": 0.6034597689127501,
+        "carton_pair_N": 0.0,
+        "support_N": 1.6844673921607174
+      },
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    {
+      "artifact": "outputs/squaring-longer-v3/measured-retreat",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 11.690542974996788,
+        "wall_budget_seconds": 120.0,
+        "verification_status": "completed_forecast",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v3/measured-retreat/source_snapshot/probe.py",
+          "--worker",
+          "--output",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v3/measured-retreat",
+          "--horizon",
+          "0.2",
+          "--candidates",
+          "10",
+          "--shortlist",
+          "4",
+          "--generation-seconds",
+          "10",
+          "--execute-prefix",
+          "0.1",
+          "--replans",
+          "60",
+          "--require-dwell",
+          "--front-face-sweep",
+          "--withdraw",
+          "--squaring-reserve-deg",
+          "0.05",
+          "--sweep-side",
+          "left",
+          "--normal-target",
+          "1.0",
+          "--wrist-freedom-deg",
+          "0",
+          "--checkpoint",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v3/measured-retreat/inputs/checkpoint",
+          "--save-checkpoint"
+        ],
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "5358140c111258a445b5373194f146065c11995e389d323768148172c047d459",
+      "source_revision": "392a8fefe8c29bb6c3b7f89c20d8f5b97fd7d0a5",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/squaring-focus-v3/left-front-face-last-mm/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v3/measured-retreat",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 120.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": true,
+        "withdraw": true,
+        "withdraw_only": false,
+        "squaring_reserve_deg": 0.05,
+        "replans": 60,
+        "worker": false
+      },
+      "simulated_seconds": 3.656,
+      "failure": "withdrawal_unload_decision_budget_exhausted",
+      "withdrawal": {
+        "kind": "supported_withdrawal_continuation",
+        "failure": "withdrawal_unload_decision_budget_exhausted",
+        "release_retreat_verified": false,
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 3.0000000000143245,
+        "plans": [
+          {
+            "stage": "unload",
+            "reached_nominal_goal": false,
+            "measured_goal_m": [
+              -0.6931420441796468,
+              -0.09906699471308317,
+              0.8358395268356732
+            ],
+            "measured_tool_m": [
+              -0.6956251565782374,
+              -0.09907048716786573,
+              0.8413385642768433
+            ],
+            "forces": {
+              "sim_time": 171.22600000008947,
+              "hand_N": 0.0,
+              "support_N": 1.698887355155508,
+              "active_force_world_N": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "robot_product_N": 0.0,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.6077780367269678
+            }
+          }
+        ],
+        "release_held_seconds": 1.9000000000000015,
+        "measured_tool_displacement_m": [
+          0.0035168876014093353,
+          -3.4924547825665453e-06,
+          0.005499037441170085
+        ],
+        "measured_base_nominal_fk_tracking_peak_m": 0.011396473937981653,
+        "initial_nominal": [
+          0.09699259692749201,
+          -0.17452299999999998,
+          0.2057217919515765,
+          0.023100494518845695,
+          -1.570786,
+          0.016797079937907997,
+          0.1879701321662016,
+          -0.027955176556654568,
+          0.3369611203318604
+        ],
+        "terminal_nominal": [
+          0.128081973674324,
+          -0.17353312674725452,
+          0.2123164966651178,
+          0.017491239607257434,
+          -1.568042064174406,
+          0.02710938146726247,
+          0.1892722124173283,
+          -0.013433986949927654,
+          0.33696467379533784
+        ],
+        "active_displacement_m": [
+          1.555217266557829e-05,
+          -2.6485167853307345e-07,
+          3.7045998201312713e-06
+        ],
+        "last_forces": {
+          "sim_time": 171.22600000008947,
+          "hand_N": 0.0,
+          "support_N": 1.698887355155508,
+          "active_force_world_N": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "robot_product_N": 0.0,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.6077780367269678
+        },
+        "peak_forces_N": {
+          "robot_product_N": 2.654725123215037,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.083346074579177
+        },
+        "incidents": [],
+        "motion_bounds": {
+          "nominal_lower_m": [
+            -0.7149100250002571,
+            -0.11370101747167417,
+            0.8231225405305747
+          ],
+          "nominal_upper_m": [
+            -0.6449100250002571,
+            -0.08370101747167417,
+            0.8731225405305747
+          ],
+          "measured_lower_m": [
+            -0.7141420441796468,
+            -0.11406699471308315,
+            0.8208395268356733
+          ],
+          "measured_upper_m": [
+            -0.6441420441796467,
+            -0.08406699471308318,
+            0.8708395268356731
+          ]
+        }
+      },
+      "final_trace": {
+        "time_s": 171.22600000008947,
+        "x_m": -0.7319694152968371,
+        "y_m": -0.08311665789479296,
+        "z_m": 0.9173985623115929,
+        "yaw_deg": 0.0028849248447888457,
+        "hand_N": 0.0,
+        "back_N": 0.6077780367269678,
+        "carton_pair_N": 0.0,
+        "support_N": 1.698887355155508
+      },
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    {
+      "artifact": "outputs/squaring-longer-v4/force-unload-measured-retreat",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 12.84553779399721,
+        "wall_budget_seconds": 120.0,
+        "verification_status": "completed_forecast",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v4/force-unload-measured-retreat/source_snapshot/probe.py",
+          "--worker",
+          "--output",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v4/force-unload-measured-retreat",
+          "--horizon",
+          "0.2",
+          "--candidates",
+          "10",
+          "--shortlist",
+          "4",
+          "--generation-seconds",
+          "10",
+          "--execute-prefix",
+          "0.1",
+          "--replans",
+          "60",
+          "--require-dwell",
+          "--front-face-sweep",
+          "--withdraw",
+          "--squaring-reserve-deg",
+          "0.05",
+          "--sweep-side",
+          "left",
+          "--normal-target",
+          "1.0",
+          "--wrist-freedom-deg",
+          "0",
+          "--checkpoint",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v4/force-unload-measured-retreat/inputs/checkpoint",
+          "--save-checkpoint"
+        ],
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "d7195ba9f67f401a2e00fad90116d0733b6bc3295b42ce14ef93702e9131aa65",
+      "source_revision": "392a8fefe8c29bb6c3b7f89c20d8f5b97fd7d0a5",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/squaring-focus-v3/left-front-face-last-mm/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v4/force-unload-measured-retreat",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 120.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": true,
+        "withdraw": true,
+        "withdraw_only": false,
+        "squaring_reserve_deg": 0.05,
+        "replans": 60,
+        "worker": false
+      },
+      "simulated_seconds": 6.476,
+      "failure": null,
+      "withdrawal": {
+        "kind": "supported_withdrawal_continuation",
+        "failure": null,
+        "release_retreat_verified": true,
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 5.82000000002779,
+        "plans": [
+          {
+            "stage": "unload",
+            "stage_complete": true,
+            "completion_mode": "measured_released_squared_support",
+            "measured_goal_reached": false,
+            "measured_goal_m": [
+              -0.6931420441796468,
+              -0.09906699471308317,
+              0.8358395268356732
+            ],
+            "measured_tool_m": [
+              -0.6970764033692991,
+              -0.09907534404646037,
+              0.8403489986007432
+            ],
+            "forces": {
+              "sim_time": 169.44600000008097,
+              "hand_N": 0.17189645621363292,
+              "support_N": 1.6436023231405743,
+              "active_force_world_N": [
+                -0.17181300087181314,
+                0.007793450064890484,
+                0.17180319608528605
+              ],
+              "robot_product_N": 0.17189645621363292,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.7402596927619501
+            }
+          },
+          {
+            "stage": "retreat",
+            "stage_complete": true,
+            "completion_mode": "measured_tool_goal",
+            "measured_goal_reached": true,
+            "measured_goal_m": [
+              -0.6591420441796467,
+              -0.09906699471308317,
+              0.8558395268356732
+            ],
+            "measured_tool_m": [
+              -0.65953316590001,
+              -0.09905681369798863,
+              0.8558104152970074
+            ],
+            "forces": {
+              "sim_time": 173.54600000010055,
+              "hand_N": 0.0,
+              "support_N": 1.6984489495233117,
+              "active_force_world_N": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "robot_product_N": 0.0,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.6172843406209543
+            }
+          }
+        ],
+        "release_held_seconds": 4.499999999999726,
+        "measured_tool_displacement_m": [
+          0.03992417356151445,
+          1.1630026303791063e-05,
+          0.02001051012892796
+        ],
+        "measured_base_nominal_fk_tracking_peak_m": 0.011892975564090257,
+        "initial_nominal": [
+          0.09699259692749201,
+          -0.17452299999999998,
+          0.2057217919515765,
+          0.023100494518845695,
+          -1.570786,
+          0.016797079937907997,
+          0.1879701321662016,
+          -0.027955176556654568,
+          0.3369611203318604
+        ],
+        "terminal_nominal": [
+          0.2988014358428018,
+          -0.15537195746118515,
+          0.2505644450843396,
+          -0.1252623069238388,
+          -1.539078349821191,
+          0.08735724213794764,
+          0.19916558540426094,
+          -0.04944336857476745,
+          0.34077667983979537
+        ],
+        "active_displacement_m": [
+          1.433686142371382e-05,
+          -3.8794174114786806e-07,
+          3.943914104742596e-06
+        ],
+        "last_forces": {
+          "sim_time": 174.04600000010294,
+          "hand_N": 0.0,
+          "support_N": 1.6827812380624434,
+          "active_force_world_N": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "robot_product_N": 0.0,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.6005658317752918
+        },
+        "peak_forces_N": {
+          "robot_product_N": 2.654725123215037,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.083346074579177
+        },
+        "incidents": [],
+        "motion_bounds": {
+          "nominal_lower_m": [
+            -0.7149100250002571,
+            -0.11370101747167417,
+            0.8231225405305747
+          ],
+          "nominal_upper_m": [
+            -0.6449100250002571,
+            -0.08370101747167417,
+            0.8731225405305747
+          ],
+          "measured_lower_m": [
+            -0.7141420441796468,
+            -0.11406699471308315,
+            0.8208395268356733
+          ],
+          "measured_upper_m": [
+            -0.6441420441796467,
+            -0.08406699471308318,
+            0.8708395268356731
+          ]
+        }
+      },
+      "final_trace": {
+        "time_s": 174.04600000010294,
+        "x_m": -0.731970630608079,
+        "y_m": -0.08311678098485557,
+        "z_m": 0.9173988016258775,
+        "yaw_deg": 5.9425536387310715e-05,
+        "hand_N": 0.0,
+        "back_N": 0.6005658317752918,
+        "carton_pair_N": 0.0,
+        "support_N": 1.6827812380624434
+      },
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    {
+      "artifact": "outputs/squaring-longer-v5/limit-diagnostics",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 13.0960875210003,
+        "wall_budget_seconds": 120.0,
+        "verification_status": "completed_forecast",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v5/limit-diagnostics/source_snapshot/probe.py",
+          "--worker",
+          "--output",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v5/limit-diagnostics",
+          "--horizon",
+          "0.2",
+          "--candidates",
+          "10",
+          "--shortlist",
+          "4",
+          "--generation-seconds",
+          "10",
+          "--execute-prefix",
+          "0.1",
+          "--replans",
+          "60",
+          "--require-dwell",
+          "--front-face-sweep",
+          "--withdraw",
+          "--squaring-reserve-deg",
+          "0.05",
+          "--sweep-side",
+          "left",
+          "--normal-target",
+          "1.0",
+          "--wrist-freedom-deg",
+          "0",
+          "--checkpoint",
+          "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v5/limit-diagnostics/inputs/checkpoint",
+          "--save-checkpoint"
+        ],
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "manifest_sha256": "3075b8c6f44272869b0f204d65a27347e507010c7b3c309fa6ca4dc2d20973fb",
+      "source_revision": "392a8fefe8c29bb6c3b7f89c20d8f5b97fd7d0a5",
+      "versions": {
+        "mujoco": "3.17.0",
+        "numpy": "1.26.4"
+      },
+      "settings": {
+        "episode": null,
+        "checkpoint": "outputs/squaring-focus-v3/left-front-face-last-mm/terminal-checkpoint",
+        "save_checkpoint": true,
+        "output": "/home/cpaxton/src/abstract_stack/outputs/squaring-longer-v5/limit-diagnostics",
+        "horizon": 0.2,
+        "candidates": 10,
+        "shortlist": 4,
+        "generation_seconds": 10,
+        "wall_seconds": 120.0,
+        "execute_prefix": 0.1,
+        "require_dwell": true,
+        "square_feedback": false,
+        "reset_neighbor": null,
+        "sweep_side": "left",
+        "normal_target": 1.0,
+        "wrist_freedom_deg": 0,
+        "front_face_sweep": true,
+        "withdraw": true,
+        "withdraw_only": false,
+        "squaring_reserve_deg": 0.05,
+        "replans": 60,
+        "worker": false
+      },
+      "simulated_seconds": 6.476,
+      "failure": null,
+      "withdrawal": {
+        "kind": "supported_withdrawal_continuation",
+        "failure": null,
+        "release_retreat_verified": true,
+        "fresh_task_credit": 0,
+        "task_success": false,
+        "simulated_seconds": 5.82000000002779,
+        "plans": [
+          {
+            "stage": "unload",
+            "stage_complete": true,
+            "completion_mode": "measured_released_squared_support",
+            "measured_goal_reached": false,
+            "measured_goal_m": [
+              -0.6931420441796468,
+              -0.09906699471308317,
+              0.8358395268356732
+            ],
+            "measured_tool_m": [
+              -0.6970764033692991,
+              -0.09907534404646037,
+              0.8403489986007432
+            ],
+            "forces": {
+              "sim_time": 169.44600000008097,
+              "hand_N": 0.17189645621363292,
+              "support_N": 1.6436023231405743,
+              "active_force_world_N": [
+                -0.17181300087181314,
+                0.007793450064890484,
+                0.17180319608528605
+              ],
+              "robot_product_N": 0.17189645621363292,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.7402596927619501
+            }
+          },
+          {
+            "stage": "retreat",
+            "stage_complete": true,
+            "completion_mode": "measured_tool_goal",
+            "measured_goal_reached": true,
+            "measured_goal_m": [
+              -0.6591420441796467,
+              -0.09906699471308317,
+              0.8558395268356732
+            ],
+            "measured_tool_m": [
+              -0.65953316590001,
+              -0.09905681369798863,
+              0.8558104152970074
+            ],
+            "forces": {
+              "sim_time": 173.54600000010055,
+              "hand_N": 0.0,
+              "support_N": 1.6984489495233117,
+              "active_force_world_N": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "robot_product_N": 0.0,
+              "nonhand_product_N": 0.0,
+              "robot_fixture_N": 0.0,
+              "carton_pair_N": 0.0,
+              "back_N": 0.6172843406209543
+            }
+          }
+        ],
+        "release_held_seconds": 4.499999999999726,
+        "measured_tool_displacement_m": [
+          0.03992417356151445,
+          1.1630026303791063e-05,
+          0.02001051012892796
+        ],
+        "measured_base_nominal_fk_tracking_peak_m": 0.011892975564090257,
+        "initial_nominal": [
+          0.09699259692749201,
+          -0.17452299999999998,
+          0.2057217919515765,
+          0.023100494518845695,
+          -1.570786,
+          0.016797079937907997,
+          0.1879701321662016,
+          -0.027955176556654568,
+          0.3369611203318604
+        ],
+        "terminal_nominal": [
+          0.2988014358428018,
+          -0.15537195746118515,
+          0.2505644450843396,
+          -0.1252623069238388,
+          -1.539078349821191,
+          0.08735724213794764,
+          0.19916558540426094,
+          -0.04944336857476745,
+          0.34077667983979537
+        ],
+        "active_displacement_m": [
+          1.433686142371382e-05,
+          -3.8794174114786806e-07,
+          3.943914104742596e-06
+        ],
+        "last_forces": {
+          "sim_time": 174.04600000010294,
+          "hand_N": 0.0,
+          "support_N": 1.6827812380624434,
+          "active_force_world_N": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "robot_product_N": 0.0,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 0.6005658317752918
+        },
+        "peak_forces_N": {
+          "robot_product_N": 2.654725123215037,
+          "nonhand_product_N": 0.0,
+          "robot_fixture_N": 0.0,
+          "carton_pair_N": 0.0,
+          "back_N": 2.083346074579177
+        },
+        "incidents": [],
+        "limit_diagnostics": {
+          "active_joint_limits": [],
+          "active_rate_limits": [],
+          "native_range_projection_ticks": 0,
+          "rate_projection_ticks": 0,
+          "planning_reference_ranges": {
+            "Left Wrist": {
+              "lower": -0.2617993877991494,
+              "upper": 0.2617993877991494,
+              "original_lower": -0.89719,
+              "original_upper": 0.67359
+            }
+          },
+          "maximum_nominal_ik_position_error_m": 1.8911549156754698e-07,
+          "maximum_nominal_ik_orientation_error_deg": 4.380981865299879e-05,
+          "maximum_applied_virtual_tool_step_m": 0.0002003760214751402
+        },
+        "motion_bounds": {
+          "nominal_lower_m": [
+            -0.7149100250002571,
+            -0.11370101747167417,
+            0.8231225405305747
+          ],
+          "nominal_upper_m": [
+            -0.6449100250002571,
+            -0.08370101747167417,
+            0.8731225405305747
+          ],
+          "measured_lower_m": [
+            -0.7141420441796468,
+            -0.11406699471308315,
+            0.8208395268356733
+          ],
+          "measured_upper_m": [
+            -0.6441420441796467,
+            -0.08406699471308318,
+            0.8708395268356731
+          ]
+        }
+      },
+      "final_trace": {
+        "time_s": 174.04600000010294,
+        "x_m": -0.731970630608079,
+        "y_m": -0.08311678098485557,
+        "z_m": 0.9173988016258775,
+        "yaw_deg": 5.9425536387310715e-05,
+        "hand_N": 0.0,
+        "back_N": 0.6005658317752918,
+        "carton_pair_N": 0.0,
+        "support_N": 1.6827812380624434
+      },
+      "fresh_task_credit": 0,
+      "task_success": false
+    }
+  ],
+  "videos": [
+    {
+      "artifact": "outputs/squaring-video-v1",
+      "manifest_sha256": "05953f1048cb320618acfade1549d5be2f8e3ae9ed54dbb4d4b3fb1d8c1c8ead",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 8.734130733995698,
+        "wall_budget_seconds": 180.0,
+        "outcome": "verified_replay",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "simulated_seconds": 13.690000000065368,
+      "segments": [
+        {
+          "segment": 0,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 1,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 2,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 845
+        }
+      ],
+      "fps": 15,
+      "frames": 207,
+      "render_integration_state_unchanged": true,
+      "release_retreat_verified": false,
+      "fresh_task_credit": 0,
+      "task_success": false
+    },
+    {
+      "artifact": "outputs/squaring-longer-video-v1",
+      "manifest_sha256": "2d94a921cb506ec5ce85477a8aade8882f61574879bd12cc1f910528ede5311f",
+      "process": {
+        "returncode": 0,
+        "timeout": false,
+        "wall_seconds": 12.742000509999343,
+        "wall_budget_seconds": 180.0,
+        "outcome": "verified_replay",
+        "fresh_task_credit": 0,
+        "task_success": false
+      },
+      "simulated_seconds": 20.16600000009629,
+      "segments": [
+        {
+          "segment": 0,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 1,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3000
+        },
+        {
+          "segment": 2,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 845
+        },
+        {
+          "segment": 3,
+          "terminal_integration_bit_equal": true,
+          "physics_steps": 3238
+        }
+      ],
+      "fps": 15,
+      "frames": 304,
+      "render_integration_state_unchanged": true,
+      "release_retreat_verified": true,
+      "fresh_task_credit": 0,
+      "task_success": false
+    }
+  ],
+  "final_checkpoint_verification": "outputs/squaring-longer-v5/final-checkpoint-verification",
+  "next_gate": "Checked transition to grasp posture and another table pickup without reset"
+}
