@@ -290,6 +290,8 @@ def test_websocket_handshake_auth_and_state_stream(clear_env, tmp_path, monkeypa
     server = TeleopServer(TeleopCore(clear_env), token="secret", face_budget=200)
     with TestClient(server.app) as client:
         assert client.get("/api/model").status_code == 401
+        assert client.get("/api/health").status_code == 200
+        assert client.get("/api/model?token=SECRET").status_code == 200  # case-insensitive
         manifest = client.get("/api/model?token=secret").json()
         assert manifest["format"] == "web_teleop_model_v2"
         with client.websocket_connect("/teleop/control?token=wrong") as rejected:
@@ -382,8 +384,11 @@ def test_persistent_token_survives_restarts_and_rotates(tmp_path):
     from abstract_stack.web_teleop.server import persistent_token
 
     path = tmp_path / "token"
+    path.write_text("kmkz88iR9IYR-9O9soiVPQwA\n")  # legacy token with look-alikes
     first = persistent_token(path)
-    assert persistent_token(path) == first and len(first) >= 16
+    assert first != "kmkz88iR9IYR-9O9soiVPQwA"
+    assert persistent_token(path) == first
+    assert not set(first) & set("01ilo") and len(first) == 14
     assert path.stat().st_mode & 0o077 == 0  # private to the user
     rotated = persistent_token(path, rotate=True)
     assert rotated != first and persistent_token(path) == rotated

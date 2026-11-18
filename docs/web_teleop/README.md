@@ -33,7 +33,9 @@ Linux, set `MUJOCO_GL=egl` so the video thread can render offscreen.
 
 The access token is created once and stored in
 `~/.config/abstract_stack/web_teleop_token`, so saved links and home-screen
-shortcuts keep working across restarts. Use `--new-token` to rotate it, or
+shortcuts keep working across restarts. Tokens look like `k7mz-q2xp-9vda`:
+they avoid look-alike characters and match case-insensitively, so they are easy
+to type on a phone. Use `--new-token` to rotate it, or
 `--token` to set one. The client remembers the token and strips it from the
 address bar. A wrong token shows "Access needed" instead of reconnecting. `--insecure-no-token` disables
 it on a trusted development machine. A second browser joins as a view-only

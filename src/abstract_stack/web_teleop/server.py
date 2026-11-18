@@ -22,6 +22,7 @@ import contextlib
 import gzip
 import hmac
 import logging
+import re
 import secrets
 import socket
 import threading
@@ -158,7 +159,9 @@ class TeleopServer:
     def _authorised(self, scope_token: str | None) -> bool:
         if self.token is None:
             return True
-        return scope_token is not None and hmac.compare_digest(scope_token, self.token)
+        return scope_token is not None and hmac.compare_digest(
+            normalise_token(scope_token).encode(), normalise_token(self.token).encode()
+        )
 
     def _origin_ok(self, websocket: WebSocket) -> bool:
         origin = websocket.headers.get("origin")
@@ -413,8 +416,20 @@ def lan_addresses() -> list[str]:
     return unique
 
 
+# No look-alike characters (0/o, 1/l/i), so a token read off a screen and typed on
+# a phone survives; grouped 4-4-4 (~60 bits) and compared case-insensitively.
+TOKEN_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz"
+TOKEN_PATTERN = re.compile(rf"^[{TOKEN_ALPHABET}]{{4}}(-[{TOKEN_ALPHABET}]{{4}}){{2}}$")
+
+
 def generate_token() -> str:
-    return secrets.token_urlsafe(18)
+    chars = "".join(secrets.choice(TOKEN_ALPHABET) for _ in range(12))
+    return f"{chars[:4]}-{chars[4:8]}-{chars[8:]}"
+
+
+def normalise_token(token: str) -> str:
+    """Ignore case, spaces and dashes so keyboard auto-capitalisation still matches."""
+    return re.sub(r"[\s-]", "", token).lower()
 
 
 def persistent_token(path: Path | None = None, *, rotate: bool = False) -> str:
@@ -423,7 +438,7 @@ def persistent_token(path: Path | None = None, *, rotate: bool = False) -> str:
     if not rotate:
         with contextlib.suppress(OSError):
             token = path.read_text().strip()
-            if len(token) >= 16:
+            if TOKEN_PATTERN.match(token):  # older look-alike tokens are replaced
                 return token
     token = generate_token()
     try:
