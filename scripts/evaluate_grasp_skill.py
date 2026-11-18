@@ -77,9 +77,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1])
-    parser.add_argument(
-        "--products", nargs="+", choices=["carton_0", "carton_1"], default=["carton_0", "carton_1"]
-    )
+    parser.add_argument("--products", nargs="+", default=["carton_0", "carton_1"])
     parser.add_argument("--case-wall-seconds", type=float, default=60)
     parser.add_argument("--video", action="store_true", help="Record the first scheduled case")
     parser.add_argument(
@@ -99,6 +97,15 @@ def main():
         or not 0 < args.case_wall_seconds <= 180
     ):
         parser.error("Bound unique development cases and wall time")
+    if args.checkpoint:
+        if len(args.products) != 1 or not (
+            args.products[0].isascii()
+            and args.products[0].startswith("carton_")
+            and args.products[0][len("carton_") :].isdigit()
+        ):
+            parser.error("A retained grasp entry requires one carton ID")
+    elif not set(args.products) <= {"carton_0", "carton_1"}:
+        parser.error("The fresh pick-place scene contains carton_0 and carton_1")
     args.output = args.output.resolve()
     if args.worker:
         return worker(args)
@@ -110,8 +117,11 @@ def main():
 
         args.checkpoint, metadata = inspect_checkpoint(args.checkpoint)
         args.checkpoint = args.checkpoint.resolve()
-        if len(args.seeds) != 1 or len(args.products) != 1:
-            parser.error("A retained entry requires one seed and one product")
+        if len(args.seeds) != 1:
+            parser.error("A retained entry requires one seed")
+        entry = json.loads((args.checkpoint / "context.json").read_text()).get("skill_entry", {})
+        if entry.get("skill") != "grasp_lift" or entry.get("active_product") != args.products[0]:
+            parser.error("The scheduled carton must match the retained grasp entry")
         args.checkpoint_sha = hashlib.sha256(
             (args.checkpoint / "manifest.json").read_bytes()
         ).hexdigest()

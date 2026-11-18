@@ -9,6 +9,8 @@ import numpy as np
 from abstract_stack.checkpoints import save_checkpoint
 
 SKILL_PHASES = {
+    "motion_failure": "motion_failure",
+    "stocking_milestone": "stocking_milestone",
     "grasp_precheck": "grasp_lift",
     "carry_clear": "transfer",
     "place": "shelf_place",
@@ -20,6 +22,7 @@ SKILL_PHASES = {
     "free_landing_verified": "free_landing",
     "lateral_push": "side_registration",
     "front_square_plan": "front_squaring",
+    "front_squaring_complete": "front_squaring_complete",
     "contact_refine": "contact_refinement",
     "release_forecast": "withdrawal_planning",
     "loaded_push_stall": "loaded_push_recovery",
@@ -27,6 +30,18 @@ SKILL_PHASES = {
 }
 
 SKILL_CONTRACTS = {
+    "front_squaring_complete": {
+        "entry": "Verified supported intermediate push with the pusher unloaded",
+        "success": "Replan final forward insertion from the measured intermediate pose",
+    },
+    "motion_failure": {
+        "entry": "Terminal measured state at a controller stop",
+        "success": "Diagnostic fixture for a checked recovery; no task credit",
+    },
+    "stocking_milestone": {
+        "entry": "Verified retreat after a completed carton with no retained load",
+        "success": "Resume with the next pending carton using the measured scene",
+    },
     "free_landing": {
         "entry": "Measured supported landing with the grasp hand clear",
         "success": "A separate checked push plan starts from the observed landing pose",
@@ -235,7 +250,7 @@ def record_skill_entry(script, phase, *, case=None):
         context=dict(
             skill_entry=entry,
             observer_history=history,
-            prior_events=script.events[:-1],
+            prior_events=script.events if phase == "motion_failure" else script.events[:-1],
             task_memory=dict(stable_time=env._stable_time.tolist(), stocked=env._stocked.tolist()),
             fresh_task_credit=0,
             resume_scope="Exact native state; arbitrary skill-controller resume is not automatic",
@@ -270,3 +285,18 @@ def record_skill_entry(script, phase, *, case=None):
         )
         + "\n"
     )
+
+
+def record_motion_failure(script, failure):
+    """Record the stopped state without replacing the original failure."""
+    if not script.config.record_skill_starts:
+        return None
+    try:
+        record_skill_entry(
+            script,
+            "motion_failure",
+            case={"failed_phase": script.phase, "failure": failure},
+        )
+    except (OSError, RuntimeError, ValueError, FloatingPointError) as error:
+        return str(error)
+    return None

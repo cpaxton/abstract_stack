@@ -379,19 +379,19 @@ class RecedingStockingScript(DenseStockingScript):
                 self._move_base([0.0, delta], reason="empty_hand_pusher_workspace_replan")
         raise InteractionFailure("pusher_plan: bounded base alternatives exhausted")
 
-    def _insert_from_front(self):
+    def _insert_from_front(self, *, retreat=True):
         if not self.split_insertion:
-            return super()._insert_from_front()
+            return super()._insert_from_front(retreat=retreat)
         body = self.env.data.body(self.product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(self.product.half_size)
         stop_x = self.env.config.front_x - extent[0] - 0.005
         full_x = self.env.config.front_x - self.env.config.depth + extent[0] - 0.0005
         if not full_x + 0.02 < stop_x < body.xpos[0] - 0.01:
-            return super()._insert_from_front()
+            return super()._insert_from_front(retreat=retreat)
         self._stage("split_insertion_plan")
         self.events[-1].update(partial_object_x_m=float(stop_x), final_object_x_m=float(full_x))
         self._split_push_phase = "front"
-        super()._insert_from_front(partial_stop_x=float(stop_x))
+        super()._insert_from_front(partial_stop_x=float(stop_x), retreat=retreat)
         self._change_hand(CartesianHand)
         self._clear_split_push_hand()
         self.events[-1]["partial_state_before_base_handoff"] = self._partial_push_state(
@@ -413,7 +413,7 @@ class RecedingStockingScript(DenseStockingScript):
         if not self.events[-1]["partial_state_after_base_handoff"]["accepted"]:
             raise InteractionFailure("partial_push: intermediate state changed during base handoff")
         self._split_push_phase = "deep"
-        super()._insert_from_front()
+        super()._insert_from_front(retreat=retreat)
         self._split_push_phase = None
 
     def _clear_pusher(self, hand):

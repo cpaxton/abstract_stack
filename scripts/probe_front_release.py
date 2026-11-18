@@ -16,6 +16,18 @@ def write(path, value):
     path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
 
 
+def record_verified_milestone(script):
+    if (
+        script.config.record_skill_starts
+        and script.product.name in script.observer.completed
+        and not script.observer.incidents
+        and script.active_grip is None
+        and script.carry_reference is None
+    ):
+        script._stage("stocking_milestone")
+        script.events[-1]["completed_count"] = len(script.observer.completed)
+
+
 def worker(args):
     import numpy as np
 
@@ -31,16 +43,24 @@ def worker(args):
         raise ValueError("Front-entry checkpoint changed")
     checkpoint = load_checkpoint(path)
     state = checkpoint.controller
-    if state["kind"] != "stocking_skill_entry" or checkpoint.context["skill_entry"]["skill"] != (
-        "front_insertion"
+    skill = checkpoint.context["skill_entry"]["skill"]
+    expected = (
+        {"motion_failure"}
+        if args.unloaded_clear
+        else {"stocking_milestone", "grasp_lift"}
+        if args.next_cartons
+        else {"free_landing"}
+        if args.stop_after == "registration" and not args.side_offset_m
+        else {"front_insertion", "contact_finish", "front_squaring_complete"}
         if args.insert_only
-        else "release_retreat"
+        else {"release_retreat", "contact_refinement", "withdrawal_planning"}
         if args.withdrawal
-        else "transfer"
+        else {"transfer"}
         if args.transfer
-        else "front_release"
-    ):
-        raise ValueError("Require the matching recorded front-release or withdrawal skill entry")
+        else {"front_release"}
+    )
+    if state["kind"] != "stocking_skill_entry" or skill not in expected:
+        raise ValueError(f"Checkpoint skill {skill!r} does not match {sorted(expected)}")
     env = CheckpointContinuationEnv(checkpoint)
     env.restore_task_memory(checkpoint.context["task_memory"])
     settings = dict(state["settings"])
@@ -58,6 +78,12 @@ def worker(args):
     )
     if args.paired_fingers:
         settings["paired_finger_insertion"] = True
+    if args.live_guarded_withdrawal:
+        settings["live_guarded_withdrawal"] = True
+    if args.plan_driven:
+        settings["plan_driven"] = True
+    if args.guided_wall_entry:
+        settings["guided_wall_entry"] = True
     if args.back_force_target is not None:
         settings["insertion_back_force_target"] = args.back_force_target
     if args.alignment_seconds is not None:
@@ -65,12 +91,24 @@ def worker(args):
     script = StockingScript(env, args.output / "episode", ScriptConfig(**settings))
     if args.pusher_tilt is not None:
         script.PUSHER_TILTS = (args.pusher_tilt,)
+    if args.guided_entry_deg:
+        script.guided_entry_deg = args.guided_entry_deg
+    if args.diagonal_entry:
+        script.diagonal_entry = True
+    if args.clearance_before_square:
+        script.clearance_before_square = True
+    if args.side_base_dx:
+        script.side_base_dx = args.side_base_dx
+    if args.front_landing_y_offset_m:
+        script.front_landing_y_offset_m = args.front_landing_y_offset_m
     if args.single_center_finger:
         from abstract_stack.finger_pusher import WallFingerPusher
 
         script.PAIRED_PUSHER_CLASS = WallFingerPusher
     if "grasp_abduction_targets" in state:
         script.grasp_abduction_targets = dict(state["grasp_abduction_targets"])
+        if args.next_cartons:
+            script._configure_payload_hand(script.controller)
     script.product = next(
         p for p in env.products if p.name == checkpoint.context["skill_entry"]["active_product"]
     )
@@ -80,7 +118,20 @@ def worker(args):
         initial = script.directory / "initial-scene"
         initial.mkdir()
         write(initial / "manifest.json", scene)
-    if args.withdrawal or args.insert_only and state.get("tool_class") != "CartesianHand":
+    replan_legacy_tool = (
+        args.next_cartons
+        and skill == "stocking_milestone"
+        or (args.insert_only and skill == "contact_finish")
+    )
+    if (
+        args.withdrawal
+        or args.unloaded_clear
+        or (
+            (args.insert_only or args.next_cartons)
+            and not replan_legacy_tool
+            and state.get("tool_class") != "CartesianHand"
+        )
+    ):
         from abstract_stack.finger_pusher import (
             FingerPusher,
             FoldedFingerPusher,
@@ -102,14 +153,20 @@ def worker(args):
         if state.get("tool_class") not in kinds:
             raise ValueError("Withdrawal continuation requires an explicitly recorded FingerPusher")
         selected = state.get("tool_parameters") or next(
-            e["selected"]
-            for e in reversed(checkpoint.context["prior_events"])
-            if e["phase"] == "pusher_plan" and e.get("selected")
+            (
+                e["selected"]
+                for e in reversed(checkpoint.context["prior_events"])
+                if e["phase"] == "pusher_plan" and e.get("selected")
+            ),
+            None,
         )
+        if selected is None:
+            raise ValueError("Checkpoint is missing the recorded pusher parameters")
         kind = kinds[state["tool_class"]]
         tool_settings = dict(state.get("tool_settings", state["settings"]))
         tool_settings.update({k: v for k, v in settings.items() if state["settings"].get(k) != v})
         script.controller = kind(env, ScriptConfig(**tool_settings), **selected)
+        script.controller.tool_parameters = dict(selected)
         # Passive distal joints can settle after the original calibration.
         # Restore the recorded tool reference, not a newly calibrated frame.
         offset = np.asarray(state["tool_offset_m"], dtype=float)
@@ -129,23 +186,31 @@ def worker(args):
             if value != float(env.data.ctrl[aid]):
                 raise ValueError("Saved finger compensation differs from native applied control")
             finger_tracker.joints[name]["previous"] = value
-    if "open_posture_overrides" in state:
+    if "open_posture_overrides" in state and not args.next_cartons:
         hand.open_posture_overrides = dict(state["open_posture_overrides"])
-    if "abduction_targets" in state:
+    if "abduction_targets" in state and not args.next_cartons:
         hand.abduction_targets = dict(state["abduction_targets"])
-    if state.get("tip_body_references"):
+    if state.get("tip_body_references") and not replan_legacy_tool:
         hand.tip_body_references = {
             k: np.asarray(v) for k, v in state["tip_body_references"].items()
         }
     hand.command = np.array([state["hand_nominal_subset"][n] for n in (*hand.names, "Lift")])
     hand.active_rotation = np.asarray(state["active_rotation_world"])
-    if "nominal_cartesian_target_m" in state:
+    if replan_legacy_tool:
+        hand.active_rotation = hand.ROTATION.copy()
+        hand.last_target = hand.ik.forward(hand.command)[0]
+        initialization = "new tool reference for checked replanning from retained push entry"
+    elif "nominal_cartesian_target_m" in state:
         hand.last_target = np.asarray(state["nominal_cartesian_target_m"])
         initialization = "recorded nominal Cartesian reference"
     else:
         hand.last_target = hand.ik.forward(hand.command)[0]
         initialization = "new local reference from saved nominal FK at restored base"
-    tracking = TrackingConfig(**state["tracking_config"])
+    tracking = (
+        script._tracking_config()
+        if args.next_cartons and skill == "stocking_milestone"
+        else TrackingConfig(**state["tracking_config"])
+    )
     if args.wrist_offset is not None:
         tracking = replace(tracking, wrist_offset_limit=args.wrist_offset)
     script.tracker = MabelController(
@@ -180,11 +245,74 @@ def worker(args):
     script.last_forces = contact_forces(env, script.product.name, script.hand_bodies)
     initial = native_state(env.model, env.data)
     failure = None
+    progress = None
+    skill_boundary = None
     try:
-        if args.insert_only:
+        if args.next_cartons:
+            if state["active_grip"] is not None or state["carry_reference"] is not None:
+                raise ValueError("Stocking milestone must have an unloaded hand")
+            before = sorted(script.observer.completed)
+            progress = dict(completed_products=before.copy(), starting_completed_products=before)
+            script._execute_task(progress, next_cartons=args.next_cartons)
+            failure = progress.get("failure")
+        elif args.insert_only:
             if state["active_grip"] is not None or state["carry_reference"] is not None:
                 raise ValueError("Insertion-only continuation requires a released carton")
-            script._insert_from_front()
+            if args.side_offset_m:
+                from abstract_stack.lateral_contact import LateralPushConfig, LateralStockingScript
+
+                LateralStockingScript.push_laterally(
+                    script,
+                    direction=1 if args.side_offset_m > 0 else -1,
+                    distance_m=abs(args.side_offset_m),
+                    settings=LateralPushConfig(
+                        speed_m_s=0.01,
+                        force_target_N=2.5,
+                        timeout_s=20,
+                        distance_limit_m=0.01,
+                        position_tolerance_m=0.0005,
+                    ),
+                )
+            if args.stop_after == "registration":
+                if not args.side_offset_m:
+                    script._register_front_laterally()
+                skill_boundary = {"skill": "side-registration", "verified": True}
+            elif args.stop_after == "backstop-staging":
+                from abstract_stack.skill_library import build_stocking_plan
+
+                push = build_stocking_plan().by_name("push_to_contact")
+                push.execute(script, {})
+                event = script._active_push_event
+                skill_boundary = {
+                    "skill": "push-to-contact",
+                    "verified": push.verify(script, {}),
+                    "backstop_contact_verified": bool(
+                        event.get("first_back_contact_verified")
+                        or event.get("back_contact_verified")
+                    ),
+                    "bounded_staging": bool(
+                        event.get("bounded_backstop_staging_for_native_refinement")
+                    ),
+                }
+                if script.config.record_skill_starts and skill_boundary["verified"]:
+                    script._stage("contact_refine")
+            else:
+                script._insert_from_front()
+                record_verified_milestone(script)
+            if args.continue_after_insert:
+                if (
+                    script.product.name not in script.observer.completed
+                    or script.observer.incidents
+                ):
+                    raise ValueError(
+                        "Follow-on stocking requires a verified, incident-free retreat"
+                    )
+                before = sorted(script.observer.completed)
+                progress = dict(
+                    completed_products=before.copy(), starting_completed_products=before
+                )
+                script._execute_task(progress, next_cartons=args.continue_after_insert)
+                failure = progress.get("failure")
         elif args.transfer:
             if script.carry_reference is None or script.active_grip is None:
                 raise ValueError("Transfer continuation requires a recorded retained grasp")
@@ -193,11 +321,27 @@ def worker(args):
                     [0, args.base_dy], reason="development_loaded_front_pose", carrying=True
                 )
             grip = script._transfer_and_place_front(script.active_grip)
-            script._release_and_insert_front(grip)
-        elif args.withdrawal:
+            if args.stop_after == "seat":
+                skill_boundary = {"skill": "transfer-seat", "verified": True}
+            else:
+                script._release_and_insert_front(grip)
+                record_verified_milestone(script)
+        elif args.stop_after == "squared-contact":
+            from abstract_stack.contact_execution import make_backstop_monitor
+            from abstract_stack.contact_refinement import refine_supported_contact
+
+            monitor, dwell = make_backstop_monitor(script)
+            refine_supported_contact(script, monitor, dwell)
+            skill_boundary = {
+                "skill": "squared-contact",
+                "verified": bool(dwell.verified),
+                "native_dwell": dwell.report(),
+            }
+        elif args.withdrawal or args.unloaded_clear:
             from abstract_stack.contact_execution import squared_contact_retreat
 
-            squared_contact_retreat(script, {})
+            squared_contact_retreat(script, {}, unloaded_entry=args.unloaded_clear)
+            record_verified_milestone(script)
             if args.base_goal is not None:
                 script._restore_grasp_hand()
                 base = env.data.body("mabel_chassis").xpos[:2].copy()
@@ -206,7 +350,13 @@ def worker(args):
                     np.asarray(args.base_goal) - base, reason="inventory_grasp_workspace"
                 )
         elif args.insert:
-            script._release_and_insert_front(state["active_grip"])
+            script._release_and_insert_front(
+                state["active_grip"], push=args.stop_after != "release"
+            )
+            if args.stop_after == "release":
+                skill_boundary = {"skill": "supported-release", "verified": True}
+            else:
+                record_verified_milestone(script)
         else:
             script._precision_release(state["active_grip"])
             goal = hand.last_target.copy()
@@ -214,6 +364,11 @@ def worker(args):
                 script._tick(goal, 0)
     except (RuntimeError, ValueError, FloatingPointError) as error:
         failure = str(error)
+    checkpoint_error = None
+    if failure:
+        from abstract_stack.skill_entries import record_motion_failure
+
+        checkpoint_error = record_motion_failure(script, failure)
     body = env.data.body(script.product.name)
     velocity = env.data.qvel[int(env.model.joint(f"{script.product.name}_joint").dofadr[0]) :][:6]
     write(
@@ -228,9 +383,13 @@ def worker(args):
             base_navigation_goal_m=args.base_goal,
             task_success=False,
             failure=failure,
+            failure_checkpoint_error=checkpoint_error,
+            milestone_progress=progress,
+            skill_boundary=skill_boundary,
             reference_initialization=initialization,
             config=vars(script.config),
             single_center_finger=args.single_center_finger,
+            guided_entry_deg=args.guided_entry_deg,
             pusher_tilts_degrees=list(getattr(script, "PUSHER_TILTS", (20, 30, 10, 40))),
             tracking_config=vars(tracking),
             active=script.product.name,
@@ -262,8 +421,26 @@ def main():
     parser.add_argument("--legacy-opening", action="store_true")
     parser.add_argument("--insert", action="store_true")
     parser.add_argument("--insert-only", action="store_true")
+    parser.add_argument(
+        "--stop-after",
+        choices=("seat", "release", "registration", "backstop-staging", "squared-contact"),
+    )
+    parser.add_argument(
+        "--front-landing-y-offset-m", type=float, choices=(-0.008, -0.006, 0.006, 0.008)
+    )
+    parser.add_argument("--side-base-dx", type=float, choices=(-0.14, -0.08))
+    parser.add_argument("--diagonal-entry", action="store_true")
+    parser.add_argument("--clearance-before-square", action="store_true")
+    parser.add_argument("--guided-entry-deg", type=float, choices=(-3, -2, 2, 3))
+    parser.add_argument("--side-offset-m", type=float, choices=(-0.006, -0.004, 0.004, 0.006))
+    parser.add_argument("--next-cartons", type=int, choices=range(1, 11))
+    parser.add_argument("--continue-after-insert", type=int, choices=range(1, 11))
     parser.add_argument("--record-skill-starts", action="store_true")
     parser.add_argument("--withdrawal", action="store_true")
+    parser.add_argument("--live-guarded-withdrawal", action="store_true")
+    parser.add_argument("--plan-driven", action="store_true")
+    parser.add_argument("--guided-wall-entry", action="store_true")
+    parser.add_argument("--unloaded-clear", action="store_true")
     parser.add_argument("--transfer", action="store_true")
     parser.add_argument("--base-dy", type=float, default=0)
     parser.add_argument("--base-goal", type=float, nargs=2)
@@ -277,9 +454,45 @@ def main():
     parser.add_argument("--control-config", type=Path)
     parser.add_argument("--worker", action="store_true")
     args = parser.parse_args()
-    if not 0 < args.wall_seconds <= 180:
-        parser.error("Keep skill continuations within 180 wall seconds")
-    if sum([args.withdrawal, args.insert, args.transfer, args.insert_only]) > 1:
+    stop_modes = {
+        "seat": args.transfer,
+        "squared-contact": args.withdrawal and args.base_goal is None,
+        "release": args.insert,
+        "registration": args.insert_only,
+        "backstop-staging": args.insert_only,
+    }
+    if args.stop_after and (not stop_modes[args.stop_after] or args.continue_after_insert):
+        parser.error("--stop-after requires its matching continuation without follow-on cartons")
+    if args.clearance_before_square and not args.diagonal_entry:
+        parser.error("--clearance-before-square requires --diagonal-entry")
+    if args.diagonal_entry and not (args.insert_only and args.guided_entry_deg):
+        parser.error("--diagonal-entry requires --insert-only and --guided-entry-deg")
+    if args.guided_entry_deg and not (args.insert_only or args.insert):
+        parser.error("--guided-entry-deg requires --insert-only or --insert")
+    if args.front_landing_y_offset_m and not args.insert:
+        parser.error("--front-landing-y-offset-m requires --insert")
+    if args.side_base_dx and not args.side_offset_m:
+        parser.error("--side-base-dx requires --side-offset-m")
+    if args.side_offset_m and not args.insert_only:
+        parser.error("--side-offset-m requires --insert-only")
+    if args.continue_after_insert and not args.insert_only:
+        parser.error("--continue-after-insert requires --insert-only")
+    wall_limit = 900 if args.next_cartons else 180
+    if not 0 < args.wall_seconds <= wall_limit:
+        parser.error(f"Continuation wall budget must be positive and at most {wall_limit} seconds")
+    if (
+        sum(
+            [
+                args.withdrawal,
+                args.unloaded_clear,
+                args.insert,
+                args.transfer,
+                args.insert_only,
+                bool(args.next_cartons),
+            ]
+        )
+        > 1
+    ):
         parser.error("Choose front insertion, transfer or withdrawal continuation")
     if not -0.15 <= args.base_dy <= 0.15 or (args.base_dy and not args.transfer):
         parser.error("Loaded base probes need --transfer and at most 15 cm translation")
@@ -347,14 +560,40 @@ def main():
         command.append("--paired-fingers")
     if args.single_center_finger:
         command.append("--single-center-finger")
+    if args.stop_after:
+        command += ["--stop-after", args.stop_after]
     if args.insert:
         command.append("--insert")
     if args.insert_only:
         command.append("--insert-only")
+    if args.side_offset_m:
+        command += ["--side-offset-m", str(args.side_offset_m)]
+    if args.side_base_dx:
+        command += ["--side-base-dx", str(args.side_base_dx)]
+    if args.front_landing_y_offset_m:
+        command += ["--front-landing-y-offset-m", str(args.front_landing_y_offset_m)]
+    if args.diagonal_entry:
+        command.append("--diagonal-entry")
+    if args.clearance_before_square:
+        command.append("--clearance-before-square")
+    if args.guided_entry_deg:
+        command += ["--guided-entry-deg", str(args.guided_entry_deg)]
+    if args.next_cartons:
+        command += ["--next-cartons", str(args.next_cartons)]
+    if args.continue_after_insert:
+        command += ["--continue-after-insert", str(args.continue_after_insert)]
     if args.record_skill_starts:
         command.append("--record-skill-starts")
+    if args.plan_driven:
+        command.append("--plan-driven")
+    if args.guided_wall_entry:
+        command.append("--guided-wall-entry")
     if args.withdrawal:
         command.append("--withdrawal")
+    if args.live_guarded_withdrawal:
+        command.append("--live-guarded-withdrawal")
+    if args.unloaded_clear:
+        command.append("--unloaded-clear")
     if args.transfer:
         command += ["--transfer", "--base-dy", str(args.base_dy)]
     if args.base_goal is not None:

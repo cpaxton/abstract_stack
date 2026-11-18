@@ -153,6 +153,11 @@ def choose_release_reference(script, monitor, dwell):
                     paired_plane_feedback=bool(getattr(hand, "fingers", ())),
                 ),
                 on_physics_step=forecast._sample,
+                contact_neighbors=tuple(
+                    item["product"] for item in script._adjacent_placed_neighbors()
+                )
+                if script.config.wall_packing
+                else (),
             )
             failure = report["failure"]
         except (RuntimeError, ValueError, FloatingPointError) as error:

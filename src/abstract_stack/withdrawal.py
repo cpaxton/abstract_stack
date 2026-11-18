@@ -22,6 +22,9 @@ def supported_withdrawal(
     resume_withdrawal=False,
     on_physics_step=None,
     feedback=None,
+    contact_neighbors=(),
+    release_yaw_limit_deg=0.15,
+    coarse_loaded_entry=False,
 ):
     """Unload toward 6 mm, clear 40 mm/+20 mm, measure released squared support.
 
@@ -32,11 +35,26 @@ def supported_withdrawal(
     never write poses or claim a pick/fresh stocking episode.
     """
     model, data = hand.model, hand.data
+    neighbor_geoms = {f"{name}_geom" for name in contact_neighbors}
+    neighbor_origins = {name: data.body(name).xpos.copy() for name in contact_neighbors}
+
+    def admit_neighbor_contact(error):
+        # This exception is for distal fingertips brushing named, stocked
+        # cartons during exit. Arm, shelf, self and unlisted contacts still
+        # use the normal collision checks.
+        first, second = error["geoms"]
+        return error["distance_m"] >= -0.003 and any(
+            carton in neighbor_geoms and finger.startswith("left_") and "_ip:" in finger
+            for carton, finger in ((first, second), (second, first))
+        )
+
+    admission = {"admit_contact": admit_neighbor_contact} if neighbor_geoms else {}
     if (
         not np.isfinite([clear_distance_m, clear_height_m, clear_speed_m_s]).all()
         or not 0.04 <= clear_distance_m <= 0.25
         or not 0.02 <= clear_height_m <= 0.08
         or not 0 < clear_speed_m_s <= 0.025
+        or not 0.15 <= release_yaw_limit_deg <= 1.0
     ):
         raise ValueError("Keep clearance goals and physical motion bounded")
     nominal = np.array(nominal, float, copy=True)
@@ -46,6 +64,8 @@ def supported_withdrawal(
         failure = monitor.sample(data, elapsed=0)
         if failure or monitor.last["robot_product_N"] > 0.2 or monitor.last["support_N"] <= 0.2:
             raise ValueError("Extended clearance requires fresh unloaded surface support")
+    elif coarse_loaded_entry:
+        monitor.begin_coarse_loaded_withdrawal(data)
     else:
         monitor.begin_withdrawal(data, dwell)
     interval = int(round(hand.env.dt / model.opt.timestep))
@@ -96,6 +116,7 @@ def supported_withdrawal(
     active_origin = data.xpos[active].copy()
     source_nominal = nominal.copy()
     release_held = 0.0
+    strict_release_held = 0.0
     unloaded_held = 0.0
     max_tracking = 0.0
     joint_limits, rate_limits = set(), set()
@@ -104,8 +125,13 @@ def supported_withdrawal(
     feedback_trace = []
 
     def record_step():
-        nonlocal failure, max_tracking, release_held, unloaded_held
+        nonlocal failure, max_tracking, release_held, unloaded_held, strict_release_held
         failure = monitor.sample(data, elapsed=model.opt.timestep)
+        if failure is None and any(
+            np.linalg.norm(data.body(name).xpos - origin) > 0.002
+            for name, origin in neighbor_origins.items()
+        ):
+            failure = "withdrawal_stocked_neighbor_displacement"
         if on_physics_step is not None:
             on_physics_step(hand.env)
         r = data.xmat[active].reshape(3, 3)
@@ -137,12 +163,15 @@ def supported_withdrawal(
         released = (
             monitor.last.get("robot_product_N", 0) <= 0.2
             and monitor.last.get("support_N", 0) > 0.2
-            and abs(yaw) <= 0.15
+            and abs(yaw) <= release_yaw_limit_deg
             and r[2, 2] >= np.cos(np.radians(5))
             and np.linalg.norm(velocity[:3]) < 0.04
             and np.linalg.norm(velocity[3:]) < 0.2
         )
         release_held = release_held + model.opt.timestep if released else 0.0
+        strict_release_held = (
+            strict_release_held + model.opt.timestep if released and abs(yaw) <= 0.15 else 0.0
+        )
         if tracker is not None and tracker.config.yaw_feedback:
             unloaded_held = (
                 unloaded_held + model.opt.timestep
@@ -387,6 +416,9 @@ def supported_withdrawal(
                 candidate = wanted.copy()
                 if tracker is not None:
                     candidate[aids] += alpha * (refreshed[aids] - wanted[aids])
+                    candidate[selected_finger_ids] = applied[selected_finger_ids] + alpha * (
+                        wanted[selected_finger_ids] - applied[selected_finger_ids]
+                    )
                 candidate_requested = candidate.copy()
                 candidate[limited] = np.clip(
                     candidate[limited],
@@ -420,7 +452,17 @@ def supported_withdrawal(
                     and np.linalg.norm(rotation_error(previous_rotation, applied_rotation))
                     <= angular_bound
                 ):
-                    break
+                    collision = hand.check_hand_step(
+                        SimpleNamespace(q=bounded[aids]),
+                        0,
+                        monitor.scene.active,
+                        targets={
+                            name: float(bounded[model.actuator(name).id]) for name in finger_targets
+                        },
+                        **admission,
+                    )
+                    if not collision:
+                        break
             native_projection_count += int(
                 np.any(wanted != requested) or np.any(candidate != candidate_requested)
             )
@@ -439,6 +481,7 @@ def supported_withdrawal(
                 0,
                 monitor.scene.active,
                 targets={name: float(bounded[model.actuator(name).id]) for name in finger_targets},
+                **admission,
             )
             if (
                 collision
@@ -553,6 +596,7 @@ def supported_withdrawal(
         dict(
             kind="supported_withdrawal_continuation",
             resumed_withdrawal=resume_withdrawal,
+            coarse_loaded_entry=coarse_loaded_entry,
             settings=dict(
                 clear_distance_m=clear_distance_m,
                 clear_height_m=clear_height_m,
@@ -571,6 +615,8 @@ def supported_withdrawal(
             simulated_seconds=float(data.time) - source_time,
             plans=plans,
             release_held_seconds=release_held,
+            release_yaw_limit_deg=release_yaw_limit_deg,
+            strict_release_yaw_verified=strict_release_held + 1e-12 >= 0.12,
             measured_tool_displacement_m=measured_delta.tolist(),
             measured_base_nominal_fk_tracking_peak_m=max_tracking,
             measured_base_nominal_fk_tracking_terminal_m=float(

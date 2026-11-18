@@ -20,6 +20,14 @@ class InteractionFailure(RuntimeError):
     """A measured acceptance or force limit failed; no success is implied."""
 
 
+class RowCapacityFailure(InteractionFailure):
+    """The measured open span cannot admit the requested row plan."""
+
+    def __init__(self, evidence):
+        super().__init__("wall_packing: measured row needs rearrangement")
+        self.evidence = evidence
+
+
 @dataclass(frozen=True)
 class ScriptConfig:
     approach_seconds: float = 2.0
@@ -89,6 +97,9 @@ class ScriptConfig:
     minimum_lift_reference_m: float = 0.03
     paired_finger_insertion: bool = False
     wall_packing: bool = False
+    live_guarded_withdrawal: bool = False
+    plan_driven: bool = False
+    guided_wall_entry: bool = False
 
     def __post_init__(self):
         values = asdict(self)
@@ -108,6 +119,9 @@ class ScriptConfig:
         values.pop("payload_wrist_compensation")
         values.pop("paired_finger_insertion")
         values.pop("wall_packing")
+        values.pop("live_guarded_withdrawal")
+        values.pop("plan_driven")
+        values.pop("guided_wall_entry")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
@@ -149,6 +163,14 @@ class ScriptConfig:
             and not self.paired_finger_insertion
         ):
             raise ValueError("Wall packing requires the dense selected-finger protocol")
+        if type(self.live_guarded_withdrawal) is not bool or (
+            self.live_guarded_withdrawal and not self.ungrasped_insertion
+        ):
+            raise ValueError("Live guarded withdrawal requires released insertion")
+        if type(self.guided_wall_entry) is not bool or (
+            self.guided_wall_entry and not (self.wall_packing and self.live_guarded_withdrawal)
+        ):
+            raise ValueError("Guided wall entry requires wall packing and live guarded withdrawal")
         if self.paired_finger_insertion and not self.ungrasped_insertion:
             raise ValueError("Paired fingertips require the released insertion mode")
         if not isinstance(self.gravity_compensation, bool):
@@ -159,6 +181,8 @@ class ScriptConfig:
             raise ValueError("grasp_skill and record_skill_starts must be boolean")
         if not isinstance(self.thumb_preshape, bool):
             raise ValueError("thumb_preshape must be boolean")
+        if not isinstance(self.plan_driven, bool):
+            raise ValueError("plan_driven must be boolean")
         if not isinstance(self.head_tracking, bool):
             raise ValueError("head_tracking must be true or false")
         if not isinstance(self.contact_aware, bool):
@@ -369,7 +393,9 @@ class CartesianHand:
                     direction = direction / norm if norm > 1e-6 else np.array([0.0, 0.0, 1.0])
         return best, direction
 
-    def check_hand_step(self, prediction, grip, allowed_object, *, targets=None):
+    def check_hand_step(
+        self, prediction, grip, allowed_object, *, targets=None, admit_contact=None
+    ):
         """Check three coupled arm/finger poses on scratch data, never live qpos."""
         start = self.ik.measured_q()
         reference = self.data.qpos.copy()
@@ -383,6 +409,8 @@ class CartesianHand:
             errors = self.ik.collision_errors(
                 start + alpha * (prediction.q - start), fingers, baseline, object_id
             )
+            if admit_contact is not None:
+                errors = [error for error in errors if not admit_contact(error)]
             if errors:
                 return errors
         return []
@@ -711,6 +739,11 @@ class StockingScript(SelectedFingerInsertion):
     def _sample(self, env):
         if self.observer is not None:
             self.observer.sample(self.phase, self.product.name)
+        if self.phase == "finger_push" and any(
+            np.linalg.norm(env.data.body(name).xpos - origin) > 0.002
+            for name, origin in getattr(self, "_push_neighbor_origins", {}).items()
+        ):
+            raise InteractionFailure("finger_push: stocked neighbor displaced more than 2 mm")
         if self.rows and env.data.time <= self.rows[-1][0]:
             raise InteractionFailure("MuJoCo time did not advance; possible physics reset")
         forces = contact_forces(env, self.product.name, self.hand_bodies)
@@ -940,8 +973,30 @@ class StockingScript(SelectedFingerInsertion):
                 "finger_push",
                 "front_square_clear",
             )
+            neighbors = getattr(self, "_push_neighbor_origins", {})
+            allowed_pairs = (
+                {frozenset((f"{self.product.name}_geom", f"{name}_geom")) for name in neighbors}
+                if self.phase == "finger_push"
+                else set()
+            )
+
+            def admit_carton_contact(error):
+                first, second = error["geoms"]
+                distal_brush = any(
+                    name in {f"{neighbor}_geom" for neighbor in neighbors}
+                    and other.startswith("left_")
+                    and "_ip:" in other
+                    for name, other in ((first, second), (second, first))
+                )
+                return error["distance_m"] >= -0.003 and (
+                    frozenset((first, second)) in allowed_pairs or distal_brush
+                )
+
+            admission = admit_carton_contact if allowed_pairs else None
             try:
-                guard_payload_targets(self, targets, intended_contact=intended_contact)
+                guard_payload_targets(
+                    self, targets, intended_contact=intended_contact, admit_contact=admission
+                )
             except InteractionFailure as rejection:
                 # A load correction can bring adjacent finger links together.
                 # Try smaller rate-bounded corrections with the same arm motion.
@@ -952,7 +1007,12 @@ class StockingScript(SelectedFingerInsertion):
                     candidate = targets.copy()
                     candidate[ids] = previous + fraction * (targets[ids] - previous)
                     try:
-                        guard_payload_targets(self, candidate, intended_contact=intended_contact)
+                        guard_payload_targets(
+                            self,
+                            candidate,
+                            intended_contact=intended_contact,
+                            admit_contact=admission,
+                        )
                     except InteractionFailure:
                         continue
                     self.events[-1].pop("applied_tracking_geometry_rejection", None)
@@ -1583,13 +1643,31 @@ class StockingScript(SelectedFingerInsertion):
                     return target, prediction
         raise InteractionFailure("No acceptable grasp candidate found; no grasp motion commanded")
 
-    def _one_box(self, selected=None):
+    def _use_finger_contact(self):
+        """Choose the released selected-finger protocol from measured geometry."""
         neighbors = self._adjacent_placed_neighbors() if self.config.ungrasped_insertion else []
         use_finger = self.config.ungrasped_insertion and (
             self.config.paired_finger_insertion
             or bool(neighbors)
             or self.env.config.row_free_space is not None
         )
+        return use_finger, neighbors
+
+    def _execute_planned_box(self, selected=None):
+        """Compose the released per-carton skills through the task-plan library.
+
+        ``pick``/``place`` reuse the existing grasp and transfer skills;
+        ``insert`` releases and registers the carton (stopping before the push),
+        ``push_to_contact`` advances to measured back contact, and ``retreat``
+        verifies squared contact and withdraws. Physics, force guards and
+        acceptance criteria are unchanged from the fused path.
+        """
+        from abstract_stack.skill_library import build_stocking_plan, run_plan
+
+        run_plan(self, build_stocking_plan(), {"selected": selected})
+
+    def _one_box(self, selected=None):
+        use_finger, neighbors = self._use_finger_contact()
         if self.config.ungrasped_insertion:
             self._stage("insertion_mode")
             self.events[-1].update(
@@ -1605,6 +1683,15 @@ class StockingScript(SelectedFingerInsertion):
                 else "grasped_supported_slide",
                 adjacent_placed_neighbors=neighbors,
             )
+        if self.config.plan_driven:
+            # The grasped supported-slide protocol has no released front seam,
+            # so it keeps its existing fused composition.
+            if not use_finger:
+                grasp_grip = self._pick_and_place_front(selected)
+                self._push_grasped(grasp_grip)
+                return
+            self._execute_planned_box(selected)
+            return
         grasp_grip = self._pick_and_place_front(selected)
         if use_finger:
             self._release_and_insert_front(grasp_grip)
@@ -2204,9 +2291,12 @@ class StockingScript(SelectedFingerInsertion):
         )
         self.release_origin = None
 
-    def _execute_task(self, result):
+    def _execute_task(self, result, *, next_cartons=None):
         """Execute the stocking composition; isolated skills override this loop."""
-        pending = [p for p in self.env.products if not p.initially_stocked]
+        completed = set(result["completed_products"])
+        pending = [
+            p for p in self.env.products if not p.initially_stocked and p.name not in completed
+        ]
         if self.config.wall_packing:
             if self.env.config.row_free_space is None or self.env.config.initially_stocked:
                 raise ValueError("Wall packing requires a fresh, single dense carton row")
@@ -2221,13 +2311,38 @@ class StockingScript(SelectedFingerInsertion):
                 self.events[-1].update(
                     order="positive wall inward",
                     canonical_task_target_m=list(self.product.target),
-                    controller_contact_goal_y_m=self.lateral_goal_y,
                     total_free_row_width_m=self.env.config.row_free_space,
                     completed_neighbors=sorted(self.observer.completed),
                 )
-            self._one_box(selected)
+                try:
+                    self.events[-1]["controller_contact_goal_y_m"] = self.lateral_goal_y
+                except RowCapacityFailure as failure:
+                    self.events[-1]["row_reserve_failure"] = failure.evidence
+                    raise
+            previous_plan = getattr(self, "plan_outcome", None)
+            try:
+                self._one_box(selected)
+            finally:
+                outcome = getattr(self, "plan_outcome", None)
+                if outcome is not None and outcome is not previous_plan:
+                    result.setdefault("carton_plan_steps", []).append(
+                        {"product": self.product.name, **outcome.describe()}
+                    )
             result["completed_products"].append(self.product.name)
             pending.remove(self.product)
+            if (
+                self.config.record_skill_starts
+                and self.observer.completed >= set(result["completed_products"])
+                and not self.observer.incidents
+                and self.active_grip is None
+                and self.carry_reference is None
+            ):
+                self._stage("stocking_milestone")
+                self.events[-1]["completed_count"] = len(result["completed_products"])
+            if next_cartons is not None:
+                next_cartons -= 1
+                if next_cartons == 0 and pending:
+                    return
         self._stage("settle")
         for _ in range(
             0 if self.terminal else int(self.env.config.stable_seconds / self.env.dt) + 10
@@ -2308,6 +2423,10 @@ class StockingScript(SelectedFingerInsertion):
         except (RuntimeError, ValueError, FloatingPointError) as error:
             result["failure"] = str(error)
         finally:
+            if result["failure"]:
+                from abstract_stack.skill_entries import record_motion_failure
+
+                result["failure_checkpoint_error"] = record_motion_failure(self, result["failure"])
             terminal_state = np.empty(mujoco.mj_stateSize(self.env.model, state_spec))
             mujoco.mj_getState(self.env.model, self.env.data, terminal_state, state_spec)
             np.savez_compressed(
@@ -2403,6 +2522,13 @@ class StockingScript(SelectedFingerInsertion):
             result["manipulation_evaluation"] = manipulation_evaluation(result)
             result["task_success"] = result["manipulation_evaluation"]["clean_success"]
             result["controller_evidence"] = self.episode_evidence()
+            from abstract_stack.skill_library import annotate_events, build_stocking_plan
+
+            plan = build_stocking_plan()
+            result["task_plan"] = plan.describe()
+            if getattr(self, "plan_outcome", None) is not None:
+                result["plan_steps"] = self.plan_outcome.describe()
+            annotate_events(plan, self.events)
             if (
                 self.TASK_SCOPE == "stocking"
                 and not result["task_success"]
