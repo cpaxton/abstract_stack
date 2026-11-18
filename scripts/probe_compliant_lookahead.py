@@ -177,6 +177,7 @@ def worker(args):
         max_candidates=args.candidates,
         wall_seconds=args.generation_seconds,
         admittance=configuration,
+        project_reference_bounds=args.project_reference_bounds,
     )
     scene = RolloutScene(
         products=tuple(p["name"] for p in manifest["products"]),
@@ -217,6 +218,7 @@ def worker(args):
         model_revision=manifest["robot_source"]["revision"],
         active=active,
         policy=asdict(configuration),
+        project_reference_bounds=args.project_reference_bounds,
         wrench_on_hand_world_N_Nm=wrench.tolist(),
         sensor_metadata=suite.metadata(),
         generation=generation,
@@ -377,6 +379,7 @@ def worker(args):
                     admittance=configuration,
                     lateral_goal_m=lateral_goal,
                     lateral_measurement_m=lateral_measured,
+                    project_reference_bounds=args.project_reference_bounds,
                 )
                 evaluated = evaluate_screened_batch(
                     model,
@@ -451,11 +454,12 @@ def worker(args):
                 )
                 if actor_failure:
                     break
-                if trace:
-                    predicted, _ = hand.ik.forward(latest_nominal, data.qpos.copy())
-                    tracking_samples.append(
-                        [float(data.time), float(np.linalg.norm(hand.position() - predicted))]
-                    )
+                # A held applied-target candidate still has the known previous
+                # nominal reference. Include it in measured tracking evidence.
+                predicted, _ = hand.ik.forward(latest_nominal, data.qpos.copy())
+                tracking_samples.append(
+                    [float(data.time), float(np.linalg.norm(hand.position() - predicted))]
+                )
                 if np.any(hand.position() < lower) or np.any(hand.position() > upper):
                     actor_failure = "measured_tool_left_corridor"
                     break
@@ -567,6 +571,7 @@ def worker(args):
                 mode_flags=dict(
                     require_dwell=args.require_dwell,
                     square_feedback=args.square_feedback,
+                    project_reference_bounds=args.project_reference_bounds,
                     sweep_side=args.sweep_side,
                     front_face_sweep=args.front_face_sweep,
                     withdraw=args.withdraw,
@@ -632,6 +637,7 @@ def main():
     parser.add_argument("--execute-prefix", type=float, default=0)
     parser.add_argument("--require-dwell", action="store_true")
     parser.add_argument("--square-feedback", action="store_true")
+    parser.add_argument("--project-reference-bounds", action="store_true")
     parser.add_argument("--reset-neighbor", choices=("left", "right"))
     parser.add_argument("--sweep-side", choices=("left", "right"))
     parser.add_argument("--normal-target", type=float)
@@ -762,6 +768,8 @@ def main():
         command.append("--require-dwell")
     if args.square_feedback:
         command.append("--square-feedback")
+    if args.project_reference_bounds:
+        command.append("--project-reference-bounds")
     if args.front_face_sweep:
         command.append("--front-face-sweep")
     if args.withdraw:

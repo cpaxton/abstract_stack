@@ -157,6 +157,13 @@ Reports, source IDs and videos: [grasp and longer execution](docs/reports/grasp_
   checks and measured shelf support. Not integrated or physically validated.
 - [ ] Share normal-force, tangential/yaw compliance, anti-windup, reference bounds,
   force release and retreat between insertion and lateral compaction.
+- [x] Prototype paired nominal/applied reference projection without widening
+  bounds. Matched 1 N contact dwell: existing 0/2, projected 1/2 saved states;
+  separate 2 N development probes pass both in 0.856–1.046 s. Not fresh stocks.
+  See [compliance projection evidence](docs/reports/compliance_reference_projection.md).
+- [ ] Fix unloading with refreshed compensation and measured Cartesian/force
+  feedback. Both new release probes exhaust the unchanged three-second budget;
+  retain their checkpoints, then validate release/retreat and fresh full sequences.
 - [ ] Detect jams by force plus lack of object progress; unload, back off and try
   a bounded alternative. Force aborts remain terminal until safe recovery exists.
 - [ ] Validate the opt-in released/supported contact-reacquisition mode end to
