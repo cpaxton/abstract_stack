@@ -149,7 +149,7 @@ class PoseIK:
     It does not establish that the target is globally unreachable.
     """
 
-    def __init__(self, model, data, names, lower, upper, home, offset):
+    def __init__(self, model, data, names, lower, upper, home, offset, *, palm="left_palm"):
         self.model, self.data = model, data
         self.names = [*names, "Lift"]
         self.joints = [model.joint(n) for n in names]
@@ -159,7 +159,7 @@ class PoseIK:
         self.lower, self.upper, self.home = lower.copy(), upper.copy(), home.copy()
         self.original_lower, self.original_upper = lower.copy(), upper.copy()
         self.offset = offset.copy()
-        self.palm = model.body("left_palm").id
+        self.palm = model.body(palm).id
         self.robot = _descendants(model, model.body("mabel_chassis").id)
         self.hand = _descendants(model, self.palm)
         self.scratch = mujoco.MjData(model)
