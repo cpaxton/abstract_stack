@@ -1,8 +1,11 @@
 """Map absolute web operator intents to complete, bounded MABEL actuator targets.
 
 Arms: palm control-point pose in the ``mabel_chassis`` frame → per-side ``PoseIK`` on
-scratch data → nominal joint references. Grip: one fraction per hand → native finger
-flexion references. Head, lift and torso: clamped, rate-limited absolute references.
+scratch data → nominal joint references. When the full pose is out of reach the palm
+point takes priority and orientation is recovered as far as the arm allows; a
+kinematic collision guard stops the arm short of fixtures and the robot's own body.
+Grip: one fraction per hand → native finger flexion references. Head, lift and
+torso: clamped, rate-limited absolute references.
 Every tick the complete reference set passes through ``MabelController`` (rate limits,
 robot-gravity feedforward) and ``validate_targets``. Nothing here writes live
 ``qpos``/``ctrl`` or steps physics; the simulation owner applies the returned vector.
@@ -55,9 +58,13 @@ READY_POSTURE = {
 
 @dataclass(frozen=True)
 class RetargetConfig:
-    ik_iterations: int = 25
+    ik_iterations: int = 40
     reachable_position_m: float = 0.02
     reachable_orientation_rad: float = 0.25
+    # Kinematic guard against fixtures (shelf, table, floor, walls) and self-contact;
+    # products are excluded so hands can touch, push and grasp them.
+    collision_guard: bool = True
+    collision_margin_m: float = 0.005
     grip_rate: float = 2.0  # fraction per second
     head_rate: float = 1.5  # rad/s
     torso_rate: float = 0.5  # rad/s
@@ -96,6 +103,15 @@ class WebRetargeter:
                 min(joint.range[1], actuator.ctrlrange[1]),
             )
         self._ranges["Lift"] = tuple(model.actuator("Lift").ctrlrange)
+        robot_root = int(model.body_rootid[self.chassis])
+        free_roots = {
+            int(model.body_rootid[model.jnt_bodyid[j]])
+            for j in range(model.njnt)
+            if model.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE
+        } - {robot_root}
+        # Free bodies other than the robot are manipulable products, never obstacles.
+        self._movable = {b for b in range(model.nbody) if model.body_rootid[b] in free_roots}
+        self._robot_root = robot_root
         self.base = SwerveBase(model, data, self.config.base)
         self.fingers = {
             side: {
@@ -139,6 +155,7 @@ class WebRetargeter:
             self.reference[name] = float(np.clip(ctrl, *self._ranges[name]))
         self.grip = {side: 0.0 for side in SIDES}
         self._ik_cache = {side: None for side in SIDES}
+        self._ik_last = {side: None for side in SIDES}
         self.arm_report = {side: None for side in SIDES}
         self.target_epoch = getattr(self, "target_epoch", 0) + 1
         if hasattr(self, "base"):
@@ -151,6 +168,7 @@ class WebRetargeter:
     def resync(self) -> None:
         """Invalidate client arm targets: commands must be rebased on ``arm_targets``."""
         self._ik_cache = {side: None for side in SIDES}
+        self._ik_last = {side: None for side in SIDES}
         self.target_epoch += 1
 
     def ready(self) -> None:
@@ -228,26 +246,111 @@ class WebRetargeter:
         # The operator owns Lift through its own channel; pin it for both arms' IK.
         ik.lower[-1] = ik.upper[-1] = lift
         seed = np.r_[[self.reference[n] for n in self.arm_names[side]], lift]
-        q, point, actual = ik.solve(target, rotation, seed, iterations=self.config.ik_iterations)
+        iterations = self.config.ik_iterations
+        # Palm point first, orientation recovered in its null space: identical to a
+        # full-pose solve whenever the pose is reachable, and otherwise keeps the hand
+        # where the operator put it, twisting only as much as the arm requires.
+        q, point, actual = ik.solve_position_first(target, rotation, seed, iterations=iterations)
         position_error = float(np.linalg.norm(target - point))
+        if position_error > self.config.reachable_position_m:
+            # Stuck against joint limits: restart from a position-only solve, which
+            # escapes them, and keep it only if it gets the palm closer.
+            restart = iterations // 2
+            q_position, _, _ = ik.solve(
+                target, rotation, seed, iterations=restart, rotation_weight=0.0
+            )
+            q2, point2, actual2 = ik.solve_position_first(
+                target, rotation, q_position, iterations=restart
+            )
+            error2 = float(np.linalg.norm(target - point2))
+            if error2 < position_error - 1e-3:
+                q, point, actual, position_error = q2, point2, actual2, error2
         orientation_error = float(np.linalg.norm(rotation_error(actual, rotation)))
-        reachable = (
-            position_error <= self.config.reachable_position_m
-            and orientation_error <= self.config.reachable_orientation_rad
-        )
+        blocked = self._guard(side, seed, q) if self.config.collision_guard else []
+        if blocked:
+            q = self._guard_fraction
+            point, actual = ik.forward(q)
+            position_error = float(np.linalg.norm(target - point))
+            orientation_error = float(np.linalg.norm(rotation_error(actual, rotation)))
+        position_ok = position_error <= self.config.reachable_position_m
+        reachable = position_ok and orientation_error <= self.config.reachable_orientation_rad
         # Teleop applies the closest bounded solution and reports the residual; the
         # operator sees the miss. This is never evidence of a grasp or placement.
         for name, value in zip(self.arm_names[side], q[:-1], strict=True):
             self.reference[name] = float(value)
         # Unconverged solves (e.g. near the straight-arm singularity) keep refining
-        # from this warm start on later ticks; only a converged answer is cached.
+        # from this warm start on later ticks. Cache a converged answer, or one that
+        # has stopped improving for an unchanged target, so a held unreachable target
+        # does not re-run the full search every tick.
+        key = (position.copy(), quaternion.copy(), lift)
         converged = position_error < 1e-3 and orientation_error < 1e-2
-        self._ik_cache[side] = (position.copy(), quaternion.copy(), lift) if converged else None
+        last = self._ik_last[side]
+        stalled = (
+            last is not None
+            and np.array_equal(last[0][0], position)
+            and np.array_equal(last[0][1], quaternion)
+            and last[0][2] == lift
+            and abs(last[1] - position_error) < 1e-5
+        )
+        self._ik_last[side] = (key, position_error)
+        self._ik_cache[side] = key if converged or stalled else None
         self.arm_report[side] = {
             "reachable": reachable,
             "ik_position_error_m": position_error,
             "ik_orientation_error_rad": orientation_error,
+            "orientation_relaxed": position_ok and not reachable,
+            "blocked_by": blocked,
         }
+
+    def _collisions(self, ik: PoseIK, q: np.ndarray, reference, baseline) -> list[str]:
+        """Names of fixtures (or "self") the arm at ``q`` would penetrate beyond the margin."""
+        model, names = self.model, []
+        for pair, info in ik._contacts(q, reference, None).items():
+            bodies = [int(model.geom_bodyid[g]) for g in pair]
+            if any(b in self._movable for b in bodies):
+                continue
+            allowed = min(
+                -self.config.collision_margin_m,
+                baseline.get(pair, {"distance_m": 0.0})["distance_m"] - 0.001,
+            )
+            if info["distance_m"] >= allowed:
+                continue
+            roots = [int(model.body_rootid[b]) for b in bodies]
+            if all(r == self._robot_root for r in roots):
+                label = "self"
+            else:
+                other = pair[0] if roots[1] == self._robot_root else pair[1]
+                body = int(model.geom_bodyid[other])
+                label = (
+                    model.geom(other).name
+                    if body == 0
+                    else model.body(model.body_rootid[body]).name
+                )
+            if label not in names:
+                names.append(label)
+        return names
+
+    def _guard(self, side: str, start: np.ndarray, goal: np.ndarray) -> list[str]:
+        """Keep the farthest collision-free point on the joint segment start → goal.
+
+        Contacts already present in the measured state (plus 1 mm) are allowed, so a
+        hand resting on a surface is never frozen. Sets ``_guard_fraction``.
+        """
+        ik = self.ik[side]
+        reference = self.data.qpos.copy()
+        baseline = ik._contacts(ik.measured_q(), reference, None)
+        blocked = self._collisions(ik, goal, reference, baseline)
+        if not blocked:
+            return []
+        low, high = 0.0, 1.0
+        for _ in range(6):  # ~1.6 % of the segment
+            middle = (low + high) / 2
+            if self._collisions(ik, start + middle * (goal - start), reference, baseline):
+                high = middle
+            else:
+                low = middle
+        self._guard_fraction = start + low * (goal - start)
+        return blocked
 
     def _look_at(self, point_root: np.ndarray, dt: float) -> None:
         """Aim the head camera at a chassis-frame point with the repository's gaze solver."""

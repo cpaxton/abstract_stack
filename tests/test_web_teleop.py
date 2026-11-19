@@ -508,3 +508,121 @@ def test_head_follows_a_gaze_target(clear_env):
     # Measured camera axis (native physics), not the commanded angles.
     assert np.degrees(np.arccos(np.clip(forward @ direction, -1, 1))) < 6
     assert core._publish_status()["channels"]["head_mode"] == "gaze"
+
+
+def _engaged_from_ready(env):
+    core = _core(env, input_timeout_s=10.0)
+    operator = str(uuid.uuid4())
+    core.open_session(operator, "operator")
+    assert _event(core, operator, "ready", 1)["accepted"]
+    for _ in range(150):
+        core._tick_once(env.dt)
+    assert _event(core, operator, "engage", 2)["accepted"]
+    core._tick_once(env.dt)
+    return core, operator
+
+
+def _hold_offsets(core, operator, offsets, ticks):
+    """Command each arm at its Ready pose plus ``offsets[side]`` (root frame)."""
+    start = _arm_command(core, 0, np.zeros(3))
+    for sequence in range(1, ticks + 1):
+        command = _arm_command(core, sequence, np.zeros(3))
+        for side, offset in offsets.items():
+            arm = command["arms"][side]
+            arm["position"] = np.array(start["arms"][side]["position"]) + offset
+            arm["quaternion"] = start["arms"][side]["quaternion"]
+        core.submit_command(operator, command | {"session_id": operator})
+        core._tick_once(core.env.dt)
+    return start
+
+
+def test_out_of_reach_pose_keeps_the_palm_on_target_and_relaxes_orientation(clear_env):
+    from abstract_stack.ik import rotation_error
+    from abstract_stack.web_teleop.retarget import READY_POSTURE, _quat_to_mat
+
+    core, operator = _engaged_from_ready(clear_env)
+    retargeter = core.retargeter
+    offset = np.array([-0.25, -0.20, -0.25])  # far forward, outward and down
+    start = _hold_offsets(core, operator, {"left": offset}, ticks=150)
+    goal_root = np.array(start["arms"]["left"]["position"]) + offset
+    origin, root = retargeter.root_pose()
+    goal = origin + root @ goal_root
+    rotation = root @ _quat_to_mat(np.array(start["arms"]["left"]["quaternion"]))
+
+    # Holding the full Ready orientation, this point is out of reach for the
+    # weighted pose solver even with a generous budget.
+    ik = retargeter.ik["left"]
+    ready = [READY_POSTURE.get(n, 0.0) for n in retargeter.arm_names["left"]]
+    seed = np.r_[ready, retargeter.reference["Lift"]]
+    _, point, _ = ik.solve(goal, rotation, seed, iterations=300)
+    assert np.linalg.norm(point - goal) > 0.05
+
+    report = core._publish_status()["arms"]["left"]
+    assert report["ik"]["orientation_relaxed"] and not report["ik"]["reachable"]
+    assert report["ik"]["ik_position_error_m"] < 0.01
+    assert not report["ik"]["blocked_by"]
+    measured = np.array(report["palm"]["position_m"])
+    assert np.linalg.norm(measured - goal_root) < 0.02
+    # Orientation is relaxed only as far as needed, not dropped.
+    actual = root @ _quat_to_mat(np.array(report["palm"]["quaternion_wxyz"]))
+    assert np.degrees(np.linalg.norm(rotation_error(actual, rotation))) < 55
+
+
+def test_collision_guard_stops_hands_at_a_table():
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.scene import ShelfConfig
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    # Supply table directly under the Ready palms; the shelf is out of the way.
+    env = ShelfStockingEnv(
+        ShelfConfig(
+            product_count=0,
+            center_y=-1.5,
+            table_center_x=-0.60,
+            table_center_y=0.0,
+            table_top=0.70,
+            terminate_on_success=False,
+            time_limit=600.0,
+        )
+    )
+    try:
+        core, operator = _engaged_from_ready(env)
+        table = env.model.body("supply").id
+        down = np.array([0.0, 0.0, -0.40])  # 0.4 m down: ~0.2 m into the table top
+        deepest = 0.0
+        for _ in range(3):
+            _hold_offsets(core, operator, {"left": down, "right": down}, ticks=50)
+            for contact in env.data.contact[: env.data.ncon]:
+                bodies = {
+                    env.model.geom_bodyid[contact.geom1],
+                    env.model.geom_bodyid[contact.geom2],
+                }
+                if table in bodies:
+                    deepest = min(deepest, contact.dist)
+        status = core._publish_status()
+        for side in ("left", "right"):
+            assert status["arms"][side]["ik"]["blocked_by"] == ["supply"], side
+            assert not status["arms"][side]["ik"]["reachable"]
+        assert deepest > -0.005  # resting contact, not the commanded 0.2 m
+        assert status["base"]["tilt_deg"] < 2.0
+    finally:
+        env.close()
+
+
+def test_collision_guard_treats_products_as_manipulable(clear_env):
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.scene import ShelfConfig
+
+    env = ShelfStockingEnv(ShelfConfig(product_count=2))
+    try:
+        retargeter = _core(env).retargeter
+        products = {env.model.body(p.name).id for p in env.products}
+        assert products <= retargeter._movable
+        assert env.model.body("mabel_chassis").id not in retargeter._movable
+        assert env.model.body("shelf").id not in retargeter._movable
+    finally:
+        env.close()
