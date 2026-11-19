@@ -16,6 +16,15 @@ dependencies = [
     "emet[sim] @ git+https://github.com/cpaxton/home_robot_v3.git@main",
 ]
 
+[project.optional-dependencies]
+# Browser teleoperation host (abstract-stack teleop); see docs/web_teleop/README.md.
+teleop = [
+    "starlette>=0.41,<2",
+    "uvicorn[standard]>=0.32,<1",
+    "fast-simplification>=0.1.9,<1",
+    "segno>=1.6,<2",
+]
+
 [project.scripts]
 abstract-stack = "abstract_stack.cli:main"
 
@@ -30,6 +39,11 @@ ci = [
     "mujoco>=3.4,<4",
     "numpy>=1.24,<2",
     "pillow>=10",
+    "starlette>=0.41,<2",
+    "uvicorn[standard]>=0.32,<1",
+    "fast-simplification>=0.1.9,<1",
+    "segno>=1.6,<2",
+    "httpx>=0.27,<1",
 ]
 
 [tool.pytest.ini_options]
