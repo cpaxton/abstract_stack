@@ -146,11 +146,15 @@ Browser (web/)                                  Host (src/abstract_stack/web_tel
   away is undone and retried with less orientation gain, joints pinned at a
   limit are dropped, and a position-only restart escapes limit traps. IK
   warm-starts from the previous solution and keeps refining until it converges
-  or stops improving. A kinematic collision guard (scratch data) then checks the
-  solution against fixtures and MABEL's own body. Products are excluded so the
-  hands can touch and grasp them, and contacts already present are allowed. If
-  the solution collides, the arm moves only to the farthest collision-free point
-  along the joint segment. Lift is the
+  or stops improving. Only the IK result is cached. Every tick, a kinematic
+  collision guard (scratch data) samples each arm's joint path from its
+  measured pose to the IK result, about every 0.025 rad, against fixtures and
+  MABEL's own body. It then samples both arms' paths together, so two arms that
+  are each clear cannot be commanded into each other. Products are excluded so
+  the hands can touch and grasp them, and contacts already present are allowed.
+  Each arm moves only to the farthest collision-free point on its path. Because
+  the check reruns against the current scene, a block clears as soon as driving
+  or the other arm makes room. Lift is the
   operator's own channel and is pinned during both arms' IK. Grip maps one
   fraction to the native flexion ranges and keeps the scripted controller's
   thumb preshape. Head and torso are clamped and rate-limited.
@@ -308,9 +312,11 @@ On macOS the tests use the GPU. `E2E_GPU=0` forces CPU rendering, and
   relaxing orientation (55% before). The rest are kinematically out of reach,
   or blocked by the guard (mostly the other arm or the torso). Lift is the
   operator's channel and is not used to extend reach.
-- **The collision guard is kinematic and local.** It checks the solved pose and
-  bisects the joint segment toward it, not a swept volume at the hand's actual
-  speed. It does not plan around obstacles, and products are never obstacles.
+- **The collision guard is kinematic and local.** It samples the straight
+  joint-space path from the measured pose, so obstacles thinner than the
+  sample spacing can slip between samples. It does not model the controller's
+  exact rate-limited path or plan around obstacles: a target behind an obstacle
+  leaves the arm stopped at it. Products are never obstacles.
   Physics still resolves every contact. Nothing here is evidence of a grasp or
   placement.
 - Twin textures are not shown (colours come from MuJoCo materials).
