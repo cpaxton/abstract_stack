@@ -430,31 +430,26 @@ def worker(args):
             if state["active_grip"] is not None or state["carry_reference"] is not None:
                 raise ValueError("Insertion-only continuation requires a released carton")
             if args.front_row_press:
-                from abstract_stack.packing import row_geometry
+                from abstract_stack.packing import exposed_row_capacity
 
                 stocked = script.observer.completed
-                open_end = 0 if args.side_offset_m > 0 else -1
-                before = row_geometry(env, product_names=stocked)
-                if before["product_order"][open_end] != script.product.name:
+                direction = 1 if args.side_offset_m > 0 else -1
+                before = exposed_row_capacity(env, stocked, direction)
+                if before["exposed_product"] != script.product.name:
                     raise ValueError("Row press must start from the exposed end carton")
-                event = script.push_front_tangentially(
-                    direction=1 if args.side_offset_m > 0 else -1,
+                script.push_front_tangentially(
+                    direction=direction,
                     distance_m=abs(args.side_offset_m),
                     force_guided=True,
                     row_products=stocked,
                 )
-                remaining_width = sum(
-                    2 * product.half_size[1]
-                    for product in env.products
-                    if product.name not in stocked
-                )
-                available = event["final_row_geometry"]["gaps_including_walls_m"][open_end]
+                after = exposed_row_capacity(env, stocked, direction)
                 skill_boundary = {
                     "skill": "front-row-press",
-                    "verified": available >= remaining_width,
-                    "previous_open_span_m": before["gaps_including_walls_m"][open_end],
-                    "open_span_after_m": available,
-                    "required_remaining_width_m": remaining_width,
+                    "verified": after["available_m"] >= after["required_m"],
+                    "previous_open_span_m": before["available_m"],
+                    "open_span_after_m": after["available_m"],
+                    "required_remaining_width_m": after["required_m"],
                 }
                 if skill_boundary["verified"]:
                     record_verified_milestone(script)

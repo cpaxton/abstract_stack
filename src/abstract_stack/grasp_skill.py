@@ -330,6 +330,30 @@ def navigate_to_inventory(script, pending, *, pregrasp=None, rotation=None):
     return False
 
 
+def grasp_lift_and_hold(script, product):
+    """Reuse the measured pickup and verify the native half-second hold."""
+    selected = script._select_grasp([product])
+    grip = script._grasp_and_lift(selected)
+    script._stage("grasp_hold")
+    target = script.controller.position().copy()
+    for _ in range(int(np.ceil(0.5 / script.env.dt))):
+        script._tick(target, grip)
+        if (
+            not script.last_forces["opposing_contacts"]
+            or script.last_forces["hand"] < 0.2
+            or script.last_forces["table"] > 0.15
+        ):
+            raise InteractionFailure("grasp_hold: loaded opposing contact or table clearance lost")
+    if script.observer.incidents:
+        raise InteractionFailure("grasp_hold: an inventory product tipped or dropped")
+    script.events[-1].update(
+        verified_grasp_skill=True,
+        required_hold_seconds=0.5,
+        measured_hand_normal_N=script.last_forces["hand"],
+        measured_table_normal_N=script.last_forces["table"],
+    )
+
+
 class GraspSkillProbe(StockingScript):
     """Pick one declared carton in the original inventory, without stocking credit."""
 
@@ -401,29 +425,8 @@ class GraspSkillProbe(StockingScript):
         return observer
 
     def _execute_task(self, result):
-        selected = self._select_grasp([self.target_product])
-        grip = self._grasp_and_lift(selected)
-        self._stage("grasp_hold")
-        target = self.controller.position().copy()
-        for _ in range(int(np.ceil(0.5 / self.env.dt))):
-            self._tick(target, grip)
-            if (
-                not self.last_forces["opposing_contacts"]
-                or self.last_forces["hand"] < 0.2
-                or self.last_forces["table"] > 0.15
-            ):
-                raise InteractionFailure(
-                    "grasp_hold: loaded opposing contact or table clearance lost"
-                )
-        if self.observer.incidents:
-            raise InteractionFailure("grasp_hold: an inventory product tipped or dropped")
+        grasp_lift_and_hold(self, self.target_product)
         self.grasp_skill_verified = True
-        self.events[-1].update(
-            verified_grasp_skill=True,
-            required_hold_seconds=0.5,
-            measured_hand_normal_N=self.last_forces["hand"],
-            measured_table_normal_N=self.last_forces["table"],
-        )
 
     def episode_evidence(self):
         return dict(

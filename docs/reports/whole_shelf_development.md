@@ -980,3 +980,70 @@ The repeated two-hand clearance probe (`tight-ten-20mm-bimanual-clear-07`)
 also measured orientation errors of 0.010 degrees on the left and
 0.217 degrees on the right. It reproduced the position errors and
 recorded no incidents.
+
+### Full development timeline
+
+The 520 mm scene with 20 mm of total row clearance has ten scheduled
+cartons and zero prefills. The original fresh process lost its unflushed
+actuator trace while repositioning the unloaded base for carton five.
+The frozen original controller,
+scene, seed, and settings reproduced the settled reset and the first four
+stocking milestones bit for bit. The reconstructed episode stopped after
+the fourth milestone. Its terminal state matches the starting state of
+the first saved continuation.
+
+The recovered section replays fourteen recorded continuations, cutting
+branches at the exact physics step of the chosen saved skill entry.
+Every cut matches the native integration state. The final sequence shows
+eight verified withdrawals, including five strict releases. Carton nine
+reaches shelf support and the hand clears before the guided insertion
+times out. Carton ten is unreached. The differently initialized
+center-slot fixture is available as a separate clip. The development
+timeline earns zero fresh task credit.
+
+- [Full dense-row timeline, third-person and robot cameras](../../outputs/whole-shelf-video-v2/dense-shelf-full-timeline.mp4)
+- [State verification at the reconstructed milestones](../../outputs/whole-shelf-video-v2/prefix-verification.json)
+- [Recovered segment verification](../../outputs/whole-shelf-video-v2/recovered-tail/result.json)
+- [Complete three-carton stocking episode](../../outputs/whole-shelf-video-v2/three-carton-complete-3x.mp4)
+
+Use `scripts/render_stocking_timeline.py` with either `prefix-recipe.json`
+or `tail-recipe.json` under `outputs/whole-shelf-video-v2/`. Each segment
+selects a recorded episode or checkpoint continuation. The optional
+`stop_at_initial_of` chooses an exact branch boundary from the next
+continuation's archived starting state. The renderer checks the replay
+clock, the terminal integration state, and that rendering leaves that
+state unchanged. The final movie joins the two verified MP4s at the
+shared fourth-carton state.
+
+The first geometry sweeps after this run report all scheduled cartons
+across shelf and carton dimensions in the [domain randomization guide](../domain_randomization.md).
+
+### Fresh ten-carton comparison
+
+Each case ran from reset at seed 0 with zero prefills and the same frozen
+policy, including the existing live feedback and planning guards. No case
+used a checkpoint restore or a manual correction. Carton counts apply to
+all ten scheduled products. Final position is the strict task-stage
+metric, and the retreat column counts measured withdrawals.
+
+| Whole-row clearance and layout | Pick | Shelf support | Final position | Retreat | Stop |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 20 mm, original 520 mm shelf | 5 | 5 | 1 | 4 | Compensated pusher approach rejected for carton five |
+| 100 mm, extended toward the supply table | 0 | 0 | 0 | 0 | Side panel blocks first empty-hand descent |
+| 100 mm, extended away from the supply table | 2 | 2 | 1 | 1 | Second carton times out at the intermediate alignment gate |
+
+All three completed processes recorded zero knock-overs. The 20 mm run
+matched the first 319,767 archived actuator commands and the fourth
+milestone exactly. The first rejected reference for carton five predicted
+2.06 mm of ring-finger penetration into the active carton during pusher
+approach. This is a pre-actuation geometry rejection. In the roomier
+layout that preserved inventory-side clearance, the second carton reached
+the staging depth within 0.63 mm and held shelf support. Its 1.47 degree
+yaw and lateral position left the alignment gate open.
+
+- [Single-run dense video](../../outputs/fresh-ten-carton-v1/20mm-timeline/fresh-dense-run.mp4)
+- [Fresh comparison and stage ledger](../../outputs/fresh-ten-carton-v1/report.json)
+
+The repeated seed-0 prefix shows repeatability at one initial state. Broad
+ten-carton reliability still needs fresh runs on other reset seeds after
+the compensated approach and alignment gates are addressed.

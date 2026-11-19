@@ -155,10 +155,18 @@ class LateralStockingScript(DenseStockingScript):
         brace_wall=False,
         near_front_corner=False,
         stage_for_squaring=False,
+        row_ready=None,
+        front_contact_fraction=0.65,
     ):
         settings = settings or LateralPushConfig()
         if stage_for_squaring and (not near_front_corner or brace_wall):
             raise ValueError("Side staging requires the front-corner tool and a separate square")
+        if row_ready is not None and (not callable(row_ready) or brace_wall or stage_for_squaring):
+            raise ValueError("Row presses use their own measured stop before guarded unloading")
+        if not np.isfinite(front_contact_fraction) or not 0 <= front_contact_fraction <= 0.65:
+            raise ValueError(
+                "Side contact must stay between face center and the checked front patch"
+            )
         if type(brace_wall) is not bool:
             raise ValueError("Wall bracing must be explicit")
         if not yaw_candidates or any(
@@ -181,7 +189,9 @@ class LateralStockingScript(DenseStockingScript):
         height = env.config.levels[self.product.level] + settings.height_m
         # Stay on the exposed side face and leave room for the selected pad
         # before the front edge. Stage the higher way-point outside the shelf.
-        contact_x = start_body[0] + (0.65 * self.product.half_size[0] if near_front_corner else 0)
+        contact_x = start_body[0] + (
+            front_contact_fraction * self.product.half_size[0] if near_front_corner else 0
+        )
         precontact = np.array([contact_x, start_body[1] - direction * (extent[1] + 0.015), height])
         raised = precontact + ([0.09, 0, 0.10] if near_front_corner else [0, 0, 0.14])
         # Use the existing checked high-clearance staging motion before
@@ -299,6 +309,7 @@ class LateralStockingScript(DenseStockingScript):
             contact_mode="exposed-side supported push, no rigid attachment",
             forecast="robot/finger kinematics only; no lateral object dynamics certificate",
             settings=vars(settings),
+            row_capacity_stop=row_ready is not None,
             samples=[],
             yaw_controller_goal_deg=0.15 if self.config.paired_finger_insertion else None,
             x_reference_bound_m=0.015,
@@ -436,6 +447,14 @@ class LateralStockingScript(DenseStockingScript):
                 verified = verified and abs(np.arctan2(matrix[1, 0], matrix[0, 0])) <= np.radians(
                     yaw_limit
                 )
+            if row_ready is not None:
+                verified = (
+                    had_push_contact
+                    and self.last_forces["shelf"] > 0.2
+                    and upright
+                    and abs(body.xpos[0] - start_body[0]) <= 0.005
+                    and row_ready()
+                )
             held = held + env.dt if verified else 0.0
             if held >= settings.contact_dwell_s:
                 event.update(
@@ -449,7 +468,8 @@ class LateralStockingScript(DenseStockingScript):
             raise InteractionFailure("lateral_push: displacement/support dwell timeout; replan")
         # Withdraw along the contact normal before lifting; success requires
         # the measured displacement to survive physical unloading and retreat.
-        unload = [0, -direction * (0.012 if near_front_corner else 0.03), 0]
+        unload_distance = 0.036 if row_ready is not None else 0.012 if near_front_corner else 0.03
+        unload = [0, -direction * unload_distance, 0]
         self._cartesian_move("lateral_unload", target + unload, allowed_object=self.product.name)
         if near_front_corner:
             event["unloaded_position_world_m"] = env.data.body(self.product.name).xpos.tolist()
@@ -464,7 +484,7 @@ class LateralStockingScript(DenseStockingScript):
         final = env.data.body(self.product.name)
         error = abs(float(final.xpos[1] - desired_y))
         if (
-            error > settings.position_tolerance_m
+            (row_ready is None and error > settings.position_tolerance_m)
             or self.last_forces["hand"] > 0.2
             or self.last_forces["shelf"] <= 0.2
             or abs(final.xpos[0] - start_body[0]) > 0.005
@@ -476,7 +496,7 @@ class LateralStockingScript(DenseStockingScript):
             raise InteractionFailure("lateral_retreat: product incident recorded")
         event.update(
             lateral_staging_verified=stage_for_squaring,
-            verified_lateral_displacement=not stage_for_squaring,
+            verified_lateral_displacement=not stage_for_squaring and row_ready is None,
             retreat_verified=True,
             final_lateral_error_m=error,
         )

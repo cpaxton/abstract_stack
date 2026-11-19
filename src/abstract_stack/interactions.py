@@ -1885,6 +1885,8 @@ class StockingScript(SelectedFingerInsertion):
         return grasp_grip
 
     def _transfer_and_place_front(self, grasp_grip, *, already_clear=False):
+        from abstract_stack.grasp_skill import loaded_staging_reachable
+
         env, config, product = self.env, self.config, self.product
         actual = env.data.body(product.name).xpos.copy()
         if config.grasp_skill:
@@ -1923,8 +1925,6 @@ class StockingScript(SelectedFingerInsertion):
             self.payload_rotation_goal = np.eye(3)
             offset = self.controller.position() - env.data.body(product.name).xpos
         if config.ungrasped_insertion and config.base_reposition:
-            from abstract_stack.grasp_skill import loaded_staging_reachable
-
             base_y = float(env.data.body("mabel_chassis").xpos[1])
             if abs(placement[1] - base_y + 0.12) > 0.05:
                 self._stage("loaded_workspace_plan")

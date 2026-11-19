@@ -94,6 +94,51 @@ new private evaluation suite for a revised policy. Compare success/time/contact
 and recovery results by family, object count, shelf count and density before
 aggregating. Keep force limits and task tolerances fixed.
 
+### Geometry sweep around the three-carton baseline
+
+The full public development split at `76e11bb` scheduled 48 objects across
+eight scenes. Four supported scenes ran, with 19 scheduled objects, and four
+multi-level or mixed scenes remained unsupported. The bench teacher verified
+one pick. No placement, final position, retreat, or complete scene passed.
+Both dense cases stopped at the root planning budget before attempting a pick.
+See `outputs/domain-randomization-teacher-dev-76e11bb/report.json`.
+
+A separate sweep kept the supply table, reset seed, force profile, and
+controller flags fixed around the previously successful three-carton layout.
+Its first pass exposed a Python import scoped to the released-insertion branch
+that the grasped transfer also needed. The fixed sweep used `--grasp-skill
+--base-reposition` and the same scene files. All five processes returned stage
+reports. No product was tipped or dropped during any run.
+
+| Scene change | Pick | Shelf support | Final position | Retreat | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Baseline, 800 mm shelf height | 3 | 3 | 3 | 3 | Complete, 150.58 s simulated |
+| Shelf 40 mm lower | 0 | 0 | 0 | 0 | Empty-hand route rejected before pregrasp |
+| Shelf 40 mm higher | 3 | 3 | 3 | 3 | Complete, 146.84 s simulated |
+| Cartons 80 × 60 × 220 mm | 1 | 1 | 0 | 0 | Fixture contact reached 26.19 N during push |
+| Shelf 50 mm deeper | 1 | 1 | 0 | 0 | Push feedback path rejected before actuation |
+| Total scheduled | 8/15 | 8/15 | 6/15 | 6/15 | 2/5 clean scenes |
+
+Inputs, stage ledgers, and the frozen source digest for the matched sweep are
+under `outputs/stocking-geometry-sweep-v2/`. The first-pass process failures
+remain under `outputs/stocking-geometry-sweep-v1/`. These are public development
+cases and the private held-out split remains untouched.
+
+The follow-up changed each carton dimension on its own, with the same 180 g
+mass and friction. At 80 mm depth the script stocked all three cartons in
+144.88 s. At 220 mm height it stocked all three in 145.68 s. At 60 mm width it
+picked and placed the first carton, then the planned feedback correction
+predicted 2.02 mm of penetration into the shelf board and stopped before
+actuation. The width-only stop had no knock-overs. This isolates sensitivity
+to width under the tested posture. The combined-size case had a different
+force-guard failure. See `outputs/stocking-carton-size-sweep-v1/`.
+
+The deeper shelf's final correction had a 0.63 mm predicted position error
+and was still rejected because the lift base and body mount would intersect.
+Use the measured shelf geometry to choose an empty-hand route for lower
+shelves and a different base stance or push posture for deeper shelves.
+Evaluate those cases before combining size, height, depth, and material changes.
+
 ## Learning/data collection
 
 The [LfD pipeline](learning_from_demonstration.md) now accepts explicit DR scene

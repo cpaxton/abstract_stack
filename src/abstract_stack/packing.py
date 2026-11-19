@@ -144,3 +144,20 @@ def row_geometry(env, *, product_names=None):
         "maximum_allowed_envelope_overlap_m": 0.0002,
         "maximum_allowed_total_envelope_overlap_m": 0.0002,
     }
+
+
+def exposed_row_capacity(env, product_names, direction):
+    """Measure the opening and slack when pressing a supported group toward a wall."""
+    if direction not in (-1, 1):
+        raise ValueError("Row press direction must be -1 or +1")
+    names = set(product_names)
+    report = row_geometry(env, product_names=names)
+    gaps = report["gaps_including_walls_m"]
+    end = 0 if direction > 0 else -1
+    return dict(
+        report,
+        exposed_product=report["product_order"][end],
+        available_m=gaps[end],
+        closable_slack_m=sum(gaps) - gaps[end],
+        required_m=sum(2 * p.half_size[1] for p in env.products if p.name not in names),
+    )
