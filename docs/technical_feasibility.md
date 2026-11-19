@@ -60,6 +60,23 @@ Every gate below is a proposed engineering target, not a demonstrated rate or
 commercial reliability requirement. Freeze numerical thresholds before collecting
 acceptance data; justify any revision and create a new benchmark version.
 
+## First stocking experiment
+
+Start with F0 by replaying the pinned spacious two-carton baseline on the
+public regression scenes. Record each scheduled carton's pick, shelf support,
+final positioning and retreat, along with all-product incidents and process
+outcomes. Match the recorded scene, controller, model and settled-state inputs.
+Keep any mismatch or failed process in the record.
+
+Then run the first F1 development comparison on matched dense scenes with
+the same MABEL hand, observation access, timing budget and task criteria.
+Compare the existing scripted controller with the contact-aware candidate.
+Start with the one-insertion curriculum to check force, support and withdrawal
+accounting, then schedule a whole row from the table in one continuous episode.
+Curriculum prefills earn no manipulation credit. This comparison can guide
+controller development. A later frozen evaluation suite is required to assess
+the proposed F1 completion target.
+
 ## Feasibility gates
 
 | Gate | Experiment and proposed evidence | Dependency |

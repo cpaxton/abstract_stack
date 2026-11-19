@@ -6,7 +6,10 @@ The [feasibility plan](technical_feasibility.md) defines proposed gates for dens
 contact, recovery, teleoperation/replay, human pace, observation realism, learning,
 custom tooling and bimanual mobile execution. The [proof-of-concept critique](poc_critique.md)
 separates existing evidence from those unproven capabilities. These are planning
-documents; their acceptance targets are not measured results.
+documents; their acceptance targets are not measured results. The
+[first stocking experiment](technical_feasibility.md#first-stocking-experiment)
+starts with pinned baseline replay, then compares controllers on matched dense
+scenes.
 
 Track candidate mechanics, sensing, build assets and matched-tool experiments in
 the [gripper design tracker](gripper_design_tracker.md), beginning with GET and
