@@ -1,0 +1,427 @@
+{
+  "schema_version": 1,
+  "profile": "quest_teleop_v1",
+  "baseline": {
+    "main_commit": "c74837384559479ca1b7522e446801e313dd026a",
+    "mabel_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+    "python": "3.11.15",
+    "mujoco": "3.17.0",
+    "numpy": "1.26.4",
+    "pillow": "13.0.0",
+    "unity": "6000.6.9f1",
+    "meta_xr_core": "209.0.0",
+    "openxr": "1.19.0",
+    "urp": "17.6.0"
+  },
+  "frames": {
+    "tracking": "unity_tracking_space_left_handed",
+    "operator": "operator_forward_left_up",
+    "robot": "mabel_chassis_native",
+    "quaternion_order": "wxyz",
+    "unity_to_operator_basis": [
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        -1,
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        0
+      ]
+    ],
+    "operator_to_robot_native_neutral_basis": [
+      [
+        -1,
+        0,
+        0
+      ],
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ]
+    ]
+  },
+  "skeleton_profiles": {
+    "ovr_hand_24": [
+      "Hand_WristRoot",
+      "Hand_ForearmStub",
+      "Hand_Thumb0",
+      "Hand_Thumb1",
+      "Hand_Thumb2",
+      "Hand_Thumb3",
+      "Hand_Index1",
+      "Hand_Index2",
+      "Hand_Index3",
+      "Hand_Middle1",
+      "Hand_Middle2",
+      "Hand_Middle3",
+      "Hand_Ring1",
+      "Hand_Ring2",
+      "Hand_Ring3",
+      "Hand_Pinky0",
+      "Hand_Pinky1",
+      "Hand_Pinky2",
+      "Hand_Pinky3",
+      "Hand_ThumbTip",
+      "Hand_IndexTip",
+      "Hand_MiddleTip",
+      "Hand_RingTip",
+      "Hand_PinkyTip"
+    ],
+    "ovr_body_upper_18": [
+      "Body_Root",
+      "Body_Hips",
+      "Body_SpineLower",
+      "Body_SpineMiddle",
+      "Body_SpineUpper",
+      "Body_Chest",
+      "Body_Neck",
+      "Body_Head",
+      "Body_LeftShoulder",
+      "Body_LeftScapula",
+      "Body_LeftArmUpper",
+      "Body_LeftArmLower",
+      "Body_LeftHandWristTwist",
+      "Body_RightShoulder",
+      "Body_RightScapula",
+      "Body_RightArmUpper",
+      "Body_RightArmLower",
+      "Body_RightHandWristTwist"
+    ]
+  },
+  "actuators": {
+    "FL Steer": {
+      "owner": "stationary_base",
+      "command": "position",
+      "unit": "rad"
+    },
+    "FL Drive": {
+      "owner": "stationary_base",
+      "command": "velocity",
+      "unit": "rad/s"
+    },
+    "FR Steer": {
+      "owner": "stationary_base",
+      "command": "position",
+      "unit": "rad"
+    },
+    "FR Drive": {
+      "owner": "stationary_base",
+      "command": "velocity",
+      "unit": "rad/s"
+    },
+    "B Steer": {
+      "owner": "stationary_base",
+      "command": "position",
+      "unit": "rad"
+    },
+    "B Drive": {
+      "owner": "stationary_base",
+      "command": "velocity",
+      "unit": "rad/s"
+    },
+    "Lift": {
+      "owner": "body",
+      "command": "position",
+      "unit": "m"
+    },
+    "Torso": {
+      "owner": "body",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Neck Yaw": {
+      "owner": "head",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Neck Pitch": {
+      "owner": "head",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Neck Roll": {
+      "owner": "head",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Arm 1": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Arm 2": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Arm 3": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Arm 4": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Arm 5": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Arm 6": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Arm 7": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Wrist": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Thumb MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Thumb Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Thumb PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Thumb DIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Index Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Index MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Index PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Middle Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Middle MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Middle PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Ring Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Ring MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Ring PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Pinky Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Pinky MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Left Pinky PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Arm 1": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Arm 2": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Arm 3": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Arm 4": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Arm 5": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Arm 6": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Arm 7": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Wrist": {
+      "owner": "arms",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Thumb MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Thumb Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Thumb PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Thumb DIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Index Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Index MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Index PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Middle Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Middle MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Middle PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Ring Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Ring MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Ring PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Pinky Abd": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Pinky MCP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    },
+    "Right Pinky PIP": {
+      "owner": "fingers",
+      "command": "position",
+      "unit": "rad"
+    }
+  },
+  "cameras": {
+    "left": "zed_left",
+    "right": "zed_right",
+    "baseline_m": 0.063,
+    "vertical_fov_deg": 83.3,
+    "native_width": 1600,
+    "native_height": 1200,
+    "initial_width": 640,
+    "initial_height": 480
+  },
+  "provisional_budgets": {
+    "tracking_poll_hz": 72,
+    "tracking_send_max_hz": 72,
+    "control_hz": 50,
+    "physics_timestep_s": 0.002,
+    "video_pair_target_hz": 30,
+    "required_input_age_limit_s": 0.15,
+    "video_stale_age_s": 0.3,
+    "clock_sync_max_uncertainty_s": 0.025,
+    "max_tracking_queue": 1,
+    "max_raw_video_pairs": 1,
+    "max_encoded_video_pairs": 1,
+    "max_control_json_bytes": 262144,
+    "max_video_metadata_bytes": 16384,
+    "max_jpeg_eye_bytes": 2097152
+  }
+}
