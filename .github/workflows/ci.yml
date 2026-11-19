@@ -90,3 +90,24 @@ jobs:
             outputs/house/*.png
             dist/*
           if-no-files-found: ignore
+  web-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install locked web dependencies
+        run: npm ci
+      - name: Lint, type-check, unit test and build
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
