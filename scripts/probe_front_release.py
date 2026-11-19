@@ -238,7 +238,13 @@ def worker(args):
     if args.alignment_seconds is not None:
         settings["alignment_timeout_seconds"] = args.alignment_seconds
     script_class = StockingScript
-    if args.front_row_press:
+    if args.interleave_row_press:
+        from abstract_stack.interleaved_stocking import PressInterleavedStockingScript
+
+        if skill != "stocking_milestone":
+            raise ValueError("Interleaved row press requires a verified stocking milestone")
+        script_class = PressInterleavedStockingScript
+    elif args.front_row_press:
         from abstract_stack.front_tangential import FrontTangentialPress
 
         if skill != "stocking_milestone":
@@ -424,7 +430,10 @@ def worker(args):
                 raise ValueError("Stocking milestone must have an unloaded hand")
             before = sorted(script.observer.completed)
             progress = dict(completed_products=before.copy(), starting_completed_products=before)
-            script._execute_task(progress, next_cartons=args.next_cartons)
+            if args.interleave_row_press:
+                script.press_and_finish(progress)
+            else:
+                script._execute_task(progress, next_cartons=args.next_cartons)
             failure = progress.get("failure")
         elif args.insert_only:
             if state["active_grip"] is not None or state["carry_reference"] is not None:
@@ -649,6 +658,11 @@ def main():
         "--front-landing-y-offset-m", type=float, choices=(-0.008, -0.006, 0.006, 0.008)
     )
     parser.add_argument("--front-row-press", action="store_true")
+    parser.add_argument(
+        "--interleave-row-press",
+        action="store_true",
+        help="Press a measured pair at a two-carton milestone, then stock the last carton",
+    )
     parser.add_argument("--side-front-corner", action="store_true")
     parser.add_argument("--interleave-side-square", action="store_true")
     parser.add_argument("--resume-side-square", action="store_true")
@@ -714,6 +728,8 @@ def main():
         args.stop_after != "registration" or not args.side_offset_m or args.side_base_dx
     ):
         parser.error("--front-row-press requires an explicit offset and registration stop")
+    if args.interleave_row_press and args.next_cartons != 1:
+        parser.error("--interleave-row-press requires --next-cartons 1")
     if args.resume_side_square and (
         not args.insert_only
         or not args.guided_wall_entry
@@ -858,6 +874,8 @@ def main():
         command += ["--guided-entry-deg", str(args.guided_entry_deg)]
     if args.next_cartons:
         command += ["--next-cartons", str(args.next_cartons)]
+    if args.interleave_row_press:
+        command.append("--interleave-row-press")
     if args.continue_after_insert:
         command += ["--continue-after-insert", str(args.continue_after_insert)]
     if args.record_skill_starts:
