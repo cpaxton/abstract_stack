@@ -79,9 +79,11 @@ class RecedingStockingScript(DenseStockingScript):
         payload_load_compensation=False,
         payload_wrist_reserve=0.4,
         split_insertion=False,
+        loaded_transit_yaws=(0, -20, 20),
         **kwargs,
     ):
         self.grasp_wrist_posture = grasp_wrist_posture
+        self.loaded_transit_yaws = tuple(loaded_transit_yaws)
         if not isinstance(payload_load_compensation, bool) or not (
             np.isfinite(payload_wrist_reserve) and 0.15 <= payload_wrist_reserve <= 0.5
         ):
@@ -145,17 +147,10 @@ class RecedingStockingScript(DenseStockingScript):
 
     def _configure_grasp_hand(self, hand):
         if self.payload_load_compensation:
-            wrist = hand.ik.names.index("Left Wrist")
-            hand.ik.constrain_reference_range(
-                "Left Wrist",
-                hand.ik.original_lower[wrist] + self.payload_wrist_reserve,
-                hand.ik.original_upper[wrist] - self.payload_wrist_reserve,
-            )
-            lift = hand.ik.names.index("Lift")
-            hand.ik.constrain_reference_range(
-                "Lift",
-                hand.ik.original_lower[lift],
-                hand.ik.original_upper[lift] - self._tracking_config().lift_offset_limit,
+            from abstract_stack.payload_control import reserve_payload_references
+
+            reserve_payload_references(
+                hand, self.payload_wrist_reserve, self._tracking_config().lift_offset_limit
             )
         if self.grasp_wrist_posture is not None:
             hand.ik.constrain_posture("Left Wrist", self.grasp_wrist_posture)
@@ -175,48 +170,18 @@ class RecedingStockingScript(DenseStockingScript):
 
     def _load_feedforward(self):
         if self.payload_load_compensation and not isinstance(self.controller, FingerPusher):
-            result = self._wrist_contact_load()
-            if self.events:
-                self.events[-1].setdefault("payload_wrist_load_samples", []).append(
-                    [
-                        float(self.env.data.time),
-                        self.wrist_load_last_requested,
-                        self.wrist_load,
-                    ]
-                )
-            return result
+            from abstract_stack.payload_control import measured_payload_load
+
+            return measured_payload_load(self)
         return super()._load_feedforward()
 
     def _check_tracked_targets(self, targets):
         super()._check_tracked_targets(targets)
         if not self.payload_load_compensation or isinstance(self.controller, FingerPusher):
             return
-        model, hand = self.env.model, self.controller
-        applied_q = np.array([targets[model.actuator(name).id] for name in [*hand.names, "Lift"]])
-        fingers = {}
-        for aid in range(model.nu):
-            if model.actuator_trntype[aid] != mujoco.mjtTrn.mjTRN_JOINT:
-                continue
-            jid = int(model.actuator_trnid[aid, 0])
-            if int(model.jnt_bodyid[jid]) in self.hand_bodies:
-                fingers[model.actuator(aid).name] = float(targets[aid])
-        intended_contact = self.active_grip is not None or self.phase in (
-            "approach",
-            "close",
-            "place",
-            "stage_align",
-            "release_unload",
-            "release_front",
-        )
-        errors = hand.check_hand_step(
-            SimpleNamespace(q=applied_q),
-            0,
-            self.product.name if intended_contact else None,
-            targets=fingers,
-        )
-        if errors:
-            self.events[-1]["applied_tracking_geometry_rejection"] = errors
-            raise InteractionFailure("payload_load: compensated arm/finger geometry rejected")
+        from abstract_stack.payload_control import guard_payload_targets
+
+        guard_payload_targets(self, targets)
 
     def _change_hand(self, kind, **kwargs):
         if kind is FingerPusher:
@@ -335,6 +300,7 @@ class RecedingStockingScript(DenseStockingScript):
                 grip=grip,
                 front_offset=0.06 if self.table_front else None,
                 product_clearance_m=self.loaded_product_clearance_m,
+                transit_yaws_degrees=self.loaded_transit_yaws,
             )
             self._stage("loaded_route_plan")
             self.events[-1].update(
@@ -413,19 +379,19 @@ class RecedingStockingScript(DenseStockingScript):
                 self._move_base([0.0, delta], reason="empty_hand_pusher_workspace_replan")
         raise InteractionFailure("pusher_plan: bounded base alternatives exhausted")
 
-    def _insert_from_front(self):
+    def _insert_from_front(self, *, retreat=True):
         if not self.split_insertion:
-            return super()._insert_from_front()
+            return super()._insert_from_front(retreat=retreat)
         body = self.env.data.body(self.product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(self.product.half_size)
         stop_x = self.env.config.front_x - extent[0] - 0.005
         full_x = self.env.config.front_x - self.env.config.depth + extent[0] - 0.0005
         if not full_x + 0.02 < stop_x < body.xpos[0] - 0.01:
-            return super()._insert_from_front()
+            return super()._insert_from_front(retreat=retreat)
         self._stage("split_insertion_plan")
         self.events[-1].update(partial_object_x_m=float(stop_x), final_object_x_m=float(full_x))
         self._split_push_phase = "front"
-        super()._insert_from_front(partial_stop_x=float(stop_x))
+        super()._insert_from_front(partial_stop_x=float(stop_x), retreat=retreat)
         self._change_hand(CartesianHand)
         self._clear_split_push_hand()
         self.events[-1]["partial_state_before_base_handoff"] = self._partial_push_state(
@@ -447,7 +413,7 @@ class RecedingStockingScript(DenseStockingScript):
         if not self.events[-1]["partial_state_after_base_handoff"]["accepted"]:
             raise InteractionFailure("partial_push: intermediate state changed during base handoff")
         self._split_push_phase = "deep"
-        super()._insert_from_front()
+        super()._insert_from_front(retreat=retreat)
         self._split_push_phase = None
 
     def _clear_pusher(self, hand):
@@ -835,6 +801,7 @@ class RecedingStockingScript(DenseStockingScript):
                             prediction,
                             front_offset=0.06 if self.table_front else None,
                             product_clearance_m=self.loaded_product_clearance_m,
+                            transit_yaws_degrees=self.loaded_transit_yaws,
                             allow_lower_clearance=bool(
                                 self.observer is not None and self.observer.completed
                             ),
@@ -892,6 +859,7 @@ class RecedingStockingScript(DenseStockingScript):
                 "primitive_recovery_scope": "released_supported_contact_reacquisition_only",
                 "task_level_jam_recovery_implemented": False,
                 "loaded_corridor_enabled": self.loaded_route_enabled,
+                "loaded_transit_yaws_degrees": self.loaded_transit_yaws,
                 "grasp_wrist_posture_rad": self.grasp_wrist_posture,
                 "payload_wrist_load_compensation_enabled": self.payload_load_compensation,
                 "payload_wrist_reference_reserve_rad": (

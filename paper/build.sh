@@ -14,5 +14,11 @@ fi
 if [[ "${1:-}" == "--clean" ]]; then
     latexmk -C main.tex
 else
+    if ! command -v dot >/dev/null 2>&1; then
+        echo "Install Graphviz to render the contact skill diagram." >&2
+        exit 1
+    fi
+    mkdir -p figures
+    dot -Tpdf ../docs/media/contact_skill_flow.dot -o figures/contact_skill_flow.pdf
     latexmk -pdf -halt-on-error -interaction=nonstopmode -file-line-error main.tex
 fi

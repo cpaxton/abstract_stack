@@ -1,0 +1,27 @@
+digraph Stocking {
+  graph [bgcolor="white", pad=0.16, nodesep=0.24, ranksep=0.34, fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fillcolor="#E6F1FB", color="#52759B",
+        fontname="Helvetica", fontsize=12, margin="0.17,0.10"];
+  edge [color="#516579", fontname="Helvetica", fontsize=10, arrowsize=0.7];
+
+  observe [label="Observe object poses, support,\nfree space and stocked neighbors"];
+  plan [label="Plan landing, push posture and exit together\nChoose direct advance, side push or squaring",
+        style="rounded,dashed,filled", fillcolor="#F7F4FF", color="#775BB2"];
+  carry [label="Grasp, carry and seat\nWrapping grasp"];
+  landing [label="Open, clear and verify free landing\nSnapshot measured support and pose"];
+  prepare [label="Replan from measured landing\nPreshape and check hand transition"];
+  push [label="Execute compliant push\nPaired pads, folded finger or side pusher"];
+  recover [label="Recover from stalled motion\nBounded preload increase or stop",
+           fillcolor="#FFF3DB", color="#96732F"];
+  exit [label="Verify placement and forecast withdrawal\nUnload, clear shelf, then restore grasp"];
+  done [label="Record outcome and observe next object",
+        fillcolor="#E3F4EC", color="#54856D"];
+
+  observe -> plan -> carry -> landing -> prepare -> push -> exit;
+  {rank=same; push; recover;}
+  push -> recover [label="Stall"];
+  recover -> push [label="Progress resumes"];
+  recover -> done [label="Budget exhausted", color="#96732F"];
+  exit -> done [label="Verified or blocked"];
+  done -> observe [label="If verified, next object", constraint=false];
+}

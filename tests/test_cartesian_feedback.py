@@ -141,6 +141,31 @@ def test_contact_wrapper_is_read_only_and_rejects_stale_baseline(native_hand):
 
 
 @pytest.mark.mabel
+def test_final_cartesian_projection_keeps_the_original_speed_budget(native_hand):
+    env, hand = native_hand
+    hand.command = np.clip(hand.command, hand.lower, hand.upper)
+    point, rotation = hand.ik.forward(hand.command)
+    hand.active_rotation = rotation
+    target = point + np.array([0.0005, 0, 0])
+    proposal = hand.predict(target, alternatives=False, check_path=False)
+    before = env.data.qpos.copy(), env.data.ctrl.copy()
+    prediction = bounded_contact_prediction(
+        hand,
+        proposal,
+        target,
+        0.02,
+        np.r_[np.ones(8), 0.08],
+        max_translation_step_m=0.00002,
+        max_rotation_step_rad=0.006,
+    )
+    assert prediction.feasible
+    assert np.linalg.norm(prediction.position - point) <= 0.00002
+    assert prediction.bounded_feedback["cartesian_motion_projection"]["fraction"] < 1
+    np.testing.assert_array_equal(env.data.qpos, before[0])
+    np.testing.assert_array_equal(env.data.ctrl, before[1])
+
+
+@pytest.mark.mabel
 def test_contact_wrapper_never_invents_permission_for_a_product():
     try:
         mabel_model_path()

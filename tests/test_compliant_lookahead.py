@@ -16,6 +16,8 @@ def test_contact_feedback_signs_unload_excess_normal_shear_and_downward_load():
     overloaded = policy.velocity([1, 1, 1, 0, 0, 0])
     assert overloaded[0] == 0  # Raise hand before pushing a downward-loaded carton.
     assert overloaded[1] > 0 and overloaded[2] > 0
+    shear_only = policy.velocity([4, -1, 1, 0, 0, 0], normal_scale=0)
+    assert shear_only[0] == 0 and shear_only[1] < 0 and shear_only[2] > 0
     np.testing.assert_array_equal(policy.velocity([1, 0, 0, 0, 0, 0]), forward)
 
 
@@ -55,3 +57,56 @@ def test_forecast_rejects_horizon_that_rounds_to_a_different_duration():
             upper_xyz=np.ones(3),
             horizon_s=0.401,
         )
+
+
+@pytest.mark.mabel
+def test_finger_forecasts_validate_ownership_native_limits_and_rate_without_mutation():
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.config import load_scene_config
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.interactions import CartesianHand, ScriptConfig
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(load_scene_config(scene="pick_place"))
+    try:
+        hand = CartesianHand(env, ScriptConfig())
+        nominal = np.clip(hand.command, hand.ik.lower, hand.ik.upper)
+        hand.command = nominal.copy()  # Planning-controller fixture; native state stays unchanged.
+        point = hand.ik.forward(nominal)[0]
+        before = [env.data.qpos.copy(), env.data.qvel.copy(), env.data.ctrl.copy()]
+        name = "Left Index MCP"
+        aid = env.model.actuator(name).id
+        value = float(env.data.ctrl[aid])
+        options = dict(
+            nominal=nominal,
+            wrench_on_hand_world=np.zeros(6),
+            lower_xyz=point - 0.1,
+            upper_xyz=point + 0.1,
+            horizon_s=0.2,
+            max_candidates=1,
+        )
+        _, report, rates = generate_push_candidates(
+            hand, env.products[0].name, finger_control_targets={name: value + 0.001}, **options
+        )
+        assert rates[aid] == 0.5
+        assert report["selected_finger_control_targets"][name] == value + 0.001
+        for invalid in (
+            {"Left Arm 1": 0.0},
+            {"Right Index MCP": 0.0},
+            {name: value + 0.02},
+            {name: 99.0},
+            {name: True},
+        ):
+            with pytest.raises(ValueError, match="Finger"):
+                generate_push_candidates(
+                    hand, env.products[0].name, finger_control_targets=invalid, **options
+                )
+        for actual, original in zip(
+            (env.data.qpos, env.data.qvel, env.data.ctrl), before, strict=True
+        ):
+            np.testing.assert_array_equal(actual, original)
+    finally:
+        env.close()

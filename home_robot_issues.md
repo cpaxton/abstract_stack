@@ -64,6 +64,50 @@ project names, task descriptions, repository links, or private context.
 
 ## SIM-001 — Intermittent native MuJoCo signal during MABEL control
 
+- **2026-11-18 validation:** a frozen complete suite at `fcee9d0` reached
+  95% progress before signal 11 in native data construction for a primitive
+  contact-torque fixture. A later focused process failed while compiling the
+  existing side-pusher model fixture, before the new compensation controller
+  executed. Separate native skill checks subsequently passed 43 tests. These
+  passes do not replace either failure or establish a native cause. Exact
+  source/log records remain locally under
+  `outputs/adjacent-insertion-v1/validation-fcee9d0/` and
+  `native-validation-20261118/`. A saved-state development worker also exited
+  with -11 and no terminal summary; retain it as unknown. Probe launchers now
+  enable Python faulthandler for subsequent signals. Nothing was filed upstream.
+
+- **Import-only failures during checkpoint work:** separate capture and replay
+  children segfaulted while importing the native `_specs` module, before any
+  checkpoint model was loaded. Logs remain in
+  `outputs/checkpoints-v1/carton8-stalled/` and
+  `outputs/compliance-focus-v2-fresh-verification/yawed_back_contact/`.
+  A bounded GDB capture and other ordinary MJB replay processes completed, but
+  do not replace these unknown outcomes or identify their cause. MJB avoids XML
+  recompilation on restore; it is not a fix for native import/process stability.
+  Nothing has been filed or sent upstream.
+- **Checkpoint publication check:** at `2660b35`, the complete required hook
+  passed 59 tests before a signal 11 in `MjModel.from_xml_string` during an
+  existing released-contact fixture construction. Retain
+  `outputs/pr-publication-checkpoints-v1/`; Git exited 1 and neither branch was
+  published. No terminal test XML exists. Passing replay witnesses and focused
+  tests do not replace this separate unknown full-suite outcome.
+
+- **Additional construction abort, 2026-11-17:** a required publication hook at
+  `3a0dcab` collected 310 tests, passed seven and aborted with signal 6 while
+  compiling a fresh MABEL model in `MjModel.from_xml_string`. The Python frame
+  is environment construction in a base-control fixture; the new dwell/search
+  control had not executed. No native C backtrace or corrupting operation is
+  identified. The Git process exited 1, the hook 134, and no publication occurred.
+  Preserve `outputs/pr-publication-squaring-v1/` separately from the earlier
+  successful 300-test publication and any allocator diagnostic. This need not
+  share a cause with the previously observed signals. Nothing was filed upstream.
+- **Debug allocator follow-up:** the full required hook at `d886e1a`, with
+  `PYTHONMALLOC=debug`, also aborted with signal 6 during fresh model compilation,
+  this time in a released-contact fixture. It produced no terminal test XML;
+  Git exited 1 and no publication occurred. Preserve
+  `outputs/pr-publication-squaring-v2-debug/` with the original failure. Changing
+  the allocator did not establish a workaround or isolate the native cause.
+
 - **Status:** at least two SIGSEGVs observed 2026-11-16: an isolated headless
   process during concurrent simulation runs, and a later serial pre-push test
   process. Separate serial full-suite runs completed. The native cause remains
@@ -153,3 +197,35 @@ project names, task descriptions, repository links, or private context.
 - **Next diagnostic:** a minimal upstream-only state-helper compilation example
   without robot assets, downstream imports, paths or task context. Do not file
   or send this draft without authorization.
+
+## HR-005 — `emet.mapping` import needs NumPy 2 in a NumPy 1 project
+
+- **Status:** observed 2026-11-18; not filed. Local dependency-conflict note only.
+- **Environment:** CPython 3.11.12, NumPy 1.26.4 (project-pinned), `emet` main.
+- **Observation:** importing `emet.mapping` (or `emet.mapping.grid`) raises
+  `ImportError: pyarrow requires NumPy 2.0 or newer, found 1.26.4`, pulled in
+  through `emet.mapping -> emet.utils.point_cloud -> rerun -> pyarrow`.
+  `emet.motion` and its A* planner import cleanly. The downstream project pins
+  NumPy 1.26.4 for native MuJoCo compatibility, so `emet.mapping`'s occupancy
+  modules are unavailable and a small local occupancy grid is used instead.
+- **Not an upstream defect report:** this is a dependency-version conflict, not
+  a bug. No reproduction is being sent upstream.
+
+## MODEL-001 — MABEL carriage geometry at small lift extensions
+
+- **Status:** local native-geometry observation, 2026-11-18; not filed or sent.
+  This is not established as an Emet defect.
+- **Model:** `open_mabel` d0181f04025c06e1790b7ab41fe44d602cc2ee5b,
+  unmodified `mabel_full.xml`, MuJoCo 3.17.0.
+- **Observation:** a scratch FK scan of aggregate lift extension measured
+  `lift_base`/`body_mount` collision-mesh distance as -19.400 mm at 0 mm,
+  +0.600 mm at 20 mm and +10.600 mm at 30 mm. The nominal joint interval
+  alone does not guarantee this pair's clearance. Existing collision rejection
+  correctly rejects further penetration; masks and native limits remain intact.
+- **Local mitigation under evaluation:** opt-in planning references reserve
+  30 mm minimum extension. A scratch bound is not execution evidence; keep
+  native geometry checks on the compensated command and live contact guards.
+- **Possible upstream question:** should the documented usable lift workspace
+  account for the carriage/base geometry? Any future reproduction must contain
+  only the upstream model and a scratch geometry scan, with no downstream paths
+  or task context. No upstream communication is authorized by this note.

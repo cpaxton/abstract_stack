@@ -1,24 +1,35 @@
 # Demonstrations and teacher–student data
 
-The first collection contract and local export adapter exist. A native MABEL
-hold fixture collected ten causal control transitions with virtual wrist and
-tactile measurements. This is pipeline evidence, not a stocking demonstration,
-a trained student, verified VR teleoperation or hardware-ready tactile sensing.
-No dataset was uploaded and no training job was started.
+The causal collection contract, raw camera collector and local LeRobot adapter
+are integrated. A small pilot collected three native controller/sensing fixtures:
+60 transitions, 63 state/F/T/tactile snapshots and 126 raw RGB images. Official
+LeRobot export/reload passed for all three episodes. They remain fixtures with
+training eligibility false and no stocking success or fresh task credit. No
+dataset was uploaded and no student training job was started. The
+[pilot report](reports/lfd_collection_pilot.md) identifies the historical source,
+failed export and corrected multi-episode roundtrip.
+
+A later geometry-randomization pilot adds two development sensing fixtures:
+40 transitions, 42 snapshots and 84 raw RGB images across a three-carton bench
+and a ten-object, two-shelf house. Both completed native collection and official
+SDK roundtrip. These remain pipeline fixtures with no successful manipulation
+demonstrations, no training eligibility and no robustness claim. Its retained
+records are in `outputs/lfd-dr-pilot-v1/`.
 
 ## Current evidence and gaps
 
 | Item | Status |
 | --- | --- |
 | Physics diagnostic traces and review videos | Existing; preserve failures and unknown process outcomes |
-| Causal control-rate collection | New explicit recorder and native hold fixture |
+| Causal control-rate collection | Recorder and three bounded native sensing/motion pilot episodes |
 | Nominal teacher / applied servo separation | Stored as distinct arrays with a native action contract |
 | Privileged teacher / observable student separation | Explicit separate namespaces and student-only frame projection |
 | LeRobot | Pinned official 0.7.0 local export/reload passed in a separate locked worker |
 | Student training or DAgger | Not implemented |
 | VR demonstration loop | Not integrated with the new recorder |
-| Raw synchronized camera collection | Schema supports HWC RGB; native hold fixture marks camera unavailable |
+| Raw synchronized camera collection | Opt-in native first-/third-person RGB; real-image SDK roundtrip passed |
 | F/T and tactile | Native simulated signals from `sim_sensors.py`; not calibrated hardware measurements |
+| Domain-randomized collection inputs | Explicit scene configuration plus hashed case identity; still fixture-only |
 
 The existing `trace.npz` records post-physics-step task metrics and applied
 actuator targets every 2 ms. A terminal nominal-reference dictionary does not
@@ -69,6 +80,75 @@ The initial action representation is the complete nominal native reference
 vector. Changing later to palm goals, deltas, force targets or primitive actions
 requires a new explicit action contract and compatible runtime adapter. It must
 not reinterpret an existing policy's output units or apply compensation twice.
+
+The current stocking scripts do not yet provide complete BC-ready nominal action
+history. Successful diagnostic-video segments and checkpoint continuations cannot
+fill that gap. The next task integration must capture the decision before every
+finger/arm compensation path and retain verified pick/place/final-position/retreat
+outcomes against all scheduled products.
+
+## Domain-randomized pipeline fixtures
+
+The collector accepts a generated scene without editing robot geometry or
+silently reusing a different reset:
+
+```bash
+MUJOCO_GL=egl .venv/bin/python scripts/export_lfd_fixture.py \
+  --scene-config outputs/my-domain-case/scene.json \
+  --domain-context outputs/my-domain-case/context.json \
+  --seed 1204 --reset-seed 3 --steps 20 --cameras \
+  --output outputs/my-fresh-domain-fixture
+```
+
+`--seed` identifies scene generation; `--reset-seed` identifies the environment's
+spawn jitter. Reset seed defaults to 0 to preserve the historical pilot's
+behavior. Domain context requires `suite_version`, `split` and matching
+`scene_seed`; an optional `reset_seed` must match too. Case IDs, factor ranges,
+scheduled product names and manifest identity remain in privileged provenance.
+Exact config/context file hashes, effective scene configuration, model/XML hash,
+controller source and native sensor/camera contracts are recorded separately.
+These labels never enter `student_frames()`.
+
+Collection remains `purpose="pipeline_fixture"`, unsuccessful as a stocking task
+and training-ineligible, even for a held-out domain label or complete sensor
+capture. Multi-object/multi-shelf geometry validation does not prove that the
+stocking teacher handles that domain. Use randomized fixtures to validate sensing
+and data plumbing; report frozen-policy native task evaluations on disjoint seeds
+before claiming robustness or admitting successful task demonstrations. Do not
+train on the held-out evaluation cases.
+
+For a bounded supervised pilot, select at most two explicit **development** cases:
+
+```bash
+MUJOCO_GL=egl flock /tmp/abstract-stack-render.lock .venv/bin/python \
+  scripts/collect_lfd_pilot.py --case outputs/my-suite/cases/development-000 \
+  --case outputs/my-suite/cases/development-001 --steps 20 \
+  --wall-seconds 60 --output outputs/my-fresh-dr-sensing-pilot
+```
+
+The wrapper freezes its sources once into the shared store, hashes each case's
+config/context inputs, supervises fresh native processes and preserves failures
+and incomplete episodes. It rejects held-out cases. All outcomes stay fixture-only
+and training-ineligible; the report counts actual raw-image availability and
+explicitly makes no robustness claim. Render/native-heavy collection holds the
+shared lock, and every output directory must be fresh.
+
+The first DR pilot used `development-000` and `development-003` from
+`outputs/domain-randomization-v1/`. Each collected 20 transitions, 21 sensor
+snapshots and 42 available raw 160x120 RGB images under its 60 s process budget.
+The two cases passed 700 guarded physics steps each without guard incidents.
+The fixture holds the robot unloaded: it does not pick, insert, square or retreat.
+Generation seeds and reset seeds differ and both are preserved. Held-out cases
+were neither collected nor exported.
+
+The official local SDK exported/reloaded all 40 pre-action rows with exact raw
+PNG pixels, declared sensor/action values, masks and failure/ineligibility labels.
+The extra two terminal snapshots remain in the neutral episodes. A first reload
+failed because its default Hugging Face cache was outside the writable workspace;
+the failed process/log remains alongside the successful retry using
+`HF_HOME=outputs/cache/huggingface` and
+`HF_DATASETS_CACHE=outputs/cache/huggingface/datasets`. No native data was rerun
+or changed to address that environment failure.
 
 ## Student and teacher observations
 
@@ -131,8 +211,8 @@ The standalone fixture settles the native robot, captures measured proprioceptio
 and the virtual sensor suite before each decision, commands clean nominal holds
 through `MabelController`, and records applied compensated targets separately.
 `BaseContactGuard` samples each 2 ms physics step. It performs no pose writes,
-hidden attachments or external-force actions. Its camera channel is explicitly
-unavailable; no renderer runs.
+hidden attachments or external-force actions. By default its camera channel is
+explicitly unavailable and no renderer runs.
 
 The frozen ten-transition probe completed in 1.47 s wall time with a 30 s budget,
 at 50 Hz control and 500 Hz physics. It captured 11 snapshots of 177-dimensional
@@ -147,6 +227,57 @@ This is not a hook in the stocking loop: that loop applies finger compensation
 before some common-control hooks, so attaching a recorder afterward could lose
 the actual teacher reference. The later integration must capture the clean
 decision before **all** compensation and retain per-control action timing.
+
+## Opt-in synchronized raw cameras
+
+On a Linux EGL setup, a bounded collection command is:
+
+```bash
+flock -w 30 /tmp/abstract-stack-render.lock timeout 60s env MUJOCO_GL=egl \
+  MABEL_ROOT="$PWD/third_party/open_mabel" \
+  .venv/bin/python scripts/export_lfd_fixture.py \
+  --output outputs/my-fresh-camera-fixture --steps 5 --cameras \
+  --camera-width 160 --camera-height 120
+```
+
+The camera option adds raw `observation.images.zed_left` and
+`observation.images.stocking_third_person` HWC uint8 RGB at every control
+boundary, including the final next-observation. It leaves original camera
+poses and all physical geometry unchanged. Both views render sequentially
+while physics is paused, before the corresponding nominal action. Their
+sample timestamps equal that boundary's native physics time. This represents
+instantaneous ideal cameras; no exposure, readout, latency or noise is modeled.
+Rendering blocks collection, so 50 Hz simulation decisions do not imply 50 Hz
+wall-clock operation.
+
+`camera_captures.jsonl` records every attempted view's native capture/sample time,
+monotonic start/end times, availability and error. Monotonic times are local
+process diagnostics and never substitute for simulation timestamps or become
+student features. A render failure produces a zero image, false availability
+and sample time -1; it never reuses the last good frame. Invalid camera names
+or dimensions fail configuration. Framebuffer limits are respected without
+modifying the native model. The collector detects physics advancement during
+capture and aborts rather than labeling that frame synchronized.
+
+Camera provenance includes native IDs, parent bodies, local poses, camera modes,
+vertical FOV, image dimensions, renderer/version/backend and visibility options.
+The scene/model and source hashes bind the remaining camera configuration.
+Raw images contain no review overlays or target/annotation sites, and use no
+display cutaways. Default camera orientations may occlude useful task geometry;
+this fixture validates capture, not useful gaze or view selection.
+
+A source-frozen native probe collected five hold transitions and six paired
+snapshots. All 12 raw frames were available at 160x120; every image sample time
+matched its proprioception boundary. Collection completed in 4.93 s under its
+60 s budget. Copied sources, hashes, logs, raw PNG previews and the first strict
+SDK verification failure remain under `outputs/lfd-cameras-v1/frozen-run/` in
+the camera feature worktree. The corrected CPU-only export/reload each completed
+in about 2 s under separate 45 s budgets; results remain in
+`outputs/lfd-cameras-v1/export-fixed/verified/audit.json`, with a combined report
+at `outputs/lfd-cameras-v1/report.json`. Native rendering held the shared lock.
+The fixture outcome stays failure/no stocking attempted, training-eligible stays
+false and task credit stays zero. Synthetic dropped-frame tests cover masks;
+this native probe did not experience a camera dropout. No MP4 codec was tested.
 
 ## LeRobot adapter and local validation
 
@@ -200,6 +331,32 @@ attempt and the initial precision diagnostic are retained alongside it. No video
 was encoded or decoded: the raw camera feature is a masked, unavailable image,
 and this does not validate camera collection or codec operation.
 
+The later camera probe above separately validates nonzero raw image storage.
+The SDK writes embedded PNG pixels losslessly; `verify-lerobot` checks every
+stored uint8 pixel against the neutral episode. In LeRobot 0.7.0 the default
+`get_raw_item()` image path returns float32 CHW RGB divided by 255 even when
+the dataset constructor receives `return_uint8=True`. Verification checks that
+explicit normalization exactly, separately from lossless stored pixels. The
+older zero-only probe could not establish this image representation contract.
+
+For multiple episodes, scalar camera masks and sample times use
+`observation.camera_available.<index>` and
+`observation.camera_sample_time_s.<index>` in LeRobot. Version 0.7's statistics
+aggregator incorrectly treats any feature name containing `image` as RGB,
+including scalar auxiliary features. `collection_provenance.json` records the
+explicit mapping from neutral camera fields; neutral names remain unchanged.
+The verifier also accepts earlier exports without this mapping.
+
+Cross-scene export requires identical native sensor semantics and measured
+actuator ordering/units, as well as identical action, field and clock contracts.
+Per-episode camera calibration and source metadata remain in the sidecar. In the
+two DR fixtures all 59 actuator channels and 56 tactile channels have identical
+meanings; the robot-mounted camera's numeric ID changes while its named local
+calibration stays fixed. Tactile metadata currently uses native geom IDs for
+unnamed collision geoms. A scene change that shifts these IDs is conservatively
+rejected rather than silently merging channels; a stable body-local taxel schema
+is needed before admitting such episodes together.
+
 The SDK owns its relative `timestamp = frame_index/fps`. Native absolute clock
 values use the separate float64 `diagnostics.observation_time_s` feature and
 float64 sensor sample-time features. Parquet stores these doubles exactly, as
@@ -214,15 +371,43 @@ neutral episode's N+1 snapshots; the LeRobot rows contain N pre-action frames.
 read-only. Its MolmoBot exporter identifies itself as `emet-molmobot-jsonl`;
 that is not a real LeRobot v3 writer. No upstream source was copied or modified.
 
+## Small motion pilot
+
+The optional `--motion-profile` selects `hold`, `lift_pan`, `left_wrist_pan` or
+`right_wrist_tilt`. The motion profiles use small half-sine native actuator
+references, ending at the clean settled hold. They retain bounded compensation
+and all-product guards every 2 ms. `fixture_execution.json` records native guard
+counts, incidents, force peaks and controller limit reports. Configuration and
+environment reset-jitter seeds are distinct and now appear explicitly in
+provenance; configuration variation does not imply a different reset seed.
+
+The pilot collected exactly three independent processes, with configuration
+seeds 1201–1203 and reset-jitter seed 0: 20 transitions per process, 60 total,
+63 sensor snapshots and 126 raw camera images. Measured excursions included
+3.92 mm of lift, about 0.03 rad of wrist motion and about 0.06 rad of neck motion.
+All collection processes completed under their 60 s budgets; all task outcomes
+remain failure/no stocking attempted and training eligibility remains false.
+No extra episodes were collected after the initial combined SDK export failed.
+The corrected export/reload passed for all 60 rows, and backward verification
+passed on the earlier camera export. No student was trained or dataset uploaded.
+
+Reports, frozen sources, original records, source hashes, bounded commands and
+the retained SDK failure are under `outputs/lfd-pilot-v1/` in the camera worktree.
+Read `report.md` or `report.json` there for every scheduled outcome, measured
+motion and limitations. These are controller/sensing data, not successful grasp,
+insertion or contact-rich demonstrations. The actual wrists have not fully
+settled when the short episodes end; target return is not measured completion.
+
 ## Next learning milestones
 
-The focused suite currently has 17 LfD tests, including causal clocks, action
-contracts, privilege separation, interrupted outcomes, payload tampering and
-float32 overflow rejection. Nine sensor tests and four admittance/clock tests
-cover native measurement conventions, bounded feedback signs and exact forecast
-duration admission. All 30 passed
-together with native MABEL assets available. The official SDK roundtrip is
-separate retained process evidence; it is not replaced by an adapter mock.
+The focused LfD suite has 36 tests covering causal clocks, action contracts,
+privilege separation, interrupted outcomes, payload tampering, float32 overflow,
+native semantic compatibility, synchronized cameras, dropped-frame masks,
+physics-advancement rejection, exact image storage/reader checks, bounded motion,
+hashed domain identity and supervised pilot failure retention. They pass with
+native MABEL assets available.
+Sensor convention tests remain separate. The official SDK roundtrip is retained
+process evidence; it is not replaced by an adapter mock.
 
 Collect actual successful pick/carry/insert/retreat demonstrations with raw
 synchronized views, plus retained failures and recovery annotations. Freeze
