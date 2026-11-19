@@ -218,6 +218,11 @@ def _parser():
                 help="Fill a fresh dense row from the positive wall inward",
             )
             sub.add_argument(
+                "--center-last",
+                action="store_true",
+                help="Fill from alternating walls and leave the final slot near the center",
+            )
+            sub.add_argument(
                 "--guided-wall-entry",
                 action="store_true",
                 help="Use measured corner clearance during positive-wall row insertion",
@@ -604,6 +609,7 @@ def main(argv=None):
                         payload_wrist_compensation=args.payload_wrist_compensation,
                         paired_finger_insertion=args.paired_finger_insertion,
                         wall_packing=args.wall_packing,
+                        center_last=args.center_last,
                         live_guarded_withdrawal=args.live_guarded_withdrawal,
                         plan_driven=args.plan_driven,
                         guided_wall_entry=args.guided_wall_entry,

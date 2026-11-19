@@ -331,3 +331,25 @@ use `--withdrawal --stop-after=squared-contact` with a contact-refinement
 entry. A bounded backstop staging handoff carries its own evidence and can
 enter guarded refinement. Actual back contact and the squared dwell have
 separate fields. These standalone probes receive zero fresh credit.
+
+For the opt-in lateral insertion probe, unload before squaring and verify
+the displacement on the carton bottom. The center can move while the
+carton rocks and return when the hand opens. The `side_slide_unloaded`
+checkpoint records a retained shift after the tool exits. Its resume
+path performs a bounded square ahead of the occupied row and checks
+yaw and clearance again before advancing. This is a distinct staging
+boundary with zero stocking credit.
+
+The experimental `--center-last` order packs alternately from the two
+ends. It reserves measured space for unplaced widths and targets the
+outer boundary until both immediate neighbors are present. The
+center-slot advance checks the carton footprint against both neighbors.
+Use the matched center-last supply fixture if comparing the order without
+an early far-side inventory reach. The stock order requires paired
+insertion and a single dense row.
+
+`probe_front_release.py --bimanual-clear` moves both unloaded palms from
+a saved stocking milestone through one stationary shared-lift controller.
+It checks coupled geometry and measures both palm poses while monitoring
+every product. It is an empty-hand clearance primitive and earns zero
+stocking credit.

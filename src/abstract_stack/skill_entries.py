@@ -21,6 +21,7 @@ SKILL_PHASES = {
     "front_registered": "front_insertion",
     "free_landing_verified": "free_landing",
     "lateral_push": "side_registration",
+    "side_slide_unloaded": "side_slide_unloaded",
     "front_square_plan": "front_squaring",
     "front_squaring_complete": "front_squaring_complete",
     "contact_refine": "contact_refinement",
@@ -30,6 +31,10 @@ SKILL_PHASES = {
 }
 
 SKILL_CONTRACTS = {
+    "side_slide_unloaded": {
+        "entry": "Measured sideways displacement retained after checked unloading and exit",
+        "success": "Square and verify clearance before advancing; no stocking credit",
+    },
     "front_squaring_complete": {
         "entry": "Verified supported intermediate push with the pusher unloaded",
         "success": "Replan final forward insertion from the measured intermediate pose",
