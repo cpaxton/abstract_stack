@@ -57,15 +57,15 @@ class ShelfStockingEnv:
         return tuple(self.model.actuator(i).name for i in range(self.model.nu))
 
     def reset(self, *, seed: int | None = None) -> tuple[dict, dict]:
-        if seed is not None:
-            self._seed = seed
+        next_seed = self._seed if seed is None else seed
+        positions = initial_positions(self.config, self.products, next_seed)
+        self._seed = next_seed
         if self.model.nkey:
             # MABEL's LiDAR <replicate> expands home to home000, home001, ... .
             mujoco.mj_resetDataKeyframe(self.model, self.data, 0)
         else:
             mujoco.mj_resetData(self.model, self.data)
         self.data.qpos[:] = self._spawn_qpos
-        positions = initial_positions(self.config, self.products, self._seed)
         for position, joint in zip(positions, self._product_joints, strict=True):
             qadr = int(joint.qposadr[0])
             self.data.qpos[qadr : qadr + 3] = position

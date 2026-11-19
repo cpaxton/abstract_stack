@@ -33,9 +33,16 @@ def validate_targets(
             aid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, name)
             if aid < 0:
                 raise ValueError(f"Unknown actuator: {name}")
+            if np.iscomplexobj(value):
+                raise ValueError("Actuator targets must be real")
             targets[aid] = value
     else:
-        targets = np.asarray(action, dtype=float).copy()
+        values = np.asarray(action)
+        if np.iscomplexobj(values) or (
+            values.dtype.kind == "O" and any(np.iscomplexobj(value) for value in values.flat)
+        ):
+            raise ValueError("Actuator targets must be real")
+        targets = values.astype(float)
     if targets.shape != (model.nu,) or not np.isfinite(targets).all():
         raise ValueError(f"Action must contain {model.nu} finite actuator targets")
     for aid in np.flatnonzero(model.actuator_ctrllimited):
