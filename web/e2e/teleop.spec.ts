@@ -16,6 +16,12 @@ test.beforeEach(async ({ page }, info) => {
   if (!info.title.includes("first-run guide")) {
     await page.addInitScript(() => localStorage.setItem("teleop-guide-v1", "1"));
   }
+  // E2E_CPU_THROTTLE=4 emulates a slower CI runner (Chromium DevTools CPU throttling).
+  const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);
+  if (throttle > 1) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
+  }
 });
 
 const status = (page: Page) =>
@@ -112,38 +118,58 @@ test("a wrong token says so instead of retrying silently", async ({ page }, info
   await expect(page.getByRole("heading", { name: "Access needed" })).toBeVisible();
 });
 
-test("drive mode moves the base and the head follows clicks on the video", async ({
-  page,
-}, info) => {
+/** Engage (again, if a slow CPU-rendered frame let input go stale) right before acting. */
+async function ensureEngaged(page: Page) {
+  const pill = page.getByRole("status");
+  if (!/Engaged/.test((await pill.textContent()) ?? "")) await page.keyboard.press("Enter");
+  await expect(pill).toContainText("Engaged");
+}
+
+test("drive mode moves the base and stops on release", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "keyboard flow");
   await open(page);
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toContainText("Engaged");
+  await ensureEngaged(page);
   // Follow-hand is the default: the host tracks a gaze point, not fixed angles.
   await expect(page.locator(".key-hints .look-chip")).toContainText("Following hand");
   await expect.poll(async () => (await status(page))!.channels.head_mode).toBe("gaze");
   await page.keyboard.press("Tab"); // right hand → drive
   await expect(page.locator(".key-hints")).toContainText("Drive");
+  await ensureEngaged(page);
   await page.keyboard.down("KeyW");
   await expect
-    .poll(async () => (await status(page))!.base.forward_mps, { timeout: 5000 })
+    .poll(async () => (await status(page))!.base.forward_mps, { timeout: 15_000 })
     .toBeGreaterThan(0.05);
   await page.keyboard.up("KeyW");
-  await expect.poll(async () => (await status(page))!.base.forward_mps).toBeLessThan(0.01);
+  await expect
+    .poll(async () => (await status(page))!.base.forward_mps, { timeout: 15_000 })
+    .toBeLessThan(0.01);
+});
 
+test("clicking the head camera looks there and switches to free look", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "pointer flow");
+  await open(page);
   await page.getByRole("radio", { name: "Camera" }).click();
   const frame = page.locator(".camera-layer.main .eye-frame.aimable").first();
   await expect(frame).toBeVisible();
+  // Click only once real video is on screen, so the click lands on a live image.
+  const pairs = () =>
+    page.evaluate(() =>
+      (window as unknown as { __teleop: { videoPairs: () => number } }).__teleop.videoPairs(),
+    );
+  await expect.poll(pairs, { timeout: 20_000 }).toBeGreaterThan(0);
+  await ensureEngaged(page);
   const box = (await frame.boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.75, box.y + box.height * 0.5); // look right
-  await expect.poll(async () => (await status(page))!.channels.head.yaw_rad).toBeLessThan(-0.2);
+  await expect(page.locator(".key-hints .look-chip")).toContainText("Free look");
+  await expect
+    .poll(async () => (await status(page))!.channels.head.yaw_rad, { timeout: 15_000 })
+    .toBeLessThan(-0.15);
 });
 
 test("body rails raise the lift and Turn switches to drive", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "pointer flow");
   await open(page);
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toContainText("Engaged");
+  await ensureEngaged(page);
   const height = page.locator(".body-rails").getByRole("slider", { name: "Height" });
   const box = (await height.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.6);

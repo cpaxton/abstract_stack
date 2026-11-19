@@ -240,6 +240,10 @@ is the Quest contract's observation-age budget.
 ## Tests
 
 ```bash
+# The host needs only the teleop extra; the WebSocket tests also need httpx from the
+# ci group (they skip with this hint otherwise). The repo pins Python 3.11
+# (.python-version): a transitive open3d dependency has no 3.12 wheel.
+uv sync --extra teleop --group ci
 MUJOCO_GL=cgl ./scripts/test.sh tests/test_web_teleop.py -q   # protocol, state machine, tracking, sockets
 cd web && npm run lint && npm run typecheck && npm test && npm run build
 cd web && npx playwright install chromium && npm run e2e   # launches a real host on :8799
@@ -257,10 +261,17 @@ The native tests check:
 - `QTP1` framing, and a real stereo render streamed over the video socket
   (both eyes, with measurable parallax).
 
-The browser e2e test exercises connect, keyboard jog, pause on input loss,
-stereo video and the touch layout. Headless Chromium rasterises WebGL on the
-CPU, so the tests use `?quality=low` and the e2e host runs with
-`--input-timeout 0.8`.
+The browser e2e tests exercise connect, keyboard jog, pause on input loss,
+stereo video, driving, click-to-look, the body rails, the first-run guide and
+the touch layout. Headless Chromium on Linux rasterises WebGL on the CPU (about
+1–10 fps), which stalls the main thread between frames. The tests therefore
+use `?quality=low`, re-engage right before each action, and run the host with
+`--input-timeout 2.0`. Input-loss pausing has its own e2e test and is also
+covered natively.
+
+On macOS the tests use the GPU. `E2E_GPU=0` forces CPU rendering, and
+`E2E_CPU_THROTTLE=4` emulates a slower runner, for example
+`E2E_GPU=0 E2E_CPU_THROTTLE=4 npm run e2e`.
 
 ## Limitations
 

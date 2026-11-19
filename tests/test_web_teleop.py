@@ -91,6 +91,16 @@ def test_state_frame_round_trip():
         protocol.unpack_state(frame[:-4])
 
 
+def _test_client():
+    """Starlette's TestClient needs httpx (``ci`` group), not the runtime ``teleop`` extra."""
+    pytest.importorskip(
+        "httpx", reason="WebSocket tests need httpx: uv sync --extra teleop --group ci"
+    )
+    from starlette.testclient import TestClient
+
+    return TestClient
+
+
 # -- native MABEL ------------------------------------------------------------------------
 
 
@@ -282,7 +292,7 @@ def test_model_export_is_consistent(clear_env, tmp_path, monkeypatch):
 
 @pytest.mark.mabel
 def test_websocket_handshake_auth_and_state_stream(clear_env, tmp_path, monkeypatch):
-    from starlette.testclient import TestClient
+    TestClient = _test_client()
     from starlette.websockets import WebSocketDisconnect
 
     from abstract_stack.web_teleop.core import TeleopCore
@@ -348,7 +358,8 @@ def test_video_socket_streams_stereo_head_camera_pairs(clear_env, tmp_path, monk
     import io
 
     from PIL import Image
-    from starlette.testclient import TestClient
+
+    TestClient = _test_client()
 
     from abstract_stack.web_teleop.core import TeleopCore
     from abstract_stack.web_teleop.server import TeleopServer
