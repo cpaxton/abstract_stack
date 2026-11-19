@@ -15,5 +15,6 @@
   "target_gap": 0.045,
   "spawn_jitter": 0.008,
   "robot_xy": [0.0, 0.0],
-  "robot_yaw": 0.0
+  "robot_yaw": 0.0,
+  "spawn_lift_offset": 0.05
 }

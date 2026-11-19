@@ -33,6 +33,9 @@ class ShelfConfig:
     spawn_jitter: float = 0.008
     robot_xy: tuple[float, float] = (0.0, 0.0)
     robot_yaw: float = 0.0
+    # Lower MABEL's lift by this much (m) at reset so the upstream home pose does
+    # not start with fingers inside a shelf board. 0 keeps the upstream pose.
+    spawn_lift_offset: float = 0.0
     timestep: float = 0.002
     frame_skip: int = 10
     time_limit: float = 120.0
@@ -109,6 +112,8 @@ class ShelfConfig:
             raise ValueError("target_gap must be finite and nonnegative")
         if not math.isfinite(self.spawn_jitter) or not 0 <= self.spawn_jitter <= 0.02:
             raise ValueError("spawn_jitter must be between 0 and 0.02 m")
+        if not math.isfinite(self.spawn_lift_offset) or not 0 <= self.spawn_lift_offset <= 0.15:
+            raise ValueError("spawn_lift_offset must be between 0 and 0.15 m")
         if self.environment not in ("studio", "small_house"):
             raise ValueError("environment must be 'studio' or 'small_house'")
         if self.product_kind not in ("mixed", "carton"):

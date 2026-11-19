@@ -9,5 +9,6 @@
   "width": 0.62,
   "product_count": 18,
   "initially_stocked": 12,
-  "target_gap": 0.012
+  "target_gap": 0.012,
+  "spawn_lift_offset": 0.05
 }

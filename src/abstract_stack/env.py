@@ -41,6 +41,15 @@ class ShelfStockingEnv:
         self._renderer = None
         self._seed = seed
         self._spawn_qpos = self.model.qpos0.copy()
+        if robot and self.config.spawn_lift_offset:
+            # Both lift stages carry half of the extension (see the Lift tendon).
+            for name in ("Lift Lower", "Lift Upper"):
+                joint = self.model.joint(name)
+                qadr = int(joint.qposadr[0])
+                self._spawn_qpos[qadr] = max(
+                    float(joint.range[0]),
+                    self._spawn_qpos[qadr] - self.config.spawn_lift_offset / 2,
+                )
         self._product_bodies = np.array(
             [self.model.body(p.name).id for p in self.products], dtype=int
         )

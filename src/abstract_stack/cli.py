@@ -110,9 +110,9 @@ def _parser():
             sub.add_argument(
                 "--spawn-backoff",
                 type=float,
-                default=0.15,
-                help="Start MABEL this many metres further back from the shelf: the bundled "
-                "scenes spawn its fingers inside the shelf front (0 keeps the scene as is)",
+                default=0.0,
+                help="Start MABEL this many metres further back from the shelf for more arm "
+                "room (default 0 keeps the scene placement)",
             )
             sub.add_argument(
                 "--input-timeout",

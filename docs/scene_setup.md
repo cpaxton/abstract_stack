@@ -126,6 +126,7 @@ work with `sim`, `inspect`, `export`, `serve`, and `build-scene`.
 | `target_gap` | `0.045` | Edge-to-edge target spacing along Y. |
 | `spawn_jitter` | `0.008` | Maximum seeded supply-position jitter per horizontal axis. |
 | `robot_xy`, `robot_yaw` | `[0.0, 0.0]`, `0.0` | MABEL's initial base position and heading. |
+| `spawn_lift_offset` | `0.0` | Lower the lift by this many metres at reset (max 0.15). The stocking, tight, empty and house presets use `0.05` so the upstream home pose does not start with fingers inside shelf board 1. |
 | `environment` | `"studio"` | Bare scene, or `"small_house"` to include the furnished house. |
 | `product_kind`, `carton_size` | `"mixed"`, `[0.09, 0.07, 0.17]` | Mixed bottles/cartons or `"carton"` only; carton full XYZ dimensions. |
 | `target_back_gap` | `null` | Gap from the box back face to the shelf back; null keeps centred targets. |

@@ -45,7 +45,7 @@ explicitly. `?quality=low` forces the light render path, which the client also
 switches to automatically when the frame rate drops. Low quality also loads a
 simplified twin mesh (800 faces per mesh); the default is full resolution.
 
-Useful options: `--scene`, `--seed`, `--spawn-backoff` (default 0.15 m; see
+Useful options: `--scene`, `--seed`, `--spawn-backoff` (default 0 m; see
 below), `--time-limit` (default 3600 simulated
 seconds), `--input-timeout` (default 0.15 s), `--face-budget` (0 = full-resolution
 twin), `--no-video`, `--video-fps` (default 20), `--video-size` (default
@@ -105,11 +105,12 @@ the robot's own heading; the 3D view follows the robot. The base ramps up gently
 (0.45 m/s and 0.9 rad/s maximum). It brakes as soon as input stops, control
 pauses, the connection drops, or the chassis tilts past 8°.
 
-**Spawn backoff.** Every bundled scene spawns MABEL with its fingers inside the
-shelf front. The hooked hands then pull the robot over as soon as the arms or the
-base move (measured: 11–55° tilt). Teleop therefore starts MABEL 0.15 m further
-back (`--spawn-backoff 0` keeps the scene placement). The scenes themselves are
-unchanged, and the operator can drive up to the shelf.
+**Spawn backoff.** The stocking-family scenes lower MABEL's lift by 5 cm at reset
+(`spawn_lift_offset`), so the hands start inside the lower shelf bay without
+touching board 1. Previously the fingers began 20–25 mm inside it, and the hooked
+hands tipped the robot (11–55°) as soon as the arms or base moved. Moving to Ready
+from that spawn now makes no shelf contact. `--spawn-backoff` (metres) still starts
+MABEL further from the shelf if you want more room before moving the arms.
 
 The head camera and the 3D twin swap between the main view and a
 picture-in-picture. `zed_left` and `zed_right` are a 63 mm stereo pair, so the
@@ -279,10 +280,9 @@ On macOS the tests use the GPU. `E2E_GPU=0` forces CPU rendering, and
   but uses about 6 Mbit/s. For internet use, H.264 over WebRTC with
   congestion control is the planned upgrade. Wrist cameras are not streamed
   yet.
-- **The stock scenes start with fingers intersecting the shelf.** In every
-  bundled scene, MABEL's index or thumb links already penetrate the shelf at
-  reset. Teleop's default `--spawn-backoff` avoids this; the scenes still need
-  a proper fix.
+- **Two scenes keep a small reset contact.** `pick_place` keeps its documented
+  right-thumb/shelf-side contact (about 4 mm). `house_tight`'s narrow, offset
+  shelf grazes the right ring finger (1.4 mm), which clears on the first step.
 - **Head aiming from the image is approximate.** It uses a small-angle model
   that ignores the camera's offset from the neck axes; a second click refines
   the aim. Neck roll is not exposed.
