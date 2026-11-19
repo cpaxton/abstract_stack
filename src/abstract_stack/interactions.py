@@ -97,6 +97,7 @@ class ScriptConfig:
     minimum_lift_reference_m: float = 0.03
     paired_finger_insertion: bool = False
     wall_packing: bool = False
+    center_last: bool = False
     live_guarded_withdrawal: bool = False
     plan_driven: bool = False
     guided_wall_entry: bool = False
@@ -119,6 +120,7 @@ class ScriptConfig:
         values.pop("payload_wrist_compensation")
         values.pop("paired_finger_insertion")
         values.pop("wall_packing")
+        values.pop("center_last")
         values.pop("live_guarded_withdrawal")
         values.pop("plan_driven")
         values.pop("guided_wall_entry")
@@ -163,6 +165,10 @@ class ScriptConfig:
             and not self.paired_finger_insertion
         ):
             raise ValueError("Wall packing requires the dense selected-finger protocol")
+        if type(self.center_last) is not bool or (
+            self.center_last and (self.wall_packing or not self.paired_finger_insertion)
+        ):
+            raise ValueError("Center-last needs paired insertion and its own row order")
         if type(self.live_guarded_withdrawal) is not bool or (
             self.live_guarded_withdrawal and not self.ungrasped_insertion
         ):
@@ -1878,7 +1884,7 @@ class StockingScript(SelectedFingerInsertion):
         )
         return grasp_grip
 
-    def _transfer_and_place_front(self, grasp_grip):
+    def _transfer_and_place_front(self, grasp_grip, *, already_clear=False):
         env, config, product = self.env, self.config, self.product
         actual = env.data.body(product.name).xpos.copy()
         if config.grasp_skill:
@@ -1891,10 +1897,15 @@ class StockingScript(SelectedFingerInsertion):
         offset = self.controller.position() - actual
         placement = np.array(product.target)
         placement[0] = self._front_center_x(product.half_size[0])
+        if getattr(self, "front_lead_y_m", 0.0):
+            placement[0] += self.front_landing_x_offset_m
         placement[1] = self._front_reference_y()
-        self._move(
-            "carry_clear", self.controller.position() + [0, 0, config.carry_clearance], grasp_grip
-        )
+        if not already_clear:
+            self._move(
+                "carry_clear",
+                self.controller.position() + [0, 0, config.carry_clearance],
+                grasp_grip,
+            )
         if config.grasp_skill and config.payload_wrist_compensation:
             body = env.data.body(product.name)
             extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
@@ -2297,19 +2308,28 @@ class StockingScript(SelectedFingerInsertion):
         pending = [
             p for p in self.env.products if not p.initially_stocked and p.name not in completed
         ]
-        if self.config.wall_packing:
+        if self.config.wall_packing or self.config.center_last:
             if self.env.config.row_free_space is None or self.env.config.initially_stocked:
                 raise ValueError("Wall packing requires a fresh, single dense carton row")
-            pending.sort(key=lambda p: p.target[1], reverse=True)
+            if self.config.center_last:
+                if len(self.env.config.levels) != 1:
+                    raise ValueError("Center-last requires a single shelf row")
+                from abstract_stack.packing import outside_in_order
+
+                order = outside_in_order(p for p in self.env.products if not p.initially_stocked)
+                pending = [p for p in order if p in pending]
+            else:
+                pending.sort(key=lambda p: p.target[1], reverse=True)
         while pending:
-            choices = pending[:1] if self.config.wall_packing else pending
+            ordered = self.config.wall_packing or self.config.center_last
+            choices = pending[:1] if ordered else pending
             selected = self._select_grasp(choices) if self.config.adaptive_grasps else None
             if selected is None:
                 self.product = pending[0]
-            if self.config.wall_packing:
+            if ordered:
                 self._stage("wall_packing_plan")
                 self.events[-1].update(
-                    order="positive wall inward",
+                    order="outside in" if self.config.center_last else "positive wall inward",
                     canonical_task_target_m=list(self.product.target),
                     total_free_row_width_m=self.env.config.row_free_space,
                     completed_neighbors=sorted(self.observer.completed),

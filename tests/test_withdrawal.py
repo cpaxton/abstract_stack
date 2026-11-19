@@ -48,7 +48,7 @@ def squared_world():
         mujoco.mj_step(model, data)
         mujoco.mj_forward(model, data)
         assert monitor.sample(data, elapsed=0.002) is None
-        dwell.update(data.time, monitor.last, data.xmat[model.body("active").id].reshape(3, 3))
+        dwell.update(data.time, monitor.last, data.xmat[monitor.active].reshape(3, 3))
     assert dwell.verified
     return model, data, monitor, dwell
 
@@ -91,7 +91,7 @@ def test_withdrawal_preserves_all_product_tip_guard():
     model, data, monitor, dwell = squared_world()
     monitor.begin_withdrawal(data, dwell)
     # Deliberate reset-only fault fixture, not a claimed physical manipulation.
-    body = model.body("other").id
+    body = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "other")
     address = int(model.jnt_qposadr[model.body_jntadr[body]])
     data.qpos[address + 3 : address + 7] = [np.cos(np.pi / 6), np.sin(np.pi / 6), 0, 0]
     mujoco.mj_forward(model, data)

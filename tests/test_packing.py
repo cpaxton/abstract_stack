@@ -164,3 +164,53 @@ def test_dense_native_reset_and_export_preserve_explicit_parked_pose(tmp_path, c
         assert np.linalg.norm(env.data.body("mabel_chassis").xpos - origin) < 0.01
     finally:
         env.close()
+
+
+def test_outside_in_order_leaves_central_slot_and_checks_both_boundaries():
+    from abstract_stack.packing import is_two_sided_slot, open_slot_interval, outside_in_order
+
+    config = load_scene_config("configs/scenes/tight_ten_cartons_20mm.json")
+    products = products_for(config)
+    ordered = outside_in_order(products)
+    assert [p.name for p in ordered] == [
+        "carton_9",
+        "carton_0",
+        "carton_8",
+        "carton_1",
+        "carton_7",
+        "carton_2",
+        "carton_6",
+        "carton_3",
+        "carton_5",
+        "carton_4",
+    ]
+    bodies = {
+        product.name: SimpleNamespace(xpos=np.asarray(product.target), xmat=np.eye(3).ravel())
+        for product in products
+    }
+    env = SimpleNamespace(
+        config=config, products=products, data=SimpleNamespace(body=bodies.__getitem__)
+    )
+    active = ordered[-1]
+    assert not is_two_sided_slot(env, active, {"carton_9"})
+    lower, upper = open_slot_interval(env, active, {"carton_9"})
+    assert lower == pytest.approx(config.center_y - config.width / 2 + 4.5 * 0.05)
+    assert upper == pytest.approx(products[9].target[1] - 5 * 0.05)
+    complete = {p.name for p in ordered[:-1]}
+    assert is_two_sided_slot(env, active, complete)
+    lower, upper = open_slot_interval(env, active, complete)
+    assert lower < active.target[1] < upper
+    bodies["carton_3"].xpos[1] += 0.005
+    assert open_slot_interval(env, active, complete)[0] > upper
+
+
+def test_center_last_supply_order_only_reassigns_inventory_positions():
+    original = products_for(load_scene_config("configs/scenes/tight_ten_cartons_20mm.json"))
+    config = load_scene_config("configs/scenes/tight_ten_cartons_20mm_center_last.json")
+    reordered = products_for(config)
+
+    assert [p.target for p in reordered] == [p.target for p in original]
+    assert sorted(p.spawn for p in reordered) == sorted(p.spawn for p in original)
+    assert reordered[0].spawn == original[8].spawn
+    with pytest.raises(ValueError, match="Supply order"):
+        products_for(replace(config, supply_order=(0,) * 10))

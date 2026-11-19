@@ -48,6 +48,7 @@ class ShelfConfig:
     target_back_gap: float | None = None
     carton_size: tuple[float, float, float] = (0.09, 0.07, 0.17)
     row_free_space: float | None = None
+    supply_order: tuple[int, ...] | None = None
     # Optional numerical contact recipe; None preserves the upstream defaults.
     contact_impratio: float | None = None
     rigid_fixture_contacts: bool = False
@@ -254,7 +255,18 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
         raise ValueError(
             "Supply products do not fit on the table; enlarge table_size or prefill more items"
         )
-    supply_index = 0
+    supply_order = (
+        sorted(set(range(count)) - prefilled)
+        if config.supply_order is None
+        else config.supply_order
+    )
+    if (
+        any(type(index) is not int for index in supply_order)
+        or len(supply_order) != supply_count
+        or set(supply_order) != set(range(count)) - prefilled
+    ):
+        raise ValueError("Supply order must list each non-prefilled product index once")
+    supply_index_by_product = {index: rank for rank, index in enumerate(supply_order)}
     for i in range(count):
         bottle = config.product_kind == "mixed" and i % 2 == 1
         half_size = (0.034, 0.034, 0.11) if bottle else tuple(v / 2 for v in config.carton_size)
@@ -296,12 +308,12 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
         if i in prefilled:
             spawn = (target[0], target[1], target[2] + 0.003)
         else:
+            supply_index = supply_index_by_product[i]
             spawn = (
                 config.supply_xy[0] + (supply_index % columns - (columns - 1) / 2) * stride_x,
                 config.supply_xy[1] + (supply_index // columns - (rows - 1) / 2) * stride_y,
                 config.table_top + half_size[2] + 0.003,
             )
-            supply_index += 1
         products.append(
             Product(
                 name=(

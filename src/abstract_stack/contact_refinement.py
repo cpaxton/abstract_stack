@@ -25,11 +25,14 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
         and not 0.3 <= normal_target_N <= config.insertion_back_force_target
     ):
         raise ValueError("Release preload must stay between .3 N and the insertion target")
+    horizon = getattr(script, "refinement_horizon_s", 0.2)
+    candidate_count = 16 if getattr(script, "refinement_pad_angles", False) else 10
     script._stage("contact_refine")
     event = script.events[-1]
     event.update(
         maximum_replans=20,
-        horizon_s=0.2,
+        maximum_candidates=candidate_count,
+        horizon_s=horizon,
         controller_yaw_goal_deg=config.pre_release_yaw_goal_deg,
         controller_yaw_target_deg=float(yaw_target_deg),
         unchanged_contact_yaw_criterion_deg=0.15,
@@ -104,7 +107,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
         error = yaw - np.radians(yaw_target_deg)
         velocity = np.empty(6)
         mujoco.mj_objectVelocity(model, data, mujoco.mjtObj.mjOBJ_BODY, monitor.active, velocity, 0)
-        integral -= 0.03 * error * 0.2
+        integral -= 0.03 * error * horizon
         lever = float(
             np.clip(
                 -config.insertion_yaw_lever_gain * error + integral - 0.01 * velocity[2],
@@ -120,7 +123,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             integral = 0.0
             center = float(data.xpos[monitor.active, 1])
             error_y = lateral_reference - center
-            lateral_bias = float(np.clip(lateral_bias + 2 * error_y * 0.2, -0.006, 0.006))
+            lateral_bias = float(np.clip(lateral_bias + 2 * error_y * horizon, -0.006, 0.006))
             goal = float(np.clip(center + error_y + lateral_bias, center - 0.006, center + 0.006))
             goal = float(np.clip(goal, lower[1], upper[1]))
             measured = float(hand.position()[1])
@@ -130,7 +133,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             plane_goal = np.radians(yaw_target_deg) - 2 * error
             plane_error = hand.contact_plane_yaw() - plane_goal
             plane_bias = float(
-                np.clip(plane_bias - 2 * plane_error * 0.2, -np.radians(3), np.radians(3))
+                np.clip(plane_bias - 2 * plane_error * horizon, -np.radians(3), np.radians(3))
             )
             c, s = np.cos(plane_bias), np.sin(plane_bias)
             hand.active_rotation = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]) @ hand.ROTATION
@@ -151,8 +154,8 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             wrench_on_hand_world=wrench,
             lower_xyz=lower,
             upper_xyz=upper,
-            horizon_s=0.2,
-            max_candidates=10,
+            horizon_s=horizon,
+            max_candidates=candidate_count,
             wall_seconds=10,
             admittance=policy,
             lateral_goal_m=goal,

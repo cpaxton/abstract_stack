@@ -697,3 +697,286 @@ for the final two cartons. It specifies a new scene, so that calculation is
 a geometric comparison and the actual run must measure its own open span.
 Nominal targets divide the free-space budget across the eleven carton and
 wall gaps (1.82 mm each). The 510 mm scene remains the 10 mm benchmark.
+
+`tight-ten-20mm-fresh-01` ran from reset at seed 0 using the composed plan,
+guided wall entry, and live-guarded withdrawal at source revision `8b72b50`.
+It saved four retreat milestones. The fourth checkpoint retains strict
+0.15 degree release evidence for cartons one, three, and four, and a
+coarse release for carton two. There were zero incidents through that
+checkpoint. The supervised process then stopped with SIGSEGV during the
+unloaded base move for carton five. The fresh terminal outcome is unknown
+and receives no full-task credit.
+
+The traceback points at the carton-pair contact iterator. The follow-up
+uses MuJoCo's indexed contact-geom column in the same force-summing guard
+and resumes from the fourth milestone in
+`tight-ten-20mm-from-four-indexed-01`. This is a checkpoint continuation.
+
+The indexed continuation passed the prior crash boundary, picked and seated
+carton five, and reached its backstop. It recorded 0.455 N backstop contact
+and 1.685 N shelf support at the stop. The squared-contact search exhausted
+20 replans without verifying the dwell, so retreat never completed.
+Four cartons remain verified and there were zero incidents in the
+continuation. The terminal fixture is
+`episode/skill-entries/010-carton_5-motion_failure/checkpoint` under the
+continuation directory.
+
+### Carton-five refinement retry
+
+`tight-ten-20mm-fifth-retry-01` resumed the terminal contact-refinement
+failure with the existing force and motion guards. The second bounded
+search still did not verify strict contact dwell. The existing guarded
+development exit became eligible and saved a five-carton milestone with
+final yaw -0.182 degrees and zero incidents. This continuation earns zero
+fresh credit and the strict release flag is false.
+
+The matched `tight-ten-20mm-fifth-square-first-01` trial ranked yaw
+correction ahead of lateral registration while outside the strict yaw
+gate. It also saved a development retreat, with final yaw -0.313 degrees
+and no strict release credit. This alternate candidate ranking was not
+promoted to the default policy. Its pinned source remains with the probe.
+
+`tight-ten-20mm-from-five-01` picked and seated carton six, then stopped at
+the intermediate squaring depth with 2.59 degrees of yaw. The active
+carton's rotated corner still exceeded the lateral clearance limit, so
+the controller continued steering sideways and did not complete the
+square/unload handoff.
+
+`tight-ten-20mm-sixth-square-at-stop-01` gave yaw correction priority in
+the existing 5 mm depth band around that intermediate stop, ahead of the
+occupied row. It reduced end yaw to 0.208 degrees, but still finished about
+4.1 mm toward the occupied side of the lateral goal. Both measured gates
+remain required. A combined run (`tight-ten-20mm-sixth-offset-square-01`)
+started from the saved loaded release entry, landed 6 mm farther toward
+the open side, and enabled the same squaring priority. It passed both gates,
+then passed strict release, ending at 0.0013 degrees yaw with zero
+incidents. The new priority branch did not activate on the successful
+trajectory, so the exploratory branch was removed from the working
+controller. The offset trial saved the six-carton milestone and earns
+zero fresh credit.
+
+The next continuation (`tight-ten-20mm-from-six-01`) passed carton
+seven's insertion and then stopped in contact refinement at 1.067 degrees
+yaw. The guarded restart at the terminal failure state
+(`tight-ten-20mm-seventh-retry-01`) passed strict release at -0.00009
+degrees final yaw, with no incidents, and saved a seven-carton milestone.
+The 520 mm chain through that milestone has five strict-release cartons
+and two development-only withdrawals (cartons two and five).
+
+The eighth carton in `tight-ten-20mm-from-seven-01` stopped at the unloaded
+stationary opening check. The predicted ring-finger sweep intersected the
+negative side panel. The explicit 4 mm front-depth offset in
+`tight-ten-20mm-eighth-shallow-01` resumed the same supported release entry.
+It passed opening, measured shelf support, insertion, and the development
+withdrawal at 0.656 degrees final yaw. It saved a milestone with eight
+verified retreats, including five strict releases, and zero incidents.
+
+The final reserve replay `tight-ten-20mm-from-eight-01` stopped before the
+ninth grasp. It measured 92.60 mm of open span for two 50 mm cartons, a
+7.40 mm shortfall. This is a measured capacity stop after placement drift
+in the 520 mm fixture. Cartons nine and ten were not attempted.
+
+### Pressing the stocked row
+
+At the 520 mm eight-carton milestone the measured gap between cartons
+seven and eight is 7.93 mm, versus a 7.40 mm reserve shortfall at the open
+end. Pressing carton eight toward the occupied wall can recover the
+internal gap in principle. Once the cartons touch, lateral contact can
+transmit load through the row. The native guards still sum all contact
+normals for each carton pair and wall and check every product for tips
+and drops.
+
+The exposed-side press probes targeted 7.9 mm of lateral travel.
+`tight-ten-20mm-row-press-01` and `-03` rejected base approaches 140
+and 80 mm closer to the shelf. `-02` completed the lateral reposition
+at the existing standoff, then found no checked side-push approach.
+The front-face variant `tight-ten-20mm-front-row-press-02` reused the
+force-guided tangent press and rejected its raised precontact poses.
+These are reach and path failures before a press.
+
+A higher-preload comparison `tight-ten-20mm-row-press-loaded-01`
+started at carton eight's retained loaded release entry. Increasing the
+normal target from 2 N to 3 N passed strict release and ended at -0.020
+degrees yaw, with no incidents. It did not recover the required lateral
+space. Normal preload and lateral compaction have separate outcomes.
+
+Three more comparisons used the identical loaded eighth-carton checkpoint.
+`tight-ten-20mm-row-press-loaded-02` reduced backstop target to 0.6 N and
+ended in the development exit at 0.387 degrees yaw. Its lateral gain
+override applies to insertion feedback and does not change the
+refinement controller's fixed lateral gain. `-03` kept the 0.6 N target
+and used 400 ms bounded refinement prefixes. `-04` also enabled the
+existing pitch candidates, allowing up to 16 candidates per refinement
+cycle. Both longer-horizon probes passed strict release, with final yaw
+below 0.001 degrees in magnitude and zero incidents.
+
+The final open span remained approximately 92.7 mm. The broader search
+selected a pitched candidate for depth advance, then held in 18 of 20
+cycles. The moving lateral candidates typically forecast displacement
+toward the open end, opposite the desired compaction. The unchanged
+force and geometry guards evaluated each applied prefix. These trials
+validated squaring from the loaded pose; lateral compaction and resumed
+carton-nine stocking remain unverified.
+
+A later lateral-only comparison starts from the strict eight-carton
+milestone `tight-ten-20mm-row-press-loaded-04`. The native side approach
+targets the leading part of the exposed face from both the shelf standoff
+and a 40 mm closer base position. Neither found a checked approach.
+A scratch endpoint screen across five base poses and both arms admitted
+none of its 90 candidates. Right-hand tips in that screen use a mirrored
+reference, so this is approximate reach evidence. Expanding the left
+search over roll, tilt and height found precise side-contact endpoints at
+the deep carton, but those placed the palm or thumb through the side
+panel. Endpoint screening does not certify a swept path.
+
+At the earlier post-square boundary the left arm has more room.
+`tight-ten-20mm-side-interleaved-03` cleared the retained pusher, moved the
+base, and executed an exposed-side push. It moved 3.06 mm in the intended
+direction, but yaw was -1.75 degrees and the existing loaded dwell rejected
+the handoff. Trial `-04` shifted the contact patch toward the carton
+center. It met loaded dwell at 2.51 mm displacement and 0.071 degrees
+yaw, but the straight unload exceeded bounded Cartesian reach. Both runs
+recorded zero incidents and retain the stopped states.
+
+The two-leg unload in `tight-ten-20mm-side-interleaved-06` cleared the
+tool, but the center displacement vanished. An exact replay reproduced
+the terminal integration state bit for bit. At the loaded handoff the
+center had moved 2.51 mm and the carton had rocked 1.22 degrees. The
+center of its bottom face had moved less than 0.01 mm.
+
+The low contact in `tight-ten-20mm-side-interleaved-bottom-01` used the
+projected center of the carton bottom for braking and kept the existing
+center, yaw and unload checks. It translated the bottom about 4.1 mm
+against a 3 mm goal. The slower 1.2 N target trial
+(`tight-ten-20mm-side-interleaved-slow-01`) reached the 3 mm bottom-face
+goal, but retained 1.69 degrees yaw. Neither passed the lateral skill's
+dwell and unloading contract. The direct lateral motion occurs before
+forward insertion, where the side panel allows the required hand pose.
+
+The centered and intermediate contact-point retries (0.30 and 0.50
+of the carton half-depth forward of center) stopped at path admission.
+For the centered trial, the strongest otherwise feasible candidate had
+2.28 mm of measured side clearance against the pre-existing 4 mm
+admission margin. The 0.65 offset is retained in the opt-in checkpoint
+probe because it reached and translated the carton. The plan does not
+automatically run this experimental correction. A loaded 3 mm shift
+with 1.69 degrees yaw is evidence of lateral sliding, with no successful
+lateral handoff or recovered row capacity.
+
+### Lateral slide, unload, square, advance
+
+The opt-in `--interleave-side-square` probe separates the sideways staging
+motion from the strict square gate. It verifies the translated bottom,
+shelf support, unload, and tool exit before attempting a short square ahead
+of the occupied row. A saved `side_slide_unloaded` entry can resume the
+latter sequence with `--insert-only --guided-wall-entry --resume-side-square`.
+The square must still meet the 0.15 degree requirement and the clearance
+gate before advancing. These are development continuations.
+
+`tight-ten-20mm-side-square-advance-01` retained 2.61 mm translation
+with zero hand force after unloading. The compensated fingertip exit
+would have recontacted the carton. Trial `-02` increased side clearance
+before exiting and retained 2.58 mm after the tool cleared. The next
+paired-finger shape was blocked by a Middle/Ring self-contact forecast.
+Trial `-03` verified the folded middle finger, but opening and narrowing
+the paired fingers simultaneously still stalled. Trial `-04` opened
+the pair in a wider posture before narrowing it. Both shape gates
+passed and the short square ran, then timed out at 2.41 degrees yaw.
+No incidents were observed. The shelf count and acceptance gates
+remain unchanged.
+
+Trial `tight-ten-20mm-side-square-advance-05` gave paired-plane yaw
+correction priority during the bounded short square. It retained a
+2.58 mm side slide with zero hand load, squared to 0.088 degrees after
+unloading, advanced, and completed guarded development withdrawal.
+Its eighth-carton milestone has 100.014 mm of projected open span for
+the two remaining 50 mm cartons. This is only 0.014 mm of geometric
+reserve and is not evidence that both remaining insertions can execute.
+It earns zero fresh credit and no strict release credit for carton eight.
+
+The continuation `tight-ten-20mm-from-interleaved-eight-01` admitted
+row capacity for carton nine and verified its grasp and lift. Its
+loaded shelf approach had no checked candidate. A staged loaded base
+reposition (`tight-ten-20mm-ninth-transfer-staged-01`) retained the
+grasp but did not solve that approach. Scratch planning found the
+nearest routes blocked by the middle finger at the negative side
+panel. Moving the proposed landing toward the shelf center admitted
+scratch seat routes. Live lead trials at 6 and 12 mm reached shelf
+support, then stopped on different coupled opening checks. The lead
+mode stops before forward insertion and does not modify the
+canonical target or the row-capacity gate.
+
+The guarded 24 mm lead release passed when the opening planner retained
+the offending wall-side digits at their last applied references and
+checked departure with the same posture. Carton nine remained supported
+and the hand cleared in `tight-ten-20mm-ninth-held-opening-02`. The
+ninth-carton end-to-end attempt still stopped there. No checked exposed-side
+approach was found for the 24 mm correction
+(`tight-ten-20mm-ninth-side-square-advance-01`), and the paired guided retry
+stopped at front-square dwell with 2.66 degrees yaw
+(`tight-ten-20mm-ninth-guided-01`). A repeat of the held opening at the
+closer 12 mm lead failed its own coupled departure check. These stops
+recorded no incidents. Carton ten remains unreached.
+
+A scratch left/right endpoint screen for the ninth lateral correction
+ran 160 candidates across five navigable base poses. It admitted none.
+The smallest position misses were 13.87 mm on the left and 25.59 mm on
+the right. The right tip reference was mirrored for screening. No
+right-arm motion was commanded.
+
+### Outside-in order and shared-lift hand clearance
+
+The opt-in `--center-last` policy alternates shelf ends and leaves the
+last opening near the center. A measured interval reserves enough space
+for the unplaced widths on both sides. When both immediately neighboring
+slots are occupied, the controller targets the interval midpoint and holds
+forward motion if the current rotated footprint leaves the corridor.
+The original positive-wall order remains a separate mode.
+
+Fresh seed-0 trial `tight-ten-20mm-center-last-fresh-01` completed one
+strict retreat, then stopped at the opposite-end carton's inventory
+grasp. The explicitly reordered supply scene assigns the same ten
+starting positions to slots in outside-in order, keeping the shelf
+geometry and clearance budget fixed. Trial
+`tight-ten-20mm-center-last-fresh-02` got past that grasp and lift and
+stopped at the loaded shelf approach. Both runs recorded zero incidents.
+
+The final-slot reset comparison `final-slot-fixtures-20mm-02` prefilled
+nine cartons explicitly and began with the active carton already
+supported at the shelf front. Under the same width and 20 mm budget,
+the negative end slot completed strict release and retreat. The center
+slot stopped on paired fingertip-to-neighbor geometry. A narrow-tool
+retry avoided that particular sweep but stopped on projected carton
+overlap. The slower measured-corridor retry also stopped on geometry
+after 1,817 held-forward cycles.
+
+The follow-up `final-slot-fixtures-20mm-compacted-01` reset the nine
+prefilled cartons toward both walls. This concentrated the same 20 mm
+whole-row budget into a 68 mm center opening for the 50 mm carton. The
+paired fingertips reached back contact and the hand cleared the shelf
+without incidents. The carton missed the strict 0.15 degree release
+dwell. With release forecasting enabled, the matched
+`final-slot-fixtures-20mm-compacted-strict-01` stopped at the bounded
+release search with 0.476 degrees of yaw. These resets test the final
+insertion from shelf support and earn zero fresh stocking credit.
+
+The unloaded `--bimanual-clear` probe on the saved eight-carton state first
+stages arm references inside the shared controller's planning headroom
+using the checked single-arm path. In
+`tight-ten-20mm-bimanual-clear-06`, both palms then moved about 12 mm
+forward from the shelf and 12 mm up under one shared-lift solve.
+Measured final errors were 0.47 mm on the left and 0.68 mm on the right.
+The per-step guard verified no significant product contact, displacement,
+or incidents. This verifies a guarded two-hand clearance motion.
+Coordinated two-hand carton contact remains unverified.
+
+The seed-0 negative-end transfer was later resumed with a scratch-checked
+lead landing toward the shelf center. It reached shelf support, then
+stopped at the coupled opening/departure gate. A Cartesian prefix
+retry also failed admission. The fresh count remains one retreat. The
+exact release stop is saved separately from the end-slot reset fixture.
+
+The repeated two-hand clearance probe (`tight-ten-20mm-bimanual-clear-07`)
+also measured orientation errors of 0.010 degrees on the left and
+0.217 degrees on the right. It reproduced the position errors and
+recorded no incidents.

@@ -110,8 +110,9 @@ class PairedFingerPusher(FingerPusher):
         targets = super().finger_targets(0)
         # Bring both contact pads inside a 50 mm carton face. Neutral/native
         # abduction leaves these two tips about 59 mm apart; home is wider still.
-        targets["Left Index Abd"] = 0.15
-        targets["Left Ring Abd"] = -0.15
+        if not getattr(self, "extend_in_wide_posture", False):
+            targets["Left Index Abd"] = 0.15
+            targets["Left Ring Abd"] = -0.15
         for finger in ("Index", "Middle", "Ring", "Pinky"):
             for joint in ("MCP", "PIP"):
                 targets[f"Left {finger} {joint}"] = (
