@@ -161,6 +161,11 @@ def _parser():
                 help="Compose the per-carton sequence through the task-plan skill library",
             )
             sub.add_argument(
+                "--interleave-row-press",
+                action="store_true",
+                help="Experimental three-carton sequence with a measured press after two stocks",
+            )
+            sub.add_argument(
                 "--payload-wrist-compensation",
                 action="store_true",
                 help="Use measured payload wrist load, reserved references "
@@ -444,7 +449,11 @@ def main(argv=None):
                 from abstract_stack.interactions import ScriptConfig, StockingScript
 
                 solver = StockingScript
-                if config.row_free_space is not None and not args.ungrasped_insertion:
+                if args.interleave_row_press:
+                    from abstract_stack.interleaved_stocking import PressInterleavedStockingScript
+
+                    solver = PressInterleavedStockingScript
+                elif config.row_free_space is not None and not args.ungrasped_insertion:
                     from abstract_stack.dense_interactions import DenseStockingScript
 
                     solver = DenseStockingScript

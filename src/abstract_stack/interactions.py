@@ -1377,7 +1377,7 @@ class StockingScript(SelectedFingerInsertion):
         )
         return float(np.linalg.norm(goal_xy - env.data.xpos[body, :2]))
 
-    def _move_base(self, displacement, *, reason, carrying=False):
+    def _move_base(self, displacement, *, reason, carrying=False, footprint_radius=None):
         """Move with native wheels; ``carrying`` admits a retained load.
 
         An empty-hand move requires no grasp/carry reference. A loaded move
@@ -1397,7 +1397,11 @@ class StockingScript(SelectedFingerInsertion):
             BaseMotionConfig,
             NativeSwerve,
         )
-        from abstract_stack.navigation import bounded_waypoint_segments, plan_base_path
+        from abstract_stack.navigation import (
+            BaseNavigationSpace,
+            bounded_waypoint_segments,
+            plan_base_path,
+        )
 
         env = self.env
         displacement = np.asarray(displacement, dtype=float)
@@ -1418,6 +1422,11 @@ class StockingScript(SelectedFingerInsertion):
             env,
             start[:2],
             goal,
+            footprint_radius=(
+                BaseNavigationSpace.FOOTPRINT_RADIUS_M
+                if footprint_radius is None
+                else footprint_radius
+            ),
             exclude_products={self.product.name} if carrying else (),
             allow_goal_snap=reason == "loaded_carton_workspace",
         )

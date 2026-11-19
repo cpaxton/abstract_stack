@@ -21,6 +21,8 @@ SKILL_PHASES = {
     "front_registered": "front_insertion",
     "free_landing_verified": "free_landing",
     "lateral_push": "side_registration",
+    "interleaved_row_press": "row_press_entry",
+    "interleaved_row_press_complete": "row_press_exit",
     "side_slide_unloaded": "side_slide_unloaded",
     "front_square_plan": "front_squaring",
     "front_squaring_complete": "front_squaring_complete",
@@ -31,6 +33,14 @@ SKILL_PHASES = {
 }
 
 SKILL_CONTRACTS = {
+    "row_press_entry": {
+        "entry": "Two stocked cartons have verified retreats and the hand is unloaded",
+        "success": "Close the seam through measured pair contact and retain it after unloading",
+    },
+    "row_press_exit": {
+        "entry": "Verified compaction with both cartons still placed and the hand clear",
+        "success": "Replan the next carton from the measured row geometry",
+    },
     "side_slide_unloaded": {
         "entry": "Measured sideways displacement retained after checked unloading and exit",
         "success": "Square and verify clearance before advancing; no stocking credit",

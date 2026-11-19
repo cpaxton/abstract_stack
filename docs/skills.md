@@ -108,6 +108,34 @@ budget before the strict gates passed. The earlier staged handoff stays
 verified and this strict outcome stays failed. See
 `outputs/skill-curriculum-pilot-v1/compose-square-forecast/report.json`.
 
+### Interleaving a lateral press with stocking
+
+`--interleave-row-press` runs an experimental sequence on a single spacious
+shelf. MABEL stocks and withdraws from two cartons, physically closes their
+exposed seam, unloads and clears the hand, then replans the third carton.
+The press selects an exposed end from the measured row, checks the base route
+and fingertip approach, and stops after sustained carton-pair contact. The
+exit gate requires a reduced seam, both cartons still within their placement
+criteria, an unloaded robot and no tip or drop incidents.
+
+```bash
+mkdir -p outputs/interleaved-stock-inputs
+jq '.target_gap = 0.029' configs/scenes/tight_three_cartons.json \
+  > outputs/interleaved-stock-inputs/scene.json
+.venv/bin/python scripts/run_stocking_case.py \
+  --config outputs/interleaved-stock-inputs/scene.json \
+  --output outputs/my-interleaved-stock --wall-seconds 360 -- \
+  --grasp-skill --base-reposition --interleave-row-press --record-skill-starts
+```
+
+The summary records the seam before and after, candidate base workspaces and
+the measured press exit alongside the scheduled carton stages. Successful
+boundaries and terminal failures have their own checkpoints. To test the
+press and third carton from the second verified `stocking_milestone`, pass its
+checkpoint to `scripts/probe_front_release.py` with
+`--next-cartons 1 --interleave-row-press --record-skill-starts`. The probe
+retains the original observer history and earns zero fresh episode credit.
+
 ## Composable skill library and per-carton task plan
 
 [`skill_library.py`](../src/abstract_stack/skill_library.py) makes those

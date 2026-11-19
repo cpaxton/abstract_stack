@@ -15,6 +15,9 @@ from abstract_stack.dense_interactions import DenseStockingScript, FingerPusher
 from abstract_stack.interactions import InteractionFailure
 from abstract_stack.mabel_controller import MabelController
 
+FRONT_SIDE_BASE_OFFSET_M = 0.093
+PRESS_BASE_FOOTPRINT_RADIUS_M = 0.25
+
 
 @dataclass(frozen=True)
 class LateralPushConfig:
@@ -78,8 +81,8 @@ class SideFingerPusher(FingerPusher):
         self.last_target = self.position().copy()
 
 
-class LateralStockingScript(DenseStockingScript):
-    """Opt-in primitive; baseline DenseStockingScript behavior is unchanged."""
+class LateralContact:
+    """Checked side contact for the native stocking controllers."""
 
     def _change_hand(self, kind, **kwargs):
         super()._change_hand(kind, **kwargs)
@@ -157,6 +160,7 @@ class LateralStockingScript(DenseStockingScript):
         stage_for_squaring=False,
         row_ready=None,
         front_contact_fraction=0.65,
+        base_goal_xy=None,
     ):
         settings = settings or LateralPushConfig()
         if stage_for_squaring and (not near_front_corner or brace_wall):
@@ -167,6 +171,12 @@ class LateralStockingScript(DenseStockingScript):
             raise ValueError(
                 "Side contact must stay between face center and the checked front patch"
             )
+        if base_goal_xy is not None:
+            base_goal_xy = np.asarray(base_goal_xy, dtype=float)
+            if base_goal_xy.shape != (2,) or not np.isfinite(base_goal_xy).all():
+                raise ValueError("Lateral workspace goal must be a finite XY pair")
+            if not self.config.ungrasped_insertion or not self.config.base_reposition:
+                raise ValueError("An explicit lateral workspace goal requires base motion")
         if type(brace_wall) is not bool:
             raise ValueError("Wall bracing must be explicit")
         if not yaw_candidates or any(
@@ -214,18 +224,29 @@ class LateralStockingScript(DenseStockingScript):
         # Native model is shared read-only; every candidate owns independent MjData.
         started = time.monotonic()
         if self.config.ungrasped_insertion and self.config.base_reposition:
-            base_y = float(env.data.body("mabel_chassis").xpos[1])
-            dy = float(precontact[1] + (0.093 if near_front_corner else 0.12) - base_y)
+            base = env.data.body("mabel_chassis").xpos[:2].copy()
+            dy = float(
+                precontact[1] + (FRONT_SIDE_BASE_OFFSET_M if near_front_corner else 0.12) - base[1]
+            )
             dx = getattr(self, "side_base_dx", 0.0)
-            if abs(dy) > 0.03 or dx:
-                if np.hypot(dx, dy) > 0.25:
+            workspace = (
+                {} if base_goal_xy is None else dict(footprint_radius=PRESS_BASE_FOOTPRINT_RADIUS_M)
+            )
+            displacement = np.array([dx, dy]) if base_goal_xy is None else base_goal_xy - base
+            if abs(displacement[1]) > 0.03 or displacement[0] != 0:
+                if np.linalg.norm(displacement) > 0.25:
                     raise InteractionFailure("lateral_plan: workspace shift exceeds bounded search")
-                self._move_base([dx, dy], reason="lateral_contact_workspace")
+                self._move_base(
+                    displacement,
+                    reason="lateral_contact_workspace",
+                    **workspace,
+                )
                 self._stage("lateral_plan")
                 self.events[-1]["candidates"] = candidates
         wrists = (0.2, 0.0) if self.config.ungrasped_insertion else (0.2, 0.4, 0.0, 0.6)
         tilts = (0, 15, 30, 40) if near_front_corner else (20, 30, 40)
-        for yaw, tilt, wrist in product(yaw_candidates, tilts, wrists):
+        raised_paths = ("joint",) if base_goal_xy is None else ("joint", "cartesian")
+        for yaw, tilt, wrist, raised_path in product(yaw_candidates, tilts, wrists, raised_paths):
             if time.monotonic() - started > 45:
                 break
             kwargs = dict(
@@ -243,9 +264,15 @@ class LateralStockingScript(DenseStockingScript):
             )
             hand = SideFingerPusher(env.clone_for_planning(), hand_config, **kwargs)
             hand.command = self.controller.command.copy()
-            candidate = {**kwargs, "waypoints_m": [raised.tolist(), precontact.tolist()]}
+            candidate = {
+                **kwargs,
+                "waypoints_m": [raised.tolist(), precontact.tolist()],
+                "raised_path": raised_path,
+            }
             candidates.append(candidate)
-            prediction = hand.predict(raised, alternatives=False, carrying=False)
+            prediction = hand.predict(
+                raised, alternatives=False, carrying=False, path_mode=raised_path
+            )
             candidate["raised_prediction"] = prediction.report()
             if not prediction.feasible:
                 continue
@@ -283,12 +310,15 @@ class LateralStockingScript(DenseStockingScript):
         self.events[-1]["controller_ik_position_tolerance_m"] = (
             self.controller.config.ik_position_tolerance
         )
-        self._move(
-            "lateral_orient_high",
-            raised,
-            carrying=False,
-            orientation_alternatives=False,
-        )
+        if raised_path == "cartesian":
+            self._cartesian_move("lateral_orient_high", raised, speed_m_s=0.08)
+        else:
+            self._move(
+                "lateral_orient_high",
+                raised,
+                carrying=False,
+                orientation_alternatives=False,
+            )
         self._cartesian_move("lateral_approach", precontact)
         self._stage("lateral_push")
         event = self.events[-1]
@@ -501,3 +531,7 @@ class LateralStockingScript(DenseStockingScript):
             final_lateral_error_m=error,
         )
         return event
+
+
+class LateralStockingScript(LateralContact, DenseStockingScript):
+    """Dense stocking scene with the opt-in lateral contact primitive."""
