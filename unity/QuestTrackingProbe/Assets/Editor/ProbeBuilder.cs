@@ -42,8 +42,8 @@ public static class ProbeBuilder
         PlayerSettings.colorSpace = ColorSpace.Linear;
         PlayerSettings.runInBackground = true;
         PlayerSettings.Android.forceInternetPermission = false;
-        PlayerSettings.bundleVersion = "0.3.2";
-        PlayerSettings.Android.bundleVersionCode = 5;
+        PlayerSettings.bundleVersion = "0.3.5";
+        PlayerSettings.Android.bundleVersionCode = 8;
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
         var input = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
         var activeInput = input.FindProperty("activeInputHandler");

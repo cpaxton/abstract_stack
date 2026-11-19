@@ -24,6 +24,11 @@ public class TrackingProbe : MonoBehaviour
     Transform mirror;
     bool displayPlaced;
     Vector3 displayOrigin;
+    int recenterCount = -1;
+    const double HeadingSettleSeconds = .5;
+    const float HeadingToleranceDegrees = 5;
+    double headingStableSince = -1;
+    Vector3 settlingHeading;
     StreamWriter report;
 
     void Start()
@@ -55,8 +60,6 @@ public class TrackingProbe : MonoBehaviour
     void Update()
     {
         if (!rig || !rig.centerEyeAnchor) return;
-        if (!displayPlaced && OVRManager.instance != null && OVRManager.instance.isUserPresent)
-            PlaceDisplay();
         if (Time.unscaledTime >= nextRetry)
         {
             nextRetry = Time.unscaledTime + 5;
@@ -119,23 +122,69 @@ public class TrackingProbe : MonoBehaviour
         Debug.Log("[TrackingProbe] " + json);
         report?.WriteLine(json);
     }
-    void PlaceDisplay()
+    void LateUpdate()
     {
-        // Capture the initial viewing direction once. Never move the room, camera,
-        // or display root from the current head/body pose in the frame loop.
+        if (!rig || !rig.centerEyeAnchor) return;
+        int count = OVRPlugin.GetLocalTrackingSpaceRecenterCount();
+        if (count != recenterCount)
+        {
+            recenterCount = count;
+            displayPlaced = false;
+            headingStableSince = -1;
+            mirror.gameObject.SetActive(false);
+        }
+        if (!displayPlaced)
+            TryPlaceDisplay();
+    }
+
+    void TryPlaceDisplay()
+    {
+        const OVRPlugin.Node eye = OVRPlugin.Node.EyeCenter;
+        int chest = (int)OVRPlugin.BoneId.Body_Chest;
+        if (!active || !Application.isFocused || !OVRManager.instance ||
+            !OVRManager.instance.isUserPresent || !OVRManager.hasVrFocus || !OVRManager.hasInputFocus ||
+            !OVRPlugin.GetNodePositionTracked(eye) || !OVRPlugin.GetNodeOrientationTracked(eye) ||
+            body.JointLocations == null || chest >= body.JointLocations.Length ||
+            !body.JointLocations[chest].PositionValid)
+        {
+            headingStableSince = -1;
+            return;
+        }
+
+        // The camera rig has updated its anchors by LateUpdate. Tracking can still
+        // report a valid heading in the old origin for a few frames.
         var headPosition = rig.trackingSpace.InverseTransformPoint(rig.centerEyeAnchor.position);
-        var headRotation = Quaternion.Inverse(rig.trackingSpace.rotation) * rig.centerEyeAnchor.rotation;
-        var yaw = Quaternion.Euler(0, headRotation.eulerAngles.y, 0);
-        displayOrigin = new Vector3(headPosition.x, 0, headPosition.z);
-        mirror.localPosition = displayOrigin + yaw * new Vector3(.7f, 0, 2.4f);
+        var forward = rig.trackingSpace.InverseTransformDirection(rig.centerEyeAnchor.forward);
+        var heading = Vector3.ProjectOnPlane(forward, Vector3.up);
+        if (heading.sqrMagnitude < .01f)
+        {
+            headingStableSince = -1;
+            return;
+        }
+        heading.Normalize();
+        double now = Time.realtimeSinceStartupAsDouble;
+        if (headingStableSince < 0 || Vector3.Angle(settlingHeading, heading) > HeadingToleranceDegrees)
+        {
+            settlingHeading = heading;
+            headingStableSince = now;
+            return;
+        }
+        if (now - headingStableSince < HeadingSettleSeconds) return;
+
+        var yaw = Quaternion.LookRotation(heading, Vector3.up);
+        var chestPosition = Position(body.JointLocations[chest].Pose.Position);
+        displayOrigin = new Vector3(chestPosition.x, 0, chestPosition.z);
+        var eyeOnFloor = new Vector3(headPosition.x, 0, headPosition.z);
+        mirror.localPosition = eyeOnFloor + yaw * new Vector3(0, 0, 2.4f);
         mirror.localRotation = Quaternion.Euler(0, 180, 0);
-        // Status panel also stays in the room rather than filling the view on head turns.
+        // Leave space for the centered body and its moving arms.
         var panel = status.canvas.GetComponent<RectTransform>();
         panel.SetParent(rig.trackingSpace, false);
-        panel.localPosition = displayOrigin + yaw * new Vector3(-.8f, Mathf.Max(headPosition.y, 1.2f), 2.4f);
+        panel.localPosition = eyeOnFloor + yaw * new Vector3(-1.25f, Mathf.Max(headPosition.y, 1.2f), 2.4f);
         panel.localRotation = yaw;
         displayPlaced = true;
-        Debug.Log("[TrackingProbe] Room-anchored display placed; camera driven only by OVRCameraRig");
+        mirror.gameObject.SetActive(true);
+        Debug.Log($"[TrackingProbe] Centered body at time={now:F3}s recenter={recenterCount} yaw={yaw.eulerAngles.y:F1}");
     }
     void StartBody()
     {
