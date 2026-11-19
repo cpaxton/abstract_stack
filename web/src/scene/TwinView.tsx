@@ -181,8 +181,10 @@ function Ghosts({
           .add(frames.chassisPos);
         ghost.group.quaternion.copy(frames.chassisQuat).multiply(arm.quaternion);
       }
-      const reachable = status?.arms[side]?.ik?.reachable ?? true;
-      const color = reachable || !engaged ? SIDE_COLOR[side] : UNREACHABLE;
+      const ik = status?.arms[side]?.ik;
+      // A relaxed orientation still puts the palm on target: keep the side colour.
+      const onTarget = !ik || ((ik.reachable || ik.orientation_relaxed) && !ik.blocked_by?.length);
+      const color = onTarget || !engaged ? SIDE_COLOR[side] : UNREACHABLE;
       ghost.material.color.set(color);
       ghost.material.emissive.set(color);
       ghost.material.opacity = engaged ? (side === activeArm ? 0.7 : 0.4) : 0.18;

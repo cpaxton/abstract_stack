@@ -82,8 +82,11 @@ Start with **Ready pose**. The reset posture has both arms straight ahead, an
 elbow singularity where Cartesian control responds poorly. Ready bends the
 elbows and brings the palms about 0.4 m in front of the chassis. Each glowing
 target shows where that palm is commanded to go. A tether connects it to the
-measured palm, and the target turns red when IK cannot reach it. Leaving the
-tab pauses immediately.
+measured palm. When the requested orientation is out of reach, the hand keeps
+the palm on target and twists only as much as it must; the arm card shows
+"Twisted N°". The target turns red when the point itself is out of reach, or
+when the collision guard stops the arm short ("Blocked: shelf", "table",
+"own body"). Leaving the tab pauses immediately.
 
 **First run.** A four-card guide (Hands, Look, Drive, Body) appears once for a
 new operator, with text for the device in use. The "?" button in the top bar
@@ -136,8 +139,22 @@ Browser (web/)                                  Host (src/abstract_stack/web_tel
 - **Retargeting** (`retarget.WebRetargeter`). Each tick, for every arm:
   root-frame palm target → per-side `PoseIK` on scratch data (`ik.py`, now with
   a `palm` argument) → arm/wrist references → `MabelController` (rate limits,
-  robot-gravity feedforward) → `validate_targets`. IK warm-starts from the
-  previous solution and keeps refining until it converges. Lift is the
+  robot-gravity feedforward) → `validate_targets`. IK
+  (`PoseIK.solve_position_first`) treats the palm point as the primary task and
+  recovers orientation in its null space, so a reachable pose is solved exactly
+  and an unreachable one keeps the palm on target. A step that moves the palm
+  away is undone and retried with less orientation gain, joints pinned at a
+  limit are dropped, and a position-only restart escapes limit traps. IK
+  warm-starts from the previous solution and keeps refining until it converges
+  or stops improving. Only the IK result is cached. Every tick, a kinematic
+  collision guard (scratch data) samples each arm's joint path from its
+  measured pose to the IK result, about every 0.025 rad, against fixtures and
+  MABEL's own body. It then samples both arms' paths together, so two arms that
+  are each clear cannot be commanded into each other. Products are excluded so
+  the hands can touch and grasp them, and contacts already present are allowed.
+  Each arm moves only to the farthest collision-free point on its path. Because
+  the check reruns against the current scene, a block clears as soon as driving
+  or the other arm makes room. Lift is the
   operator's own channel and is pinned during both arms' IK. Grip maps one
   fraction to the native flexion ranges and keeps the scripted controller's
   thumb preshape. Head and torso are clamped and rate-limited.
@@ -290,10 +307,16 @@ On macOS the tests use the GPU. `E2E_GPU=0` forces CPU rendering, and
   wrist angle sags under load or contact beyond what the bounded feedforward
   can correct. Status shows measured versus nominal values, and the model is
   not modified.
-- **Reach is limited because hand orientation is held.** Raising or retracting
-  a hand by about 10 cm from Ready while holding its orientation can exceed
-  the joint limits. The target turns red; rotating the target extends reach.
-- **IK is local and has no collision checks.** Teleop applies the closest
-  bounded IK solution and reports the residual. Physics resolves contacts. This
-  is never evidence of a grasp or placement.
+- **Reach.** On a 385-point grid around the left Ready palm, with the Ready
+  orientation held, 70% of targets are reached at full pose and 15% more by
+  relaxing orientation (55% before). The rest are kinematically out of reach,
+  or blocked by the guard (mostly the other arm or the torso). Lift is the
+  operator's channel and is not used to extend reach.
+- **The collision guard is kinematic and local.** It samples the straight
+  joint-space path from the measured pose, so obstacles thinner than the
+  sample spacing can slip between samples. It does not model the controller's
+  exact rate-limited path or plan around obstacles: a target behind an obstacle
+  leaves the arm stopped at it. Products are never obstacles.
+  Physics still resolves every contact. Nothing here is evidence of a grasp or
+  placement.
 - Twin textures are not shown (colours come from MuJoCo materials).

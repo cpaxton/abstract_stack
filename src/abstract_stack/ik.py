@@ -198,6 +198,88 @@ class PoseIK:
         point, actual_rotation = self.forward(best_q, reference)
         return best_q, point, actual_rotation
 
+    def solve_position_first(
+        self, target, rotation, seed, *, iterations=60, damping=1e-3, reference=None
+    ):
+        """Reach ``target`` first, then recover ``rotation`` in the position null space.
+
+        Hierarchical damped least squares: the palm point is the primary task and
+        orientation only uses joint motion that does not move it. Seed it from a
+        position-only solve; starting from a full-pose solve tends to sit on joint
+        limits. Joints with ``lower == upper`` (e.g. a pinned lift) stay fixed.
+        """
+        q = np.clip(seed, self.lower, self.upper).copy()
+        free = np.flatnonzero((self.upper - self.lower) > 1e-9)
+        arm_free = free[free < len(self.dofs)]
+        lift_free = len(self.dofs) in free
+        lift_dofs = [j.dofadr[0] for j in self.lifts]
+        n = len(q)
+        jp, jr = np.zeros((3, n)), np.zeros((3, n))
+        damp, identity = damping * np.eye(3), np.eye(n)
+        best, best_q = (float("inf"), float("inf")), q.copy()
+        # Gain on the orientation (secondary) step. Damping lets it leak into the
+        # palm point near stretched postures, so a step that moves the palm away
+        # from the target is undone and retried with half the orientation gain.
+        gain, accepted = 1.0, None
+        for _ in range(iterations):
+            point, actual_rotation = self.forward(q, reference)
+            position_error = target - point
+            distance = float(np.linalg.norm(position_error))
+            if accepted is not None and distance > max(accepted[1], 1e-3) + 1e-4:
+                q_previous, _, primary, secondary = accepted
+                gain = gain * 0.5 if gain > 1 / 32 else 0.0
+                q = np.clip(
+                    q_previous + np.clip(primary + gain * secondary, -0.08, 0.08),
+                    self.lower,
+                    self.upper,
+                )
+                continue
+            orientation_error = rotation_error(actual_rotation, rotation)
+            # Round position so sub-0.1 mm noise does not outrank orientation gains.
+            key = (round(distance, 4), float(np.linalg.norm(orientation_error)))
+            if key < best:
+                best, best_q = key, q.copy()
+            if key[0] < 1e-4 and key[1] < 1e-3:
+                break
+            mujoco.mj_jac(self.model, self.scratch, self.jacp, self.jacr, point, self.palm)
+            jp[:, arm_free] = self.jacp[:, self.dofs[arm_free]]
+            jr[:, arm_free] = self.jacr[:, self.dofs[arm_free]]
+            if lift_free:
+                jp[:, -1] = 0.5 * (self.jacp[:, lift_dofs[0]] + self.jacp[:, lift_dofs[1]])
+            primary, secondary = self._priority_step(
+                jp, jr, position_error, orientation_error, damp, identity
+            )
+            # Active set: a joint pinned at a limit and pushed further out contributes
+            # nothing, so drop it and let the remaining joints carry both tasks.
+            step = primary + secondary
+            pinned = ((q <= self.lower + 1e-6) & (step < 0)) | (
+                (q >= self.upper - 1e-6) & (step > 0)
+            )
+            if pinned.any():
+                jp[:, pinned] = 0
+                jr[:, pinned] = 0
+                primary, secondary = self._priority_step(
+                    jp, jr, position_error, orientation_error, damp, identity
+                )
+            gain = min(1.0, max(gain, 1 / 32) * 1.5)
+            accepted = (q.copy(), distance, primary, secondary)
+            q = np.clip(
+                q + np.clip(primary + gain * secondary, -0.08, 0.08), self.lower, self.upper
+            )
+        point, actual_rotation = self.forward(best_q, reference)
+        return best_q, point, actual_rotation
+
+    @staticmethod
+    def _priority_step(jp, jr, position_error, orientation_error, damp, identity):
+        jp_pinv = jp.T @ np.linalg.inv(jp @ jp.T + damp)
+        primary = jp_pinv @ position_error
+        null = identity - jp_pinv @ jp
+        jr_null = jr @ null
+        secondary = jr_null.T @ np.linalg.solve(
+            jr_null @ jr_null.T + damp, orientation_error - jr @ primary
+        )
+        return primary, null @ secondary
+
     def _contacts(self, q, reference, allowed_object):
         self.forward(q, reference)
         mujoco.mj_fwdPosition(self.model, self.scratch)

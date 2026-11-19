@@ -26,6 +26,10 @@ export interface ArmStatus {
     reachable: boolean;
     ik_position_error_m: number;
     ik_orientation_error_rad: number;
+    /** Palm point reached, but the hand is twisted from the requested orientation. */
+    orientation_relaxed?: boolean;
+    /** Fixtures (or "self") the collision guard stopped the arm short of. */
+    blocked_by?: string[];
   } | null;
 }
 
