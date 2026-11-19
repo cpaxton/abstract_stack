@@ -1,9 +1,9 @@
 # Skill curriculum and initial distributions
 
 Start with perfect state, a fixed single-level shelf, rigid 70 x 50 x 240 mm
-cartons and the existing supply layout. No policy learning or scene/dynamics
-randomization is required to establish the scripted teacher skills. Reset
-jitter is the existing +/-2 mm with a recorded seed.
+cartons and the existing supply layout. The fixed scripted teacher uses the
+existing +/-2 mm reset jitter. The isolated development environments below
+exercise additional measured start distributions before any policy training.
 
 The objective is reliable pickup on this **declared, task-conditioned** initial
 distribution. A 100% observed score on a small development set is not a
@@ -16,15 +16,97 @@ unreached, failed and unknown cases in their scheduled denominators.
 | --- | --- | --- |
 | Grasp/lift/hold | Fresh front carton, plus remaining cartons after preceding stocks: object pose/velocity, neighboring inventory, empty-hand posture and table support | Opposing contact, actual rise, retained hand contact, no table support, then 0.5 s loaded hold |
 | Transfer | Outputs of verified grasps: actual object-to-hand transform, payload yaw/tilt, arm/lift posture, inventory and shelf clearance | Retain the load through the checked shelf-approach route |
-| Shelf placement | Outputs of transfer: measured rotated extents, carried pose/velocity, shelf height and grasp offset | Native shelf support within the original bounded seating range |
-| Contact finishing | Supported placements with measured depth/lateral/yaw error, contact partners and wrench | Task-specific final position/alignment/contact dwell; unchanged force guards |
+| Place at staging pose | Outputs of transfer: measured rotated extents, carried pose/velocity, shelf height and grasp offset | Native shelf support within the bounded seating range, with residual pose error allowed |
+| Release and register | Supported front placement, measured hand load and open space | Unloaded hand and supported carton inside the insertion approach corridor |
+| Insert | Released supported carton ahead of its neighbors, with measured lateral and yaw error | Verified intermediate depth and square after the pusher unloads |
+| Forward push to contact | Supported carton in the insertion corridor, measured depth/lateral/yaw error and contact wrench | Existing backstop force, support, and strict square dwell |
+| Lateral row compaction | Supported partially filled row, known wall and neighbors, measured deficit in the remaining opening | Recover the opening after unloading, including a reserve for measured overlap, while keeping the row supported |
+| Strict row finish | Compacted row with measured alignment error and sufficient opening | Strict alignment and envelope limits after unloading, with measured contacts during the press |
 | Release/retreat | Verified supported finishing states, including residual hand load | Unload, withdraw, and preserve every required product's support/pose/stability |
 
 `StockingScript._grasp_and_lift()` is shared by the complete stocking sequence
 and `GraspSkillProbe`; transfer/placement is separately callable. Placement,
 contact finishing and release already have separate control entry points. These
-are five skill boundaries, not five trained policies. Transfer is still a
-single composed route and does not yet have an independent learned controller.
+are callable controller boundaries. The row press can run between cartons
+when the measured opening is too small or gaps are distributed across the row.
+Final alignment is evaluated after contact and unloading.
+
+## Seeded skill environments
+
+[`StockingSkillEnv`](../src/abstract_stack/skill_env.py) exposes `reset(seed=...)`
+and `step(action)` for `grasp-lift`, `insert`, `push-to-contact`,
+`row-compaction`, and `row-press`.
+Its observations expose MuJoCo state. Each action selects a checked native
+primitive or hand preshape, runs one bounded decision, and returns a binary
+reward from measured skill evidence. The same seed reproduces the reset and
+settle. Use separate public development and private held-out seeds.
+
+| Environment | Randomized reset factors | Action choices |
+| --- | --- | --- |
+| `grasp-lift` | Table pose, active yaw through about ±7°, and neighboring positions | Guarded grasp and loaded hold |
+| `insert` | Carton width, whole-row free space, target slot, staging depth, offset, and yaw | Paired or single fingertip |
+| `push-to-contact` | Carton width, whole-row free space, target slot, and initial lateral offset | Paired or single fingertip, followed by existing strict refinement |
+| `row-compaction` and `row-press` | Press direction, two to four supported cartons, carton height, inter-carton spacings, back clearance, and 2–4 mm open-span deficit | Center or counter-yaw front-face press, exposed-side press, centered side press, or side press to the wall |
+
+Row compaction measures the available opening against the sum of all remaining
+carton widths, after subtracting the total measured envelope overlap. This
+reserves enough space to separate the compressed cartons later. Both row
+environments require measured force at every neighboring pair during the
+press, internal gaps at most 1 mm after release, both arms unloaded, and
+stable shelf support. The strict `row-press` environment also requires
+0.15 degree yaw and the existing 0.2 mm projected overlap bounds. The two
+arms and every object remain under native guards.
+The press fixtures keep the supply inventory outside the shelf contact workspace.
+Some reset rows have a rear gap so the policy can choose a side push where
+the backstop cannot react against a front press.
+The experimental `row-press --action side-square` policy first verifies the
+compaction handoff. For cartons already near the backstop, it checks the full
+shelf exit, reshapes the hand, and tries the existing strict depth finish
+with a narrow tool. It keeps the same final row gates.
+
+```bash
+MABEL_ROOT=third_party/open_mabel OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  .venv/bin/python scripts/evaluate_skill_curriculum.py \
+  --seed 0 --seed 4 --case-wall-seconds 130 --output outputs/my-skill-curriculum
+```
+
+The evaluator writes the frozen policy identity, each fixture and native reset
+state, actuator traces, measured outcomes, and process failures. These episodes
+earn zero fresh stocking credit. Loaded transfer, front release, and retreat
+still use the retained-checkpoint probes below. They need real grasp and tool
+load states from previous skills.
+
+The comparison below uses separately supervised row stages. Keep the strict
+finish among the reported outcomes when a staging handoff passes.
+
+```bash
+MABEL_ROOT=third_party/open_mabel OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  .venv/bin/python scripts/evaluate_skill_curriculum.py \
+  --skill row-compaction --action side-centered --seed 9 --seed 18 \
+  --case-wall-seconds 125 --output outputs/my-row-compaction
+```
+
+The two-carton `side-centered` press passed the compaction handoff on both
+public seeds. The initial 3.19 mm and 3.71 mm deficits became 1.45 mm and
+1.79 mm of reserve after subtracting the entire projected overlap. Both runs
+recorded contact between the cartons, stable shelf support, zero arm load
+at exit, and zero tip/drop incidents. Strict final alignment remained open
+because the compressed cartons retained measured yaw and envelope overlap.
+The repeated physics traces are under `outputs/skill-curriculum-pilot-v1/compaction-final/`.
+
+The first paired-tip development trials also verified grasp/hold and
+intermediate insertion on both seeds. Strict backstop push passed on seed 1
+and stopped at the bounded refinement budget on seeds 0, 3, and 4. Those
+case reports remain separate from the staged row results.
+
+The composed strict finish progressed from the staged row to native back
+contact with a narrow tool and the measured lateral target held fixed. The
+longer 400 ms refinement rollouts reduced the first carton's yaw magnitude
+from 1.26 to 0.27 degrees. The second carton ended at 0.36 degrees and the
+row retained 0.66 mm of projected overlap. Refinement exhausted its 20-replan
+budget before the strict gates passed. The earlier staged handoff stays
+verified and this strict outcome stays failed. See
+`outputs/skill-curriculum-pilot-v1/compose-square-forecast/report.json`.
 
 ## Composable skill library and per-carton task plan
 
@@ -43,7 +125,7 @@ Two default-preserving seams expose the finer steps without changing physics:
 `_release_and_insert_front(grip, push=False)` stops after front registration,
 and `_insert_from_front(retreat=False)` stops with back contact established.
 The defaults keep the fused release/insert/retreat behavior. `--plan-driven`
-(pending a CLI flag; `ScriptConfig(plan_driven=True)`) composes the five skills
+composes the five skills
 through `run_plan`; the grasped supported-slide protocol keeps its existing
 fused path. The plan is always recorded in `summary.json` under `task_plan`,
 with each phase event annotated with its `skill`. Success criteria, force
@@ -297,7 +379,7 @@ smaller development run.
 ```
 
 The other sampling groups are `grasp-lift`, `transfer-seat`,
-`supported-release`, `side-registration`, `push-to-contact`, and `retreat`. Use
+`supported-release`, `side-registration`, `push-to-contact`, `row-press`, and `retreat`. Use
 `--terminal` to list stopped recovery states, including failures without a
 compatible start state in the archive. Each record
 links the native checkpoint and its manifest SHA-256 with the run that

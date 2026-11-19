@@ -161,6 +161,7 @@ class FrontTangentialPress:
         force_guided=False,
         contact_offset_m=0.0,
         row_products=None,
+        staged_approach=False,
     ):
         if not isinstance(force_guided, bool):
             raise ValueError("force_guided must be boolean")
@@ -199,7 +200,7 @@ class FrontTangentialPress:
             raise ValueError("Front contact offset exceeds the bounded active face")
         height = env.config.levels[self.product.level] + settings.height_m
         precontact = np.array([start[0] + extent[0] + 0.02, start[1] + contact_offset_m, height])
-        high = precontact + [0, 0, 0.12]
+        high = precontact + [0.085 if staged_approach else 0, 0, 0.12]
         end = precontact + [-0.024, direction * distance_m, 0]
         # Stage relative to the measured base, rather than retaining a world
         # waypoint from a different reset fixture. No live base motion is applied.
@@ -246,7 +247,10 @@ class FrontTangentialPress:
         if selected is None:
             raise InteractionFailure("tangential_plan: bounded approach search rejected")
         event["selected"] = selected
+        event["outside_shelf_orientation_stage"] = bool(staged_approach)
         self._change_hand(TangentialFingerPusher, **selected)
+        if staged_approach:
+            self._settle_pusher_preshape()
         self._move("tangential_orient_high", high, carrying=False, orientation_alternatives=False)
         self._cartesian_move("tangential_approach", precontact)
         self._stage("front_tangential_push")

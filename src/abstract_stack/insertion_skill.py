@@ -44,6 +44,7 @@ class SelectedFingerInsertion:
         self.wrist_load_clipped = 0
         self.carton_wall_peak = 0.0
         self.carton_wall_forces = {}
+        self.carton_pair_forces = {}
         self._carton_wall_geoms = {self.env.model.geom(f"shelf_side_{side}").id for side in (-1, 1)}
 
     def _restore_grasp_hand(self):
@@ -115,6 +116,7 @@ class SelectedFingerInsertion:
                 key = b1 if b1 in self.product_bodies else b2
                 walls[key] = walls.get(key, 0.0) + max(0.0, float(force[0]))
         self.carton_wall_forces = dict(walls)
+        self.carton_pair_forces = pairs
         if walls:
             self.carton_wall_peak = max(self.carton_wall_peak, max(walls.values()))
             if max(walls.values()) > self.config.max_force:
@@ -1152,10 +1154,20 @@ class SelectedFingerInsertion:
         raise InteractionFailure("pusher_preshape: measured native hand did not settle")
 
     def _insert_from_front(
-        self, *, partial_stop_x=None, front_squaring=False, retreat=True, square_in_place=False
+        self,
+        *,
+        partial_stop_x=None,
+        front_squaring=False,
+        retreat=True,
+        square_in_place=False,
+        staged_preshape=False,
+        use_lateral_reference=False,
+        precontact_standoff_m=0.02,
     ):
         from abstract_stack.interactions import InteractionFailure
 
+        if not np.isfinite(precontact_standoff_m) or not 0.02 <= precontact_standoff_m <= 0.045:
+            raise ValueError("Pusher precontact standoff must stay within 20 to 45 mm")
         env, config, product = self.env, self.config, self.product
         body = env.data.body(product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
@@ -1202,11 +1214,15 @@ class SelectedFingerInsertion:
                     body = env.data.body(product.name)
                     extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
         height = env.config.levels[product.level] + 0.028
-        precontact = np.array([body.xpos[0] + extent[0] + 0.02, body.xpos[1], height])
+        precontact = np.array(
+            [body.xpos[0] + extent[0] + precontact_standoff_m, body.xpos[1], height]
+        )
         end = np.array(
             [
                 env.config.front_x - env.config.depth + 2 * extent[0] - 0.0005,
-                self.lateral_goal_y if config.center_last else product.target[1],
+                self.lateral_goal_y
+                if config.center_last or use_lateral_reference
+                else product.target[1],
                 height,
             ]
         )
@@ -1239,7 +1255,7 @@ class SelectedFingerInsertion:
         self._change_hand(self._pusher_class(), **settings)
         hand = self.controller
         if self.config.ungrasped_insertion:
-            if square_in_place and getattr(hand, "fingers", ()):
+            if (square_in_place or staged_preshape) and getattr(hand, "fingers", ()):
                 hand.extend_in_wide_posture = True
                 self._settle_pusher_preshape()
                 hand.extend_in_wide_posture = False

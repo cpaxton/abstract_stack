@@ -14,6 +14,7 @@ SKILLS = {
     "side-registration": {"free_landing", "side_registration"},
     "insert": {"front_insertion", "front_squaring_complete"},
     "push-to-contact": {"contact_finish", "contact_refinement"},
+    "row-press": {"stocking_milestone"},
     "retreat": {"release_retreat", "withdrawal_planning"},
 }
 FAILURE_PHASES = {
@@ -65,6 +66,15 @@ FAILURE_PHASES = {
         "finger_push",
     },
     "push-to-contact": {"push", "finger_push", "contact_refine", "loaded_push_stall"},
+    "row-press": {
+        "tangential_stage",
+        "tangential_plan",
+        "tangential_orient_high",
+        "tangential_approach",
+        "front_tangential_push",
+        "tangential_unload",
+        "tangential_clear",
+    },
     "retreat": {"release", "release_forecast", "unloaded_clear_forecast", "clear"},
 }
 

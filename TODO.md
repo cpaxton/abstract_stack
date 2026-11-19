@@ -93,6 +93,19 @@ the [two-layer contract](docs/receding_horizon_stocking.md#fixed-shelf-two-layer
 
 ## Skill curriculum and current evidence
 
+- [x] Create seeded native reset environments for grasp/lift, intermediate
+  insertion, forward push to contact, and lateral row compaction. Track
+  supported staging separately from strict final position. Keep row pressure,
+  measured opening, and post-unload alignment in the skill evidence.
+- [x] Verify contact-mediated row compaction and unloaded opening on two
+  public two-carton resets. Strict post-compaction alignment is still open.
+- [ ] Add checkpoint-backed environments for loaded transfer, front release,
+  and withdrawal. Exercise learned or scripted policies on identical resets
+  before comparing fresh full-shelf runs across geometries.
+- [ ] Validate row compaction in both directions and with rear clearance.
+  Select the push direction and contact face from measured geometry, then
+  interleave verified compaction in fresh stocking plans.
+
 - [x] Separate callable grasp/lift and transfer/placement; record five skill
   entry distributions and full native checkpoints with explicit nominal/applied
   references and retained observer history. See [skill contracts](docs/skills.md).
