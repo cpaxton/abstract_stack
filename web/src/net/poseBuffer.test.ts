@@ -108,3 +108,20 @@ describe("adaptive PoseBuffer", () => {
     expect(peak - buffer.delayMs).toBeLessThanOrEqual(0.25 + 1e-9);
   });
 });
+
+describe("compact WTS2 frames", () => {
+  it("decodes int16 positions and quaternions", () => {
+    const buffer = new ArrayBuffer(STATE_HEADER_BYTES + 7 * 2);
+    const view = new DataView(buffer);
+    "WTS2".split("").forEach((c, i) => view.setUint8(i, c.charCodeAt(0)));
+    view.setUint32(4, 7, true);
+    view.setFloat64(8, 2.0, true);
+    view.setUint16(24, 1, true);
+    new Int16Array(buffer, STATE_HEADER_BYTES).set([4096, -2048, 11059, 32767, 0, 0, 0]);
+    const decoded = decodeStateFrame(buffer);
+    expect(decoded.tick).toBe(7);
+    expect(Array.from(decoded.xpos).map((v) => +v.toFixed(3))).toEqual([1, -0.5, 2.7]);
+    expect(decoded.xquat[0]).toBeCloseTo(1, 6);
+    expect(() => decodeStateFrame(buffer.slice(0, buffer.byteLength - 2))).toThrow();
+  });
+});

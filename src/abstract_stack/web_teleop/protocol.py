@@ -26,6 +26,12 @@ ROLES = ("operator", "spectator")
 
 # Binary state frame: little-endian header followed by float32 body poses.
 STATE_MAGIC = b"WTS1"
+# Compact frames (opt-in via state_bind format "wts2"): same header, then int16
+# positions in units of 1/4096 m (±8 m, 0.24 mm resolution) and int16 quaternion
+# components scaled by 32767. Half the size of WTS1; for constrained links.
+COMPACT_STATE_MAGIC = b"WTS2"
+COMPACT_POSITION_SCALE = 4096.0
+COMPACT_QUAT_SCALE = 32767.0
 STATE_HEADER = struct.Struct("<4sIddHH")  # magic, tick, sim_time, host_time, nbody, flags
 FLAG_ENGAGED = 1
 
@@ -122,6 +128,15 @@ def parse_control(message: Mapping) -> dict:
         "generation": _counter(message["calibration_generation"], "calibration_generation"),
         "action": message["action"],
     }
+
+
+def parse_link_feedback(message: Mapping) -> dict:
+    """Operator-measured queueing delay (ms) on the host→browser path."""
+    _require_keys(message, {"schema_version", "type", "session_id", "queue_ms"})
+    queue_ms = _finite(message["queue_ms"], "queue_ms")
+    if not 0 <= queue_ms <= 60_000:
+        raise ProtocolError("queue_ms must be within [0, 60000]")
+    return {"session_id": message["session_id"], "queue_ms": queue_ms}
 
 
 def parse_ping(message: Mapping) -> dict:
@@ -234,8 +249,31 @@ def pack_state(
     return header + poses.tobytes()
 
 
+def compact_state(frame: bytes) -> bytes:
+    """Re-encode a WTS1 frame as WTS2 (int16 positions and quaternions)."""
+    _, tick, sim_time, host_time, nbody, flags = STATE_HEADER.unpack_from(frame)
+    poses = np.frombuffer(frame, dtype="<f4", offset=STATE_HEADER.size)
+    positions = np.clip(np.rint(poses[: nbody * 3] * COMPACT_POSITION_SCALE), -32767, 32767)
+    quats = np.clip(np.rint(poses[nbody * 3 :] * COMPACT_QUAT_SCALE), -32767, 32767)
+    header = STATE_HEADER.pack(COMPACT_STATE_MAGIC, tick, sim_time, host_time, nbody, flags)
+    return header + np.concatenate((positions, quats)).astype("<i2").tobytes()
+
+
 def unpack_state(frame: bytes) -> dict:
     magic, tick, sim_time, host_time, nbody, flags = STATE_HEADER.unpack_from(frame)
+    if magic == COMPACT_STATE_MAGIC:
+        expected = STATE_HEADER.size + nbody * 7 * 2
+        if len(frame) != expected:
+            raise ProtocolError(f"state frame has {len(frame)} bytes, expected {expected}")
+        raw = np.frombuffer(frame, dtype="<i2", offset=STATE_HEADER.size).astype(np.float32)
+        return {
+            "tick": tick,
+            "sim_time": sim_time,
+            "host_time": host_time,
+            "flags": flags,
+            "xpos": (raw[: nbody * 3] / COMPACT_POSITION_SCALE).reshape(nbody, 3),
+            "xquat": (raw[nbody * 3 :] / COMPACT_QUAT_SCALE).reshape(nbody, 4),
+        }
     if magic != STATE_MAGIC:
         raise ProtocolError("bad state frame magic")
     expected = STATE_HEADER.size + nbody * 7 * 4

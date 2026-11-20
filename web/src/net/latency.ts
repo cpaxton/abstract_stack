@@ -94,3 +94,39 @@ export class LatencyMonitor {
     };
   }
 }
+
+/**
+ * Queueing delay on the host → browser path, from one-way pose delays (synced
+ * clock). Each window's median delay minus the lowest window median of the last
+ * `history` windows is time spent waiting in buffers; the host's link controller
+ * trades video bitrate and pose rate for it.
+ */
+export class QueueProbe {
+  private samples: number[] = [];
+  private medians: number[] = [];
+  readonly history: number;
+
+  constructor(history = 40) {
+    this.history = history;
+  }
+
+  clear(): void {
+    this.samples = [];
+    this.medians = [];
+  }
+
+  push(delayMs: number): void {
+    if (Number.isFinite(delayMs)) this.samples.push(delayMs);
+  }
+
+  /** Close the current window; returns its queueing delay (ms) or null if it was empty. */
+  window(): number | null {
+    if (!this.samples.length) return null;
+    const sorted = this.samples.sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)]!;
+    this.samples = [];
+    this.medians.push(median);
+    if (this.medians.length > this.history) this.medians.shift();
+    return Math.max(0, median - Math.min(...this.medians));
+  }
+}

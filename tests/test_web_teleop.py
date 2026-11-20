@@ -956,3 +956,205 @@ def test_tailscale_mode_gates_the_web_client_api_and_sockets(clear_env, tmp_path
             assert ack["type"] == "hello_ack"
             assert ack["identity"] == {"login": "owner@example.com", "name": "Owner Name"}
             assert ack["status"]["operator_name"] == "Owner Name"
+
+
+# -- efficient transport ---------------------------------------------------------------
+
+
+def test_serve_keeps_the_real_peer_behind_tailscale_serve(clear_env, monkeypatch):
+    # Tailscale Serve connects from loopback and sets X-Forwarded-For to the remote
+    # device. uvicorn's default proxy-header handling would replace the loopback peer
+    # with that address, and the identity gate would then reject every tailnet user.
+    import uvicorn
+
+    from abstract_stack.web_teleop import server as server_module
+    from abstract_stack.web_teleop.core import TeleopCore
+    from abstract_stack.web_teleop.tailscale import TailscaleAccess
+
+    seen = {}
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: seen.update(kwargs))
+    server_module.serve(
+        TeleopCore(clear_env),
+        host="127.0.0.1",
+        port=0,
+        token=None,
+        static_dir=None,
+        access=TailscaleAccess({"owner@example.com"}),
+    )
+    assert seen["proxy_headers"] is False
+
+
+def test_compact_state_frames_halve_size_within_quarter_millimetre():
+    from abstract_stack.web_teleop.protocol import compact_state, pack_state, unpack_state
+
+    rng = np.random.default_rng(0)
+    xpos = rng.uniform(-2.7, 2.7, size=(81, 3))
+    xquat = rng.normal(size=(81, 4))
+    xquat /= np.linalg.norm(xquat, axis=1, keepdims=True)
+    full = pack_state(7, 1.25, 99.5, xpos, xquat, 1)
+    compact = compact_state(full)
+    assert compact[:4] == b"WTS2" and len(compact) == 28 + 81 * 14
+    assert len(compact) < 0.51 * len(full)
+    decoded = unpack_state(compact)
+    assert (decoded["tick"], decoded["sim_time"], decoded["host_time"]) == (7, 1.25, 99.5)
+    assert np.abs(decoded["xpos"] - xpos).max() <= 0.5 / 4096 + 1e-6  # ≤ 0.12 mm
+    assert np.abs(decoded["xquat"] - xquat).max() <= 0.5 / 32767 + 1e-6
+
+
+def test_link_controller_backs_off_in_order_and_recovers():
+    from abstract_stack.web_teleop.link import LinkController
+
+    link = LinkController(max_kbps=1500)
+    t = 0.0
+    while link.video_divider < 3:  # sustained congestion
+        link.feedback(300.0, t)
+        t += 0.5
+    assert (link.kbps, link.pose_divider, link.video_divider) == (250, 3, 3)
+    steps = link.decreases
+    link.feedback(300.0, t - 0.4)  # rate-limited: no step faster than every 0.5 s
+    assert link.decreases == steps
+    t += 2.0
+    restored = []
+    while link.kbps < 1500:
+        link.feedback(5.0, t)
+        restored.append((link.video_divider, link.pose_divider))
+        t += 1.0
+    # Video frame rate comes back first, then pose rate, then bitrate.
+    assert restored[0] == (2, 3) and (1, 1) in restored
+    assert link.kbps == 1500
+
+
+def test_in_flight_window_bounds_queueing_to_rtt_plus_slack():
+    from abstract_stack.web_teleop.link import InFlightWindow
+
+    window = InFlightWindow(slack_s=0.06, max_window_s=0.3)
+    interval = 0.02
+    # A client that never acks is not windowed (older clients keep working).
+    for tick in range(20):
+        assert window.can_send(tick * interval, interval)
+        window.sent(tick, tick * interval)
+    window.ack(19, 0.43)  # rtt 50 ms
+    assert window.allowed(0.43, interval) == 6  # (50 + 60) ms / 20 ms
+    for tick in range(20, 26):
+        assert window.can_send(0.44, interval)
+        window.sent(tick, 0.44)
+    assert not window.can_send(0.44, interval) and window.skipped == 1
+    window.ack(25, 0.50)
+    assert window.can_send(0.50, interval)
+    # A slow page acks late: the 90th percentile, not the minimum, sizes the window,
+    # and the absolute cap still bounds it.
+    for k, rtt in enumerate([0.05] * 5 + [0.2] * 5):
+        window._rtts.append((0.6 + k * 0.01, rtt))
+    assert window.allowed(0.7, interval) == 13  # (200 + 60) ms / 20 ms
+    window._rtts.append((0.7, 5.0))
+    window._rtts.append((0.7, 5.0))
+    assert window.allowed(0.7, interval) == 15  # capped at 0.3 s
+    # Frames the client never acks (dropped) expire, so the window cannot deadlock.
+    for tick in range(26, 60):
+        window.sent(tick, 0.71)
+    assert not window.can_send(0.72, interval)
+    assert window.can_send(2.3, interval)
+
+
+def test_h264_encoder_keyframes_on_request_and_decodes():
+    av = pytest.importorskip("av")
+    from abstract_stack.web_teleop.video import H264Encoder
+
+    encoder = H264Encoder(320, 120, 20.0, 600)
+    decoder = av.CodecContext.create("h264", "r")
+    rng = np.random.default_rng(1)
+    base = (rng.random((120, 320, 3)) * 255).astype(np.uint8)
+    keyframes, decoded = [], 0
+    for i in range(12):
+        if i == 6:
+            encoder.request_keyframe()
+        if i == 8:
+            encoder.set_kbps(300, now=0.0)  # within [cap/4, cap]: live change, no keyframe
+        data, key = encoder.encode(np.roll(base, i * 3, axis=1), i * 50)
+        assert data[:4] == b"\x00\x00\x00\x01"  # Annex B
+        keyframes.append(key)
+        for packet in decoder.parse(data):
+            decoded += len(decoder.decode(packet))
+    assert keyframes[0] and keyframes[6] and not keyframes[1] and not keyframes[8]
+    assert encoder.kbps == 300
+    assert decoded >= 10
+
+
+@pytest.mark.mabel
+@pytest.mark.rendering  # renders through the video thread
+def test_video_socket_negotiates_h264_and_flow_controls(clear_env, tmp_path, monkeypatch):
+    pytest.importorskip("av")
+    TestClient = _test_client()
+    from abstract_stack.web_teleop.core import TeleopCore
+    from abstract_stack.web_teleop.server import TeleopServer
+    from abstract_stack.web_teleop.video import StereoVideo, unpack_h264
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    video = StereoVideo(clear_env.model, width=160, height=120, fps=10)
+    if "h264" not in video.codecs:
+        pytest.skip("PyAV with libx264 not installed")
+    server = TeleopServer(TeleopCore(clear_env, video=video), token=None, face_budget=200)
+    session = str(uuid.uuid4())
+    with TestClient(server.app) as client, client.websocket_connect("/teleop/control") as control:
+        control.send_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "type": "hello",
+                    "session_id": session,
+                    "profile": "web_teleop_v1",
+                    "role": "operator",
+                }
+            )
+        )
+        ack = json.loads(control.receive_text())
+        assert ack["video"]["codecs"] == ["h264", "jpeg"]
+        with client.websocket_connect("/teleop/video") as stream:
+            stream.send_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "type": "video_bind",
+                        "session_id": session,
+                        "codecs": ["h264", "jpeg"],
+                    }
+                )
+            )
+            first, data = unpack_h264(stream.receive_bytes())
+            assert first["codec"] == "h264" and first["keyframe"]  # a viewer starts on a keyframe
+            assert first["layout"] == "side_by_side" and first["width"] == 160
+            assert b"\x00\x00\x00\x01\x67" in data[:64]  # SPS in-band
+            stream.send_text(
+                json.dumps({"schema_version": 1, "type": "video_ack", "pair_id": first["pair_id"]})
+            )
+            second, _ = unpack_h264(stream.receive_bytes())
+            assert second["pair_id"] > first["pair_id"]
+        # Operator feedback drives the link controller; status reports it.
+        control.send_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "type": "link_feedback",
+                    "session_id": session,
+                    "queue_ms": 500,
+                }
+            )
+        )
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            message = json.loads(control.receive_text())
+            if message["type"] == "status" and message["link"]["decreases"]:
+                assert message["link"]["video_kbps"] < video.h264_max_kbps
+                break
+        else:
+            pytest.fail("link feedback never reached the controller")
+
+
+def test_link_feedback_and_bind_formats_are_validated():
+    from abstract_stack.web_teleop.protocol import ProtocolError, parse_link_feedback
+
+    ok = {"schema_version": 1, "type": "link_feedback", "session_id": "s", "queue_ms": 12.5}
+    assert parse_link_feedback(ok)["queue_ms"] == 12.5
+    for bad in ({**ok, "queue_ms": -1}, {**ok, "queue_ms": float("nan")}, {**ok, "extra": 1}):
+        with pytest.raises(ProtocolError):
+            parse_link_feedback(bad)

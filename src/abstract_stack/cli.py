@@ -176,6 +176,14 @@ def _parser():
             )
             sub.add_argument("--video-quality", type=int, default=80, help="JPEG quality 30-95")
             sub.add_argument(
+                "--video-bitrate",
+                type=int,
+                default=1500,
+                metavar="KBPS",
+                help="H.264 bitrate ceiling in kbit/s (default 1500); the stream adapts "
+                "below it when a viewer's link congests",
+            )
+            sub.add_argument(
                 "--face-budget",
                 type=int,
                 default=0,
@@ -374,6 +382,8 @@ def _teleop(env, args):
             raise ValueError("--video-size must look like 640x480") from error
         if not 30 <= args.video_quality <= 95:
             raise ValueError("--video-quality must be between 30 and 95")
+        if not 250 <= args.video_bitrate <= 20000:
+            raise ValueError("--video-bitrate must be between 250 and 20000 kbit/s")
         cutaway = {}
         if env.config.environment == "small_house":
             from abstract_stack.house import CUTAWAY_CAMERAS, CUTAWAY_GROUP
@@ -385,6 +395,7 @@ def _teleop(env, args):
             height=height,
             fps=args.video_fps,
             quality=args.video_quality,
+            h264_kbps=args.video_bitrate,
             **cutaway,
         )
     web_dir = args.web_dir or Path(__file__).resolve().parents[2] / "web" / "dist"
