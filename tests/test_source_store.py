@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -60,6 +61,33 @@ def test_identical_captures_share_archive_and_runtime_without_per_run_python(sou
     assert json.loads((run / "source_ref.json").read_text())["git"] == first.git
     with pytest.raises(FileExistsError):
         first.write_reference(run / "source_ref.json")
+
+
+def test_runtime_is_frozen_before_publication_on_restrictive_rename(source_tree, monkeypatch):
+    rename = Path.rename
+
+    def restrictive_rename(source, destination):
+        if not source.stat().st_mode & 0o200:
+            raise PermissionError("Cannot rename a read-only directory")
+        runtime = source / "runtime"
+        assert not runtime.stat().st_mode & 0o222
+        assert not (runtime / "src/example/__init__.py").stat().st_mode & 0o222
+        return rename(source, destination)
+
+    monkeypatch.setattr(Path, "rename", restrictive_rename)
+    captured = capture(source_tree)
+    assert captured.runtime_root == capture(source_tree).runtime_root
+
+
+def test_existing_flat_runtime_entry_is_reused(source_tree):
+    _, _, _, cache = source_tree
+    captured = capture(source_tree)
+    legacy_cache = cache.parent / "legacy-runtime"
+    entry = legacy_cache / captured.content_id
+    shutil.copytree(captured.runtime_root, entry)
+    reference = cache.parent / "reference.json"
+    captured.write_reference(reference)
+    assert resolve_source_reference(reference, cache=legacy_cache).runtime_root == entry
 
 
 def test_dirty_and_untracked_selected_code_is_exact_and_unrelated_secrets_are_excluded(source_tree):

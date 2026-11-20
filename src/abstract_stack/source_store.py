@@ -201,34 +201,49 @@ def _verify_runtime(target, files):
         raise ValueError("Shared runtime source tree was modified")
 
 
+def _cached_runtime(entry, files):
+    if entry.is_symlink():
+        raise ValueError("Shared runtime source entry is a symlink")
+    # Previous caches stored the read-only tree directly at the entry.
+    runtime = entry if (entry / MANIFEST).is_file() else entry / "runtime"
+    if runtime.is_symlink() or not runtime.is_dir():
+        raise ValueError("Shared runtime source entry is incomplete or invalid")
+    if runtime != entry and set(entry.iterdir()) != {runtime}:
+        raise ValueError("Shared runtime source entry contains unexpected files")
+    _verify_runtime(runtime, files)
+    return runtime
+
+
 def _materialize(archive, cache, identity, archive_sha):
     _, files, payload = _read_archive(archive, identity, archive_sha)
     cache.mkdir(parents=True, exist_ok=True)
-    target = cache / identity
-    if target.exists():
-        _verify_runtime(target, files)
-        return target
+    entry = cache / identity
+    if entry.exists() or entry.is_symlink():
+        return _cached_runtime(entry, files)
     temporary = Path(tempfile.mkdtemp(prefix=f".{identity[:12]}-", dir=cache))
+    # macOS may reject renaming a read-only directory. Publish a writable
+    # wrapper so the already frozen runtime becomes visible atomically.
+    runtime = temporary / "runtime"
     try:
         for name, (data, executable) in payload.items():
-            path = temporary / name
+            path = runtime / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
             path.chmod(0o555 if executable else 0o444)
-        (temporary / MANIFEST).write_bytes(
+        (runtime / MANIFEST).write_bytes(
             _json(dict(schema_version=SCHEMA, content_id=identity, files=files))
         )
-        (temporary / MANIFEST).chmod(0o444)
-        for parent, _, _ in os.walk(temporary, topdown=False):
+        (runtime / MANIFEST).chmod(0o444)
+        for parent, _, _ in os.walk(runtime, topdown=False):
             Path(parent).chmod(0o555)
         try:
-            temporary.rename(target)
+            temporary.rename(entry)
         except OSError:
-            if not target.is_dir():
+            if not entry.is_dir():
                 raise
             # Another writer may have published the exact same source tree.
-            _verify_runtime(target, files)
-        return target
+            return _cached_runtime(entry, files)
+        return entry / "runtime"
     finally:
         if temporary.exists():
             _remove_temporary(temporary)

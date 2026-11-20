@@ -11,7 +11,7 @@ Source hashes alone cannot reconstruct an uncommitted policy.
 
 ```text
 outputs/source_bundles/<content-id>.zip       # one immutable compressed source tree
-outputs/cache/source_runtime/<content-id>/  # one verified runnable extraction
+outputs/cache/source_runtime/<content-id>/runtime/  # one verified runnable extraction
 outputs/<experiment>/source_ref.json         # Git revision/status, ID, hashes, archive pointer
 ```
 
@@ -21,7 +21,9 @@ Per-run metadata records that invocation's Git HEAD/tree and scoped dirty status
 Git identity is not guessed from a checkout containing unrelated snapshots.
 Archive integrity and cached source bytes are checked before reuse. Modified or
 missing archives/runtime trees fail rather than silently using current sources.
-Runtime trees are read-only; use `PYTHONDONTWRITEBYTECODE=1` in frozen workers.
+Runtime trees are read-only and are published together with their cache entry.
+Existing flat runtime entries remain readable. Use `PYTHONDONTWRITEBYTECODE=1`
+in frozen workers.
 Unexpected cached bytecode, writable runtime sources and modified runtime
 manifests are rejected before another worker starts.
 
