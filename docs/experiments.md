@@ -5,6 +5,21 @@ New development: [CPU/GPU rollout evaluation](backend_evaluation.md),
 [stationary bimanual/shared-lift control](whole_body_control.md). These prototypes
 do not establish full-shelf success or close the native process-stability gate.
 
+## Technical feasibility roadmap
+
+The [feasibility plan](technical_feasibility.md) defines proposed gates for dense
+contact, recovery, teleoperation/replay, human pace, observation realism, learning,
+custom tooling and bimanual mobile execution. The [proof-of-concept critique](poc_critique.md)
+separates existing evidence from those unproven capabilities. These are planning
+documents; their acceptance targets are not measured results. The
+[first stocking experiment](technical_feasibility.md#first-stocking-experiment)
+starts with pinned baseline replay, then compares controllers on matched dense
+scenes.
+
+Track candidate mechanics, sensing, build assets and matched-tool experiments in
+the [gripper design tracker](gripper_design_tracker.md), beginning with GET and
+Dream Gripper as separate references.
+
 ## Supported starting point
 
 Install with `./install.sh`, fetch native MABEL with `abstract-stack fetch-mabel`,

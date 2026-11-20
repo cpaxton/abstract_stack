@@ -1,4 +1,5 @@
 \section{Related Work and Working Hypothesis}
+\subsection{Task-program development}
 SS-Replan~\citep{garrett2020replan} alternates deterministic belief-space
 planning, action execution and observation updates, initially reusing the
 remaining discrete plan structure. We propose this execution pattern for
@@ -22,3 +23,27 @@ The main novelty question remains open: does this combination improve complete
 shelf completion under tight geometry and physical failures, beyond a competent
 hand-written policy with the same controller? The proposed experiments address
 that question before any claim about generality or reduced engineering effort.
+
+\subsection{Contact interfaces and matched collection}
+\citet{burgess2025get} introduce GET: three tapered fingers in a two-against-one
+arrangement driven by one parallel-jaw actuator, with rigid nails and optional
+optical tactile sensing. Their teleoperated object/task comparisons motivate
+testing contact geometry independently of action dimensionality; they do not
+demonstrate autonomous crowded-shelf execution. The associated release includes
+UMI-compatible CAD. Three contact fingers must not be confused with three
+independently commanded fingers.
+
+Dream Gripper is a separate hardware reference using a printed rigid backbone,
+compliant TPU insert and grip tape~\citep{dreamgripper2026}. Its released CAD and
+STL files provide a fabrication starting point, not a controlled shelf-stocking
+benchmark or a calibrated force sensor. Neither reference establishes the benefit
+of the independently actuated hand proposed below; reuse terms and robot mounting
+also require verification.
+
+UMI couples handheld collection with a deployable policy interface, including
+latency matching and relative trajectories~\citep{chi2024umi}. This motivates
+matching the robot and collection tool's contact geometry and timing. It does
+not establish transfer for our proposed fingers, sensing or recovery behaviors.
+Our working hypothesis is that co-designing contact mechanics, observations,
+reactive execution and the collection interface improves complete interactions
+at useful task pace. This remains an experimental hypothesis, not a novelty claim.
