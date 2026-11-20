@@ -1,5 +1,11 @@
 \section{Related Work and Working Hypothesis}
 \subsection{Task-program development}
+SS-Replan~\citep{garrett2020replan} alternates deterministic belief-space
+planning, action execution and observation updates, initially reusing the
+remaining discrete plan structure. We propose this execution pattern for
+stocking, starting with privileged state and bounded order search; our current
+prototype does not implement its belief filtering or probabilistic costs.
+
 \citet{merler2026coding} develop reusable programs through simulator interaction
 and evaluate frozen policies without test-time LLM calls. Their main setting
 withholds environment source; their Shelf case includes kinematic calibration.

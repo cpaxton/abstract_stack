@@ -26,6 +26,14 @@ acceptance targets in the feasibility plan are proposals, not achieved results.
 
 ## Current manipulation results
 
+The optional locked `rollout` group adds MuJoCo Warp to the normal environment
+(`uv sync --locked --group rollout --inexact`). Initial
+[CPU/GPU rollout measurements](docs/reports/rollout_backend_development.md) favor
+CPU batching for 32 short MABEL forecasts; this is separate from task success.
+A [stationary whole-body prototype](docs/whole_body_control.md) coordinates both
+arms and their shared lift, with native unloaded tracking evidence. Mobile and
+contact integration remain open.
+
 The [first physical stocking script](docs/scripted_interactions.md) attempts
 box pickup and push-to-contact with per-step force traces. Development trials
 have completed two-carton shelves with verified pickup, lift, back contact,

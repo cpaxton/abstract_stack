@@ -1,0 +1,652 @@
+{
+  "kind": "changing_benchmark_development_not_task_success_rate",
+  "scene_state": "retained failed terminal state, held native actuator targets",
+  "worlds_in_main_probe": 32,
+  "physics_dt_s": 0.002,
+  "steps_per_world": 250,
+  "rollout_horizon_s": 0.5,
+  "model_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b",
+  "cases": [
+    {
+      "name": "smoke",
+      "artifact_directory": "outputs/rollout-backends-v1/smoke",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.0162313719993108,
+          "wall_budget_seconds": 240.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0
+        },
+        "warp": {
+          "returncode": 1,
+          "timeout": false,
+          "wall_seconds": 1.7693561350006348,
+          "wall_budget_seconds": 240.0,
+          "verification_status": "unknown",
+          "fresh_task_credit": 0
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.012393191000228398,
+        "step_forward_seconds": 0.02297776099840121,
+        "guarded_step_forward_seconds": 0.028377153999826987,
+        "cpp_physics_steps": 40,
+        "guarded_completed_physics_steps": 40,
+        "guarded_eligible": 2,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 1,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 2,
+        "steps": 20,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        }
+      }
+    },
+    {
+      "name": "cuda-admission",
+      "artifact_directory": "outputs/rollout-backends-v1/cuda-admission",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.0195655820007232,
+          "wall_budget_seconds": 300.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0
+        },
+        "warp": {
+          "returncode": -11,
+          "timeout": false,
+          "wall_seconds": 61.92219492699951,
+          "wall_budget_seconds": 300.0,
+          "verification_status": "unknown",
+          "fresh_task_credit": 0
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.012452619999749004,
+        "step_forward_seconds": 0.022262039999986882,
+        "guarded_step_forward_seconds": 0.02887625200128241,
+        "cpp_physics_steps": 40,
+        "guarded_completed_physics_steps": 40,
+        "guarded_eligible": 2,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 1,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 2,
+        "steps": 20,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        }
+      }
+    },
+    {
+      "name": "fresh-data-smoke",
+      "artifact_directory": "outputs/rollout-backends-v1/fresh-data-smoke",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 1.0193362800000614,
+          "wall_budget_seconds": 180.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0
+        },
+        "warp": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 2.9714579219998996,
+          "wall_budget_seconds": 180.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.01198086099975626,
+        "step_forward_seconds": 0.02426056299918855,
+        "guarded_step_forward_seconds": 0.029720399999860092,
+        "cpp_physics_steps": 40,
+        "guarded_completed_physics_steps": 40,
+        "guarded_eligible": 2,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 1,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 2,
+        "steps": 20,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        }
+      },
+      "warp": {
+        "compile_and_capture_seconds": 0.7451663020001433,
+        "step_forward_seconds": 0.3499077380001836,
+        "physics_steps": 40,
+        "nconmax": 256,
+        "njmax": 2048,
+        "device": "cuda:0",
+        "gpu_name": "NVIDIA GeForce RTX 4090",
+        "scope": "unchecked held-target throughput only; no force admission or task credit",
+        "state_initialization": "fresh put_data after disposable compilation forecast",
+        "cuda_capture_preserved_initial_time": true,
+        "kernel_cache": "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/warp-cache/1.19.0",
+        "backend": "warp",
+        "worlds": 2,
+        "steps": 20,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "overflow_detected": false,
+        "terminal_solver_iteration_range": null
+      }
+    },
+    {
+      "name": "batch32",
+      "artifact_directory": "outputs/rollout-backends-v1/batch32",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 7.429348872999981,
+          "wall_budget_seconds": 180.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0
+        },
+        "warp": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 11.943650696999612,
+          "wall_budget_seconds": 180.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.5235676869997405,
+        "step_forward_seconds": 3.8682726309998543,
+        "guarded_step_forward_seconds": 2.093102500999521,
+        "cpp_physics_steps": 8000,
+        "guarded_completed_physics_steps": 8000,
+        "guarded_eligible": 32,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 4,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        }
+      },
+      "warp": {
+        "compile_and_capture_seconds": 0.7765597929992509,
+        "step_forward_seconds": 9.358099795999806,
+        "physics_steps": 8000,
+        "nconmax": 256,
+        "njmax": 2048,
+        "device": "cuda:0",
+        "gpu_name": "NVIDIA GeForce RTX 4090",
+        "scope": "unchecked held-target throughput only; no force admission or task credit",
+        "state_initialization": "fresh put_data after disposable compilation forecast",
+        "cuda_capture_preserved_initial_time": true,
+        "kernel_cache": "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/warp-cache/1.19.0",
+        "backend": "warp",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "overflow_detected": false,
+        "terminal_solver_iteration_range": null
+      }
+    },
+    {
+      "name": "batch32-capacity",
+      "artifact_directory": "outputs/rollout-backends-v1/batch32-capacity",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 7.5816569969993,
+          "wall_budget_seconds": 180.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0,
+          "command": [
+            "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/batch32-capacity/source_snapshot/benchmark.py",
+            "--worker",
+            "native",
+            "--input",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/batch32-capacity/inputs",
+            "--output",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/batch32-capacity/native",
+            "--worlds",
+            "32",
+            "--steps",
+            "250",
+            "--threads",
+            "4",
+            "--nconmax",
+            "128",
+            "--njmax",
+            "512"
+          ]
+        },
+        "warp": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 11.748381606999828,
+          "wall_budget_seconds": 180.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0,
+          "command": [
+            "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/batch32-capacity/source_snapshot/benchmark.py",
+            "--worker",
+            "warp",
+            "--input",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/batch32-capacity/inputs",
+            "--output",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/batch32-capacity/warp",
+            "--worlds",
+            "32",
+            "--steps",
+            "250",
+            "--threads",
+            "4",
+            "--nconmax",
+            "128",
+            "--njmax",
+            "512"
+          ]
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.5228692900000169,
+        "step_forward_seconds": 3.9571861889999127,
+        "guarded_step_forward_seconds": 2.161724552999658,
+        "cpp_physics_steps": 8000,
+        "guarded_completed_physics_steps": 8000,
+        "guarded_eligible": 32,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 4,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "requested_settings": {
+          "worlds": 32,
+          "steps": 250,
+          "threads": 4,
+          "nconmax": 128,
+          "njmax": 512,
+          "worker_wall_seconds": 240
+        }
+      },
+      "warp": {
+        "compile_and_capture_seconds": 0.7609969949990045,
+        "step_forward_seconds": 9.044002407001244,
+        "physics_steps": 8000,
+        "nconmax": 128,
+        "njmax": 512,
+        "final_contact_count": 1571,
+        "device": "cuda:0",
+        "gpu_name": "NVIDIA GeForce RTX 4090",
+        "scope": "unchecked held-target throughput only; no force admission or task credit",
+        "state_initialization": "fresh put_data after disposable compilation forecast",
+        "cuda_capture_preserved_initial_time": true,
+        "kernel_cache": "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/warp-cache/1.19.0",
+        "backend": "warp",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "requested_settings": {
+          "worlds": 32,
+          "steps": 250,
+          "threads": 4,
+          "nconmax": 128,
+          "njmax": 512,
+          "worker_wall_seconds": 240
+        },
+        "overflow_detected": false,
+        "terminal_solver_iteration_range": [
+          5,
+          7
+        ]
+      }
+    },
+    {
+      "name": "screened-native32",
+      "artifact_directory": "outputs/rollout-backends-v1/screened-native32",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 8.43636162400071,
+          "wall_budget_seconds": 60.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0,
+          "command": [
+            "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/screened-native32/source_snapshot/benchmark.py",
+            "--worker",
+            "native",
+            "--input",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/screened-native32/inputs",
+            "--output",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/screened-native32/native",
+            "--worlds",
+            "32",
+            "--steps",
+            "250",
+            "--threads",
+            "4",
+            "--wall-seconds",
+            "60.0",
+            "--nconmax",
+            "256",
+            "--njmax",
+            "2048"
+          ]
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.5350469029999658,
+        "step_forward_seconds": 3.929092590999062,
+        "guarded_step_forward_seconds": 2.206145161000677,
+        "cpp_physics_steps": 8000,
+        "guarded_completed_physics_steps": 8000,
+        "guarded_eligible": 32,
+        "screen_then_guard_seconds": 0.7927802619997237,
+        "screened_guarded_count": 4,
+        "screened_candidate_count": 32,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 4,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "requested_settings": {
+          "worlds": 32,
+          "steps": 250,
+          "threads": 4,
+          "nconmax": 256,
+          "njmax": 2048,
+          "worker_wall_seconds": 60.0
+        }
+      }
+    },
+    {
+      "name": "final32",
+      "artifact_directory": "outputs/rollout-backends-v1/final32",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 8.336752485000034,
+          "wall_budget_seconds": 60.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0,
+          "command": [
+            "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final32/source_snapshot/benchmark.py",
+            "--worker",
+            "native",
+            "--input",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final32/inputs",
+            "--output",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final32/native",
+            "--worlds",
+            "32",
+            "--steps",
+            "250",
+            "--threads",
+            "4",
+            "--wall-seconds",
+            "60.0",
+            "--nconmax",
+            "128",
+            "--njmax",
+            "512"
+          ]
+        },
+        "warp": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 11.646322275000784,
+          "wall_budget_seconds": 60.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0,
+          "command": [
+            "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final32/source_snapshot/benchmark.py",
+            "--worker",
+            "warp",
+            "--input",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final32/inputs",
+            "--output",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final32/warp",
+            "--worlds",
+            "32",
+            "--steps",
+            "250",
+            "--threads",
+            "4",
+            "--wall-seconds",
+            "60.0",
+            "--nconmax",
+            "128",
+            "--njmax",
+            "512"
+          ]
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.5211716659996455,
+        "step_forward_seconds": 3.845116026001051,
+        "guarded_step_forward_seconds": 2.1836160759994527,
+        "cpp_physics_steps": 8000,
+        "guarded_completed_physics_steps": 8000,
+        "guarded_eligible": 32,
+        "screen_then_guard_seconds": 0.819539504000204,
+        "screened_guarded_count": 4,
+        "screened_candidate_count": 32,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 4,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "requested_settings": {
+          "worlds": 32,
+          "steps": 250,
+          "threads": 4,
+          "nconmax": 128,
+          "njmax": 512,
+          "worker_wall_seconds": 60.0
+        }
+      },
+      "warp": {
+        "compile_and_capture_seconds": 0.7471123340001213,
+        "step_forward_seconds": 9.008354558000065,
+        "physics_steps": 8000,
+        "nconmax": 128,
+        "njmax": 512,
+        "final_contact_count": 1585,
+        "device": "cuda:0",
+        "gpu_name": "NVIDIA GeForce RTX 4090",
+        "scope": "unchecked held-target throughput only; no force admission or task credit",
+        "state_initialization": "fresh put_data after disposable compilation forecast",
+        "cuda_capture_preserved_initial_time": true,
+        "kernel_cache": "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/warp-cache/1.19.0",
+        "backend": "warp",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "requested_settings": {
+          "worlds": 32,
+          "steps": 250,
+          "threads": 4,
+          "nconmax": 128,
+          "njmax": 512,
+          "worker_wall_seconds": 60.0
+        },
+        "overflow_detected": false,
+        "terminal_solver_iteration_range": [
+          5,
+          7
+        ]
+      }
+    },
+    {
+      "name": "final-guarded32",
+      "artifact_directory": "outputs/rollout-backends-v1/final-guarded32",
+      "process": {
+        "native": {
+          "returncode": 0,
+          "timeout": false,
+          "wall_seconds": 8.281967554999937,
+          "wall_budget_seconds": 60.0,
+          "verification_status": "completed",
+          "fresh_task_credit": 0,
+          "command": [
+            "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final-guarded32/source_snapshot/benchmark.py",
+            "--worker",
+            "native",
+            "--input",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final-guarded32/inputs",
+            "--output",
+            "/home/cpaxton/src/abstract_stack/outputs/rollout-backends-v1/final-guarded32/native",
+            "--worlds",
+            "32",
+            "--steps",
+            "250",
+            "--threads",
+            "4",
+            "--wall-seconds",
+            "60.0",
+            "--nconmax",
+            "128",
+            "--njmax",
+            "512"
+          ]
+        }
+      },
+      "fresh_task_credit": 0,
+      "native": {
+        "cpp_step_only_seconds": 0.5281548490002024,
+        "step_forward_seconds": 3.8361525049986085,
+        "guarded_step_forward_seconds": 2.1233003640008974,
+        "cpp_physics_steps": 8000,
+        "guarded_completed_physics_steps": 8000,
+        "guarded_eligible": 32,
+        "screen_then_guard_seconds": 0.8078365349974774,
+        "screened_guarded_count": 4,
+        "screened_candidate_count": 32,
+        "cpp_vs_step_forward_max_state_difference": 0.0,
+        "threads": 4,
+        "scope": "held-native-target forecasts; C++ path has no per-step force guard; no task credit",
+        "backend": "native",
+        "worlds": 32,
+        "steps": 250,
+        "dt_seconds": 0.002,
+        "fresh_task_credit": 0,
+        "versions": {
+          "mujoco": "3.17.0",
+          "numpy": "1.26.4",
+          "mujoco-warp": "3.17.0",
+          "warp-lang": "1.19.0"
+        },
+        "requested_settings": {
+          "worlds": 32,
+          "steps": 250,
+          "threads": 4,
+          "nconmax": 128,
+          "njmax": 512,
+          "worker_wall_seconds": 60.0
+        }
+      }
+    }
+  ]
+}

@@ -68,6 +68,10 @@ class IKPrediction:
     path_ik_error: dict | None = None
     posture_constraints: dict = field(default_factory=dict)
     baseline_qpos: np.ndarray | None = field(default=None, repr=False)
+    joint_path: np.ndarray | None = field(default=None, repr=False)
+    bounded_feedback: dict | None = field(default=None, repr=False)
+    initial_cartesian_transition: dict | None = field(default=None, repr=False)
+    reference_ranges: dict = field(default_factory=dict)
 
     @property
     def safe(self):
@@ -100,10 +104,16 @@ class IKPrediction:
             "selected_orientation": self.requested_rotation.tolist(),
             "active_limits": self.active_limits,
             "planning_posture_constraints": self.posture_constraints,
+            "planning_reference_ranges": self.reference_ranges,
             "collisions": self.collisions,
             "sampled_path_collisions": self.path_collisions,
             "sampled_path_model": self.path_mode,
             "sampled_path_ik_error": self.path_ik_error,
+            "retained_cartesian_joint_waypoints": (
+                0 if self.joint_path is None else len(self.joint_path)
+            ),
+            "bounded_feedback": self.bounded_feedback,
+            "initial_cartesian_transition": self.initial_cartesian_transition,
             "endpoint_within_collision_tolerance": not self.collisions,
             "sampled_path_checked": self.path_checked,
             "safe_sampled_path": self.path_checked and self.safe,
@@ -147,6 +157,7 @@ class PoseIK:
         self.dofs = np.array([j.dofadr[0] for j in self.joints])
         self.lifts = [model.joint(n) for n in ("Lift Lower", "Lift Upper")]
         self.lower, self.upper, self.home = lower.copy(), upper.copy(), home.copy()
+        self.original_lower, self.original_upper = lower.copy(), upper.copy()
         self.offset = offset.copy()
         self.palm = model.body(palm).id
         self.robot = _descendants(model, model.body("mabel_chassis").id)
@@ -156,6 +167,33 @@ class PoseIK:
         self.carry = None
         self.slide = None
         self.posture_constraints = {}
+        self.reference_ranges = {}
+
+    def constrain_reference_range(self, name, lower, upper):
+        """Restrict nominal planning references; never change native model bounds."""
+        index = self.names.index(name)
+        if (
+            not np.isfinite([lower, upper]).all()
+            or not self.original_lower[index] <= lower < upper <= self.original_upper[index]
+            or (
+                index in self.posture_constraints
+                and not lower <= self.posture_constraints[index] <= upper
+            )
+        ):
+            raise ValueError("Reference range must contain its posture and fit original bounds")
+        self.lower[index], self.upper[index] = lower, upper
+        self.reference_ranges[index] = (float(lower), float(upper))
+
+    def reference_range_report(self):
+        return {
+            self.names[index]: {
+                "lower": limits[0],
+                "upper": limits[1],
+                "original_lower": float(self.original_lower[index]),
+                "original_upper": float(self.original_upper[index]),
+            }
+            for index, limits in self.reference_ranges.items()
+        }
 
     def constrain_posture(self, name, value):
         """Constrain a planning coordinate without editing native joint bounds."""
@@ -196,6 +234,71 @@ class PoseIK:
             mujoco.mj_kinematics(self.model, self.scratch)
             mujoco.mj_comPos(self.model, self.scratch)
         return point.copy(), rotation
+
+    def _cartesian_start_transition(
+        self,
+        start,
+        first_q,
+        start_point,
+        start_rotation,
+        reference,
+        baseline,
+        allowed_object,
+        rates,
+        position_tolerance,
+        angle_tolerance_degrees,
+    ):
+        """Check a real joint-space prefix into the first constrained IK pose.
+
+        A Cartesian t=0 solve may change redundant joints or enforce a different
+        wrist posture. Its FK matching the initial tool pose does not make that
+        joint change instantaneous. Return sampled prefix poses for execution.
+        """
+        if np.array_equal(first_q, start):
+            return [], [], None, None
+        normalized_gap = float(np.max(np.abs(first_q - start) / rates))
+        steps = max(2, int(np.ceil(normalized_gap / 0.04)))
+        metadata = dict(
+            joint_gap=(first_q - start).tolist(),
+            samples=steps + 1,
+            checked_samples=0,
+            minimum_seconds=1.875 * normalized_gap,
+            maximum_hold_position_error_m=0.0,
+            maximum_hold_orientation_error_deg=0.0,
+            accepted=False,
+        )
+        path = []
+        for fraction in np.linspace(0, 1, steps + 1):
+            q = start + fraction * (first_q - start)
+            point, rotation = self.forward(q, reference)
+            pe = float(np.linalg.norm(point - start_point))
+            ae = float(np.linalg.norm(rotation_error(rotation, start_rotation)))
+            metadata["checked_samples"] += 1
+            metadata["maximum_hold_position_error_m"] = max(
+                metadata["maximum_hold_position_error_m"], pe
+            )
+            metadata["maximum_hold_orientation_error_deg"] = max(
+                metadata["maximum_hold_orientation_error_deg"], float(np.degrees(ae))
+            )
+            errors = self.collision_errors(q, reference, baseline, allowed_object)
+            if errors:
+                return path, errors, None, metadata
+            if pe > position_tolerance or ae > np.radians(angle_tolerance_degrees):
+                return (
+                    path,
+                    [],
+                    dict(
+                        stage="initial_cartesian_transition",
+                        fraction=float(fraction),
+                        position_error_m=pe,
+                        orientation_error_deg=float(np.degrees(ae)),
+                    ),
+                    metadata,
+                )
+            if fraction < 1:
+                path.append(q.copy())
+        metadata["accepted"] = True
+        return path, [], None, metadata
 
     def solve(
         self, target, rotation, seed, *, iterations=100, rotation_weight=0.12, reference=None
@@ -502,6 +605,8 @@ class PoseIK:
                 angular_error = float(np.linalg.norm(rotation_error(actual_rotation, rotation)))
                 collisions = self.collision_errors(q, reference, baseline, object_id)
                 path_collisions, prefix, path_ik_error = [], None, None
+                retained_path = None
+                initial_transition = None
                 duration = float(1.875 * np.max(np.abs(q - start) / rates))
                 if check_path:
                     start_point, start_rotation = self.forward(start, reference)
@@ -529,6 +634,24 @@ class PoseIK:
                                     "orientation_error_deg": float(np.degrees(ae)),
                                 }
                                 break
+                            if t == 0:
+                                initial_path, path_collisions, path_ik_error, initial_transition = (
+                                    self._cartesian_start_transition(
+                                        start,
+                                        path_q,
+                                        start_point,
+                                        start_rotation,
+                                        reference,
+                                        baseline,
+                                        object_id,
+                                        rates,
+                                        position_tolerance,
+                                        angle_tolerance_degrees,
+                                    )
+                                )
+                                if path_collisions or path_ik_error:
+                                    break
+                                path.extend(initial_path)
                         else:
                             path_q = start + t * (q - start)
                         path_collisions = self.collision_errors(
@@ -560,6 +683,16 @@ class PoseIK:
                         duration = float(
                             1.875 * np.max(np.abs(np.diff(path, axis=0)).sum(axis=0) / rates)
                         )
+                        if initial_transition is not None:
+                            # Execution interpolates by waypoint index. Include
+                            # the prefix AND the largest segment rate so a
+                            # denser Cartesian tail cannot rush the prefix.
+                            segment_times = np.abs(np.diff(path, axis=0)) / rates
+                            duration = max(
+                                duration, float(1.875 * (len(path) - 1) * np.max(segment_times))
+                            )
+                            initial_transition["included_in_duration"] = True
+                        retained_path = np.asarray(path).copy()
                 limits = [
                     name
                     for name, value, lo, hi in zip(
@@ -606,6 +739,9 @@ class PoseIK:
                         self.names[i]: value for i, value in self.posture_constraints.items()
                     },
                     baseline_qpos=baseline_reference.copy(),
+                    joint_path=retained_path,
+                    initial_cartesian_transition=initial_transition,
+                    reference_ranges=self.reference_range_report(),
                 )
                 key = (position_error, angular_error)
                 if best_any is None or key < (

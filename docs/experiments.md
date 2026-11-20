@@ -1,5 +1,10 @@
 # Stocking workflows and experiment index
 
+New development: [CPU/GPU rollout evaluation](backend_evaluation.md),
+[measured throughput report](reports/rollout_backend_development.md), and
+[stationary bimanual/shared-lift control](whole_body_control.md). These prototypes
+do not establish full-shelf success or close the native process-stability gate.
+
 ## Technical feasibility roadmap
 
 The [feasibility plan](technical_feasibility.md) defines proposed gates for dense
@@ -35,6 +40,7 @@ manipulation in that house.
 
 | Report | What it establishes |
 |---|---|
+| [PR review follow-ups](reports/pr_review_followups.md) | Controller/planning contract fixes, native Mac CI and dense regression equivalence; no new dense success-rate claim. |
 | [Selected compliance study](reports/compliance_followup.md) | Current default; four ten-scene suites, 40/40 complete; matched force comparison and retained unknown search outcome. |
 | [Thumb preshape](reports/thumb_preshape_followup.md) | Intermediate 6 N / 2 N policy; 30/30 selected runs, top-edge diagnosis, rejected probes and native dual-view recording. |
 | [Contact control](reports/contact_control_followup.md) | Earlier 8/10 and 7/10 results; release/clearance changes and one unknown historical native crash. |

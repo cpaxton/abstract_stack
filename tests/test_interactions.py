@@ -136,6 +136,7 @@ def test_force_limit_stops_on_real_hand_contact(robot, tmp_path, product_name):
             push_force_target=0.25,
             approach_force_target=0.25,
             fixture_force_target=0.25,
+            insertion_back_force_target=0.25,
         ),
     )
     # Initial-condition fixture only: deliberately penetrate the hand to exercise
@@ -161,6 +162,7 @@ def test_force_guard_includes_non_grasp_links_on_active_carton(robot, tmp_path):
             push_force_target=0.25,
             approach_force_target=0.25,
             fixture_force_target=0.25,
+            insertion_back_force_target=0.25,
         ),
     )
     # Invalid initial-contact fixture only, never a successful manipulation.
