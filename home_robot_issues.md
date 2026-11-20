@@ -82,10 +82,6 @@ project names, task descriptions, repository links, or private context.
   explicit traceback excerpt are retained under ignored
   `outputs/native-crashes/dense-prepush-abd1297/`. No terminal summary exists,
   and the failed test receives zero successful stages.
-- **Next diagnostic:** enable `PYTHONFAULTHANDLER=1`, retain the model revision,
-  initial integration state and controls, and isolate a standalone upstream-only
-  model/state sequence before reporting a library bug. Do not include downstream
-  names, repository paths, task details or private artifacts in a future report.
 - **Review-followup observation (2026-11-16):** a full pytest process exited 139
   after 36 completed tests, with its Python frame at `MjModel.from_xml_string`
   during a robot fixture's construction. The failed invocation and traceback
@@ -100,3 +96,7 @@ project names, task descriptions, repository links, or private context.
   tool output was truncated, so no exact crashing frame is claimed. This outcome
   is retained under `outputs/native-crashes/restacked-audit-prepush-92f6e8e/`;
   a separate complete-log diagnostic must not erase it. The cause remains open.
+- **Next diagnostic:** enable `PYTHONFAULTHANDLER=1`, retain the model revision,
+  initial integration state and controls, and isolate a standalone upstream-only
+  model/state sequence before reporting a library bug. Do not include downstream
+  names, repository paths, task details or private artifacts in a future report.
