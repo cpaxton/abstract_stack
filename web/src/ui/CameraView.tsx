@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { lookAt, panBy, recentreHead } from "../input/headLook";
+import { videoAgeMs } from "../net/stereo";
 import type { TeleopClient } from "../net/TeleopClient";
 import { useUi, type Eyes } from "../state/store";
 import { syncMirror } from "../state/mirror";
@@ -137,25 +138,38 @@ export function CameraView({
       }
       canvas.getContext("2d", { alpha: false })?.drawImage(bitmap, 0, 0);
     };
+    // Draw each pair as soon as it decodes rather than on the next animation
+    // frame: the canvas then makes the very next composite (saves up to a frame).
+    const show = () => {
+      const pair = client.stereo.latest;
+      if (!pair || pair.meta.pair_id === drawnPair) return;
+      const now = performance.now();
+      drawnPair = pair.meta.pair_id;
+      const ratio = pair.meta.width / pair.meta.height;
+      setAspect((prev) => (Math.abs(prev - ratio) < 1e-3 ? prev : ratio));
+      const vfov = pair.meta.vertical_fov_deg[0];
+      setFov((prev) => (Math.abs(prev - vfov) < 1e-3 ? prev : vfov));
+      draw(leftRef.current, pair.left);
+      draw(rightRef.current, pair.right);
+      frames += 1;
+      if (client.clock.synced) {
+        const captured = client.clock.toLocalMs(pair.meta.capture_host_monotonic_s);
+        client.latency.videoArrival.push(pair.arrivedAt - captured);
+        client.latency.videoDecode.push(pair.receivedAt - pair.arrivedAt);
+        client.latency.videoShown.push(now - captured);
+      }
+    };
+    const off = client.on("video", show);
     const tick = () => {
       const pair = client.stereo.latest;
       const now = performance.now();
-      if (pair && pair.meta.pair_id !== drawnPair) {
-        drawnPair = pair.meta.pair_id;
-        const ratio = pair.meta.width / pair.meta.height;
-        setAspect((prev) => (Math.abs(prev - ratio) < 1e-3 ? prev : ratio));
-        const vfov = pair.meta.vertical_fov_deg[0];
-        setFov((prev) => (Math.abs(prev - vfov) < 1e-3 ? prev : vfov));
-        draw(leftRef.current, pair.left);
-        draw(rightRef.current, pair.right);
-        frames += 1;
-      }
+      show(); // first pair after mount, or one decoded while unmounted
       if (now - lastInfo > 250) {
         const fps = (frames * 1000) / (now - since);
         frames = 0;
         since = now;
         lastInfo = now;
-        const stale = !pair || now - pair.receivedAt > STALE_MS;
+        const stale = !pair || videoAgeMs(client.clock, pair, now) > STALE_MS;
         setInfo((prev) =>
           prev.stale === stale && Math.abs(prev.fps - fps) < 0.5 && prev.waiting === !pair
             ? prev
@@ -165,7 +179,10 @@ export function CameraView({
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      off();
+      cancelAnimationFrame(raf);
+    };
   }, [client]);
 
   return (

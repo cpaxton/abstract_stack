@@ -70,10 +70,13 @@ test("input loss pauses the robot", async ({ page }, info) => {
   await open(page);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Engaged");
-  // Simulate a stalled client: stop the command timer by freezing JS timers.
+  // Simulate a stalled client: stop every timer and animation frame (the command
+  // pump runs on both), so commands stop while the sockets stay open.
   await page.evaluate(() => {
     const hi = window.setInterval(() => {}, 1e6);
     for (let i = 0; i <= hi; i++) window.clearInterval(i);
+    const frame = requestAnimationFrame(() => {});
+    for (let i = 0; i <= frame; i++) cancelAnimationFrame(i);
   });
   await expect(page.getByRole("status")).toContainText("Paused", { timeout: 5000 });
 });
@@ -197,4 +200,81 @@ test("first-run guide introduces the controls once", async ({ page }) => {
   await expect(guide).toBeHidden(); // not shown again
   await page.getByRole("button", { name: "Help" }).click();
   await expect(guide).toBeVisible(); // reopened on demand
+});
+
+/** Drop robot-pose frames while `window.__dropState` is set (commands keep flowing). */
+async function canFreezePoses(page: Page) {
+  await page.addInitScript(() => {
+    const Native = window.WebSocket;
+    class Freezable extends Native {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        if (!String(url).includes("/teleop/state")) return;
+        this.addEventListener(
+          "message",
+          (event) => {
+            if ((window as unknown as { __dropState?: boolean }).__dropState) {
+              event.stopImmediatePropagation();
+            }
+          },
+          { capture: true },
+        );
+      }
+    }
+    // onmessage handlers run after capture listeners on the same target only when
+    // registered via addEventListener; route the property through it as well.
+    Object.defineProperty(Freezable.prototype, "onmessage", {
+      set(handler: ((event: MessageEvent) => void) | null) {
+        if (handler) this.addEventListener("message", handler);
+      },
+    });
+    window.WebSocket = Freezable as typeof WebSocket;
+  });
+}
+
+test("a frozen 3D view refuses engage and pauses an engaged session", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "keyboard flow");
+  await canFreezePoses(page);
+  await open(page);
+  const pill = page.getByRole("status");
+  // Commands would still flow, so only the client can tell its picture is old.
+  await page.evaluate(() => ((window as unknown as { __dropState: boolean }).__dropState = true));
+  await expect(page.locator(".topbar .chip-error")).toContainText("Stale", { timeout: 5000 });
+  await page.keyboard.press("Enter");
+  await expect(
+    page.locator(".toast").filter({ hasText: "Can't engage: robot pose is" }),
+  ).toHaveCount(1);
+  await expect(pill).not.toContainText("Engaged");
+
+  await page.evaluate(() => ((window as unknown as { __dropState: boolean }).__dropState = false));
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __teleop: Debug }).__teleop.poseAgeMs()),
+    )
+    .toBeLessThan(100);
+  await ensureEngaged(page);
+  await page.evaluate(() => ((window as unknown as { __dropState: boolean }).__dropState = true));
+  await expect(pill).toContainText("Paused", { timeout: 5000 });
+  await expect(
+    page.locator(".toast").filter({ hasText: /Paused: robot pose is \d+ ms old/ }),
+  ).toHaveCount(1);
+  expect((await status(page))!.state).toBe("paused");
+});
+
+test("the latency chip reports the view being steered by", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "same on all devices");
+  await open(page);
+  const chip = page.locator(".topbar .chip-ok, .topbar .chip-warn").first();
+  await expect(chip).toContainText(/3D \d+ ms/);
+  const latency = await page.evaluate(() =>
+    (
+      window as unknown as {
+        __teleop: { latency: () => { poseShown: { p50: number } | null; clockErrorMs: number } };
+      }
+    ).__teleop.latency(),
+  );
+  expect(latency.poseShown!.p50).toBeGreaterThan(0);
+  // Software rendering (E2E_GPU=0) has long frames, so the adaptive buffer grows.
+  expect(latency.poseShown!.p50).toBeLessThan(process.env.E2E_GPU === "0" ? 1000 : 250);
+  expect(latency.clockErrorMs).toBeLessThan(25);
 });

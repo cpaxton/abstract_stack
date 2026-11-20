@@ -261,7 +261,7 @@ class TeleopServer:
                 calibration_generation=status["calibration_generation"],
                 budgets={
                     "control_hz": round(1 / self.core.env.dt),
-                    "command_hz": 30,
+                    "command_hz": 60,
                     "input_timeout_s": self.core.config.input_timeout_s,
                     "status_hz": round(
                         1 / (self.core.env.dt * self.core.config.status_every_ticks)
@@ -479,6 +479,7 @@ def serve(
     static_dir: Path | None,
     allowed_origins: tuple[str, ...] = (),
     face_budget: int = 0,
+    ws_deflate: bool = False,
 ) -> None:
     import uvicorn
 
@@ -515,4 +516,7 @@ def serve(
         ws_max_size=protocol.MAX_JSON_BYTES * 2,
         ws_ping_interval=10,
         ws_ping_timeout=10,
+        # Frames are JPEG and float32 poses: deflate saves little and costs CPU and
+        # latency on every message, so it is opt-in.
+        ws_per_message_deflate=ws_deflate,
     )

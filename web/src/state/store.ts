@@ -1,3 +1,4 @@
+import type { LatencySnapshot } from "../net/latency";
 import { create } from "zustand";
 import type { ConnectionState } from "../net/TeleopClient";
 import type { HelloAck, Role, Side, Status } from "../net/protocol";
@@ -31,6 +32,12 @@ interface UiState {
   budgets: HelloAck["budgets"] | null;
   status: Status | null;
   rttMs: number | null;
+  /** Per-stage latency, refreshed ~4 Hz. */
+  latency: LatencySnapshot | null;
+  /** Why steering is unsafe right now (stale view), or null. */
+  stale: string | null;
+  /** Reason for a pause the client requested itself, shown instead of the host's. */
+  autoPauseReason: string | null;
   busyAction: string | null;
   activeArm: Side;
   /** Drive mode: movement input drives the base instead of a hand. */
@@ -73,6 +80,9 @@ export const useUi = create<UiState>((set, get) => ({
   budgets: null,
   status: null,
   rttMs: null,
+  latency: null,
+  stale: null,
+  autoPauseReason: null,
   busyAction: null,
   activeArm: "right",
   driveMode: false,

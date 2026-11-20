@@ -1,10 +1,14 @@
+import { ClockSync } from "./clock";
+import { LatencyMonitor, type LatencySnapshot } from "./latency";
 import { PoseBuffer } from "./poseBuffer";
-import { StereoDecoder } from "./stereo";
+import type { Freshness } from "./freshness";
+import { StereoDecoder, videoAgeMs } from "./stereo";
 import {
   PROFILE,
   SCHEMA_VERSION,
   decodeStateFrame,
   type CommandBody,
+  type CommandTiming,
   type ControlAck,
   type ControlAction,
   type HelloAck,
@@ -12,6 +16,9 @@ import {
   type ServerMessage,
   type Status,
 } from "./protocol";
+
+// At most 125 commands/s on high-refresh displays.
+const MIN_COMMAND_INTERVAL_MS = 8;
 
 // Application close codes sent by the host (see web_teleop/server.py).
 const CLOSE_UNAUTHORISED = 4401;
@@ -59,7 +66,9 @@ export function uuid4(): string {
  * Each (re)connection uses a new session UUID, per the Quest v1 contract.
  */
 export class TeleopClient {
-  readonly poses = new PoseBuffer();
+  readonly poses = new PoseBuffer(40, 16, true);
+  readonly clock = new ClockSync();
+  readonly latency = new LatencyMonitor();
   readonly stereo = new StereoDecoder(() => this.emit("video"));
   videoAvailable = false;
   sessionId = "";
@@ -82,7 +91,10 @@ export class TeleopClient {
   private eventId = 0;
   private sequence = 0;
   private commandTimer: number | undefined;
+  private commandFrame = 0;
   private pingTimer: number | undefined;
+  private burstTimers: number[] = [];
+  private lastUplinkSequence = -1;
   private retryTimer: number | undefined;
   private retries = 0;
   private stopped = true;
@@ -180,7 +192,12 @@ export class TeleopClient {
 
   private teardown(): void {
     window.clearInterval(this.commandTimer);
+    cancelAnimationFrame(this.commandFrame);
     window.clearInterval(this.pingTimer);
+    this.burstTimers.forEach((timer) => window.clearTimeout(timer));
+    this.burstTimers = [];
+    this.clock.clear();
+    this.latency.clear();
     for (const socket of [this.control, this.state, this.video]) {
       if (socket) {
         socket.onclose = null;
@@ -228,6 +245,7 @@ export class TeleopClient {
         break;
       case "status":
         this.generation = message.calibration_generation;
+        this.recordUplink(message.command_timing);
         this.emit("status", message, message.role);
         break;
       case "control_ack":
@@ -235,9 +253,12 @@ export class TeleopClient {
         this.pending.get(message.event_id)?.(message);
         this.pending.delete(message.event_id);
         break;
-      case "pong":
-        this.emit("rtt", performance.now() - message.t0);
+      case "pong": {
+        const now = performance.now();
+        this.clock.add(message.t0, message.t1, now);
+        this.emit("rtt", now - message.t0);
         break;
+      }
       case "error":
         this.emit("error", message.message);
         break;
@@ -289,7 +310,12 @@ export class TeleopClient {
       );
     state.onmessage = (event) => {
       try {
-        this.poses.push(decodeStateFrame(event.data as ArrayBuffer));
+        const arrival = performance.now();
+        const frame = decodeStateFrame(event.data as ArrayBuffer);
+        this.poses.push(frame, arrival);
+        if (this.clock.synced) {
+          this.latency.poseNetwork.push(arrival - this.clock.toLocalMs(frame.hostTime));
+        }
       } catch (error) {
         this.emit("error", String(error));
       }
@@ -308,24 +334,71 @@ export class TeleopClient {
         );
       }
     };
-    this.pingTimer = window.setInterval(() => send({ type: "ping", t0: performance.now() }), 1000);
-    send({ type: "ping", t0: performance.now() });
-    this.commandTimer = window.setInterval(
-      () => {
-        if (this.role !== "operator") return;
-        const body = this.options.commandProvider();
-        if (!body) return;
-        this.sequence += 1;
-        send({
-          type: "command",
-          sequence: this.sequence,
-          calibration_generation: this.generation,
-          sent_monotonic_s: performance.now() / 1000,
-          ...body,
-        });
-      },
-      Math.round(1000 / commandHz),
-    );
+    const ping = () => send({ type: "ping", t0: performance.now() });
+    // A short burst converges the clock offset within half a second of connecting;
+    // after that one round trip per second tracks drift and route changes.
+    for (let i = 0; i < 5; i++) this.burstTimers.push(window.setTimeout(ping, i * 100));
+    this.pingTimer = window.setInterval(ping, 1000);
+    let lastSent = Number.NEGATIVE_INFINITY;
+    const sendCommand = () => {
+      if (this.role !== "operator") return;
+      const now = performance.now();
+      if (now - lastSent < MIN_COMMAND_INTERVAL_MS) return;
+      const body = this.options.commandProvider();
+      if (!body) return;
+      lastSent = now;
+      this.sequence += 1;
+      send({
+        type: "command",
+        sequence: this.sequence,
+        calibration_generation: this.generation,
+        sent_monotonic_s: now / 1000,
+        ...body,
+      });
+    };
+    // Send once per display frame, just after that frame's input handling (jog
+    // loop, drags) has updated the intent: setTimeout(0) from a rAF callback runs
+    // after the frame's other callbacks. A fixed timer would add up to a full
+    // interval (8 ms on average at 60 Hz) between input and send.
+    const pump = () => {
+      this.commandFrame = requestAnimationFrame(pump);
+      window.setTimeout(sendCommand, 0);
+    };
+    this.commandFrame = requestAnimationFrame(pump);
+    // Fallback where rAF is throttled (e.g. an occluded window): never slower than
+    // the host's command budget.
+    const interval = 1000 / commandHz;
+    this.commandTimer = window.setInterval(() => {
+      if (performance.now() - lastSent >= interval) sendCommand();
+    }, interval);
+  }
+
+  /** Browser send → host apply for the newest command the host echoed back. */
+  private recordUplink(timing: CommandTiming | null | undefined): void {
+    if (!timing || timing.sequence === this.lastUplinkSequence || !this.clock.synced) return;
+    this.lastUplinkSequence = timing.sequence;
+    this.latency.uplink.push(this.clock.toLocalMs(timing.applied_host_s) - timing.sent_ms);
+  }
+
+  /** Ages of the newest pose and camera frame, on the host clock when synced. */
+  freshness(now: number = performance.now()): Freshness {
+    const latest = this.poses.latest;
+    const poseAgeMs = !latest
+      ? Number.POSITIVE_INFINITY
+      : this.clock.synced
+        ? this.clock.ageMs(latest.hostTime, now)
+        : this.poses.ageMs(now);
+    const pair = this.stereo.latest;
+    return {
+      poseAgeMs,
+      videoAgeMs: this.video && pair ? videoAgeMs(this.clock, pair, now) : null,
+      videoAvailable: this.videoAvailable,
+    };
+  }
+
+  /** Current per-stage latency summary (all on the browser clock). */
+  latencySnapshot(): LatencySnapshot {
+    return this.latency.snapshot(this.clock.rttMs, this.clock.bestRttMs, this.poses.delayMs);
   }
 
   /** Send a deliberate control action; resolves with the host acknowledgement. */

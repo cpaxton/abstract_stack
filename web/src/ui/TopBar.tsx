@@ -3,6 +3,7 @@ import type { TeleopClient } from "../net/TeleopClient";
 import type { TeleopState } from "../net/protocol";
 import { useUi } from "../state/store";
 import { runAction, togglePrimary } from "./actions";
+import { latencyLines, viewLatency } from "./latencyText";
 import { Icon } from "./Icon";
 
 const STATE_LABEL: Record<TeleopState, string> = {
@@ -18,27 +19,37 @@ function ConnectionChip() {
   const detail = useUi((s) => s.connectionDetail);
   const rtt = useUi((s) => s.rttMs);
   const role = useUi((s) => s.role);
+  const latency = useUi((s) => s.latency);
+  const mainView = useUi((s) => s.mainView);
+  const stale = useUi((s) => s.stale);
+  const view = viewLatency(latency, mainView, rtt);
   const tone =
     connection === "open"
-      ? rtt !== null && rtt > 150
-        ? "warn"
-        : "ok"
+      ? stale
+        ? "error"
+        : view.ms !== null && view.ms > 150
+          ? "warn"
+          : "ok"
       : connection === "closed"
         ? "error"
         : "warn";
   const text =
     connection === "open"
-      ? `${rtt === null ? "—" : Math.round(rtt)} ms`
+      ? stale
+        ? "Stale"
+        : `${view.label} ${view.ms === null ? "—" : Math.round(view.ms)} ms`
       : connection === "reconnecting"
         ? "Reconnecting"
         : connection === "connecting"
           ? "Connecting"
           : "Offline";
+  const title =
+    detail ??
+    [stale ? `Stale: ${stale}` : null, ...latencyLines(latency), role ? `Role: ${role}` : null]
+      .filter(Boolean)
+      .join("\n");
   return (
-    <div
-      className={`chip chip-${tone}`}
-      title={detail ?? `Round trip to host${role ? ` · ${role}` : ""}`}
-    >
+    <div className={`chip chip-${tone}`} title={title}>
       <span className="dot" />
       <span className="mono">{text}</span>
       {role === "spectator" && <span className="chip-tag">View only</span>}

@@ -46,6 +46,15 @@ export interface Channels {
   };
 }
 
+/** Host echo of the newest applied command, for browser-side uplink latency. */
+export interface CommandTiming {
+  sequence: number;
+  /** The command's `sent_monotonic_s`, echoed in browser milliseconds. */
+  sent_ms: number;
+  received_host_s: number;
+  applied_host_s: number;
+}
+
 export interface Status {
   state: TeleopState;
   reason: string;
@@ -57,6 +66,7 @@ export interface Status {
   tick: number;
   sim_time_s: number;
   host_monotonic_s: number;
+  command_timing?: CommandTiming | null;
   real_time_factor: number;
   step_ms: number;
   overruns: number;

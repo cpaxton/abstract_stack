@@ -21,6 +21,15 @@ export function haptic(pattern: number | number[]): void {
 export async function runAction(client: TeleopClient, action: ControlAction): Promise<boolean> {
   const ui = useUi.getState();
   if (ui.busyAction && action !== "pause") return false;
+  if (action === "engage") {
+    // The watchdog's verdict (persistent staleness), not one instantaneous sample.
+    const reason = ui.stale;
+    if (reason) {
+      ui.toast("warn", `Can't engage: ${reason}`);
+      haptic([60, 40, 60]);
+      return false;
+    }
+  }
   ui.set({ busyAction: action });
   try {
     const ack = await client.sendControl(action);
