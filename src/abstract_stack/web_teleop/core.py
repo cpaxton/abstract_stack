@@ -402,6 +402,16 @@ class TeleopCore:
             "encode_ms": round(video.stats["encode_ms"], 1),
             "pair_bytes": video.stats["bytes"],
             "simplified_meshes": video.stats["simplified_meshes"],
+            "h264": {
+                "kbps": video.stats["h264_kbps"],
+                "max_kbps": video.h264_max_kbps,
+                "keyframes": video.stats["h264_keyframes"],
+                "frame_bytes": video.stats["h264_bytes"],
+                "encode_ms": round(video.stats["h264_encode_ms"], 1),
+                "congestion_events": video.stats["congestion_events"],
+            }
+            if "h264" in video.codecs
+            else None,
         }
 
     def _run(self) -> None:

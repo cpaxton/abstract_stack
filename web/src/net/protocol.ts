@@ -110,6 +110,9 @@ export interface VideoDescriptor {
   height: number;
   fps: number;
   codec: "jpeg";
+  /** Encodings the host offers (newer hosts); the client states its preference on bind. */
+  codecs?: ("h264" | "jpeg")[];
+  h264_codec_string?: string | null;
   vertical_fov_deg: [number, number];
 }
 
@@ -193,8 +196,9 @@ export function decodeStateFrame(buffer: ArrayBuffer): StateFrame {
     view.getUint8(2),
     view.getUint8(3),
   );
-  if (magic !== "WTS1") throw new Error(`bad state frame magic ${magic}`);
+  if (magic !== "WTS1" && magic !== "WTS2") throw new Error(`bad state frame magic ${magic}`);
   const nbody = view.getUint16(24, true);
+  if (magic === "WTS2") return decodeCompact(buffer, view, nbody);
   const expected = STATE_HEADER_BYTES + nbody * 7 * 4;
   if (buffer.byteLength !== expected) {
     throw new Error(`state frame has ${buffer.byteLength} bytes, expected ${expected}`);
@@ -208,5 +212,27 @@ export function decodeStateFrame(buffer: ArrayBuffer): StateFrame {
     // 28 is 4-byte aligned, so typed views avoid copying.
     xpos: new Float32Array(buffer, STATE_HEADER_BYTES, nbody * 3),
     xquat: new Float32Array(buffer, STATE_HEADER_BYTES + nbody * 12, nbody * 4),
+  };
+}
+
+/** int16 positions (1/4096 m) and quaternions (/32767): host protocol.compact_state. */
+function decodeCompact(buffer: ArrayBuffer, view: DataView, nbody: number): StateFrame {
+  const expected = STATE_HEADER_BYTES + nbody * 7 * 2;
+  if (buffer.byteLength !== expected) {
+    throw new Error(`state frame has ${buffer.byteLength} bytes, expected ${expected}`);
+  }
+  const raw = new Int16Array(buffer, STATE_HEADER_BYTES, nbody * 7);
+  const xpos = new Float32Array(nbody * 3);
+  const xquat = new Float32Array(nbody * 4);
+  for (let i = 0; i < xpos.length; i++) xpos[i] = raw[i]! / 4096;
+  for (let i = 0; i < xquat.length; i++) xquat[i] = raw[xpos.length + i]! / 32767;
+  return {
+    tick: view.getUint32(4, true),
+    simTime: view.getFloat64(8, true),
+    hostTime: view.getFloat64(16, true),
+    nbody,
+    flags: view.getUint16(26, true),
+    xpos,
+    xquat,
   };
 }

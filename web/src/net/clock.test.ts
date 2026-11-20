@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ClockSync } from "./clock";
+import { QueueProbe } from "./latency";
 
 // Host clock = local clock + 5000 ms, with asymmetric network delays.
 const HOST_AHEAD_MS = 5000;
@@ -41,5 +42,26 @@ describe("ClockSync", () => {
     clock.add(10, 1, 5); // negative round trip: ignored
     expect(clock.synced).toBe(false);
     expect(Number.isNaN(clock.ageMs(1, 0))).toBe(true);
+  });
+});
+
+describe("QueueProbe", () => {
+  it("reports delay above the recent minimum window median", () => {
+    const probe = new QueueProbe(4);
+    expect(probe.window()).toBeNull();
+    for (const d of [10, 11, 12]) probe.push(d);
+    expect(probe.window()).toBe(0); // baseline
+    for (const d of [90, 95, 400]) probe.push(d); // median 95: 84 ms queued
+    expect(probe.window()).toBe(84);
+  });
+
+  it("forgets an old minimum so a route change resets the baseline", () => {
+    const probe = new QueueProbe(2);
+    probe.push(5);
+    probe.window();
+    probe.push(50);
+    probe.window();
+    probe.push(50);
+    expect(probe.window()).toBe(0); // the 5 ms window aged out
   });
 });

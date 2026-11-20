@@ -23,7 +23,18 @@ await page.addInitScript(() => {
   localStorage.setItem("teleop-guide-v1", "1");
   // Input → send: age of the newest hand-target update when each command leaves.
   window.__sendAges = [];
+  window.__rxBytes = 0;
   const send = WebSocket.prototype.send;
+  const Native = window.WebSocket;
+  window.WebSocket = class extends Native {
+    constructor(url, protocols) {
+      super(url, protocols);
+      this.addEventListener("message", (event) => {
+        window.__rxBytes +=
+          typeof event.data === "string" ? event.data.length : event.data.byteLength;
+      });
+    }
+  };
   WebSocket.prototype.send = function (data) {
     if (typeof data === "string" && data.includes('"type":"command"') && window.__intentAt) {
       window.__sendAges.push(performance.now() - window.__intentAt);
@@ -33,6 +44,18 @@ await page.addInitScript(() => {
 });
 await page.goto(url);
 await page.locator(".loading").waitFor({ state: "hidden", timeout: 60_000 });
+// Optional link emulation, applied after the model loads (the browser caches it): LATENCY_DOWN_KBPS=800 LATENCY_RTT_MS=60 (Chromium only).
+const downKbps = Number(process.env.LATENCY_DOWN_KBPS ?? 0);
+if (downKbps > 0) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: Number(process.env.LATENCY_RTT_MS ?? 0),
+    downloadThroughput: (downKbps * 1000) / 8,
+    uploadThroughput: (Number(process.env.LATENCY_UP_KBPS ?? 5000) * 1000) / 8,
+  });
+}
 await page.waitForTimeout(1500);
 await page.keyboard.press("KeyR");
 await page.waitForTimeout(2500);
@@ -56,13 +79,24 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(2000); // warm-up: clock burst, buffers fill
 const samples = [];
+const rxStart = await page.evaluate(() => window.__rxBytes);
 for (let i = 0; i < seconds; i++) {
   await page.waitForTimeout(1000);
   samples.push(await page.evaluate(() => window.__teleop.latency()));
+  if (process.env.LATENCY_TRACE) {
+    console.error(JSON.stringify(await page.evaluate(() => window.__teleop.status()?.link)));
+  }
 }
-const { state, video, sendAges } = await page.evaluate(() => {
+const rxKbps = (((await page.evaluate(() => window.__rxBytes)) - rxStart) * 8) / seconds / 1000;
+const { state, video, link, codec, sendAges } = await page.evaluate(() => {
   const status = window.__teleop.status();
-  return { state: status?.state, video: status?.video, sendAges: window.__sendAges.slice(-600) };
+  return {
+    state: status?.state,
+    video: status?.video,
+    link: status?.link,
+    codec: window.__teleop.videoCodec?.(),
+    sendAges: window.__sendAges.slice(-600),
+  };
 });
 await browser.close();
 
@@ -78,6 +112,8 @@ console.log(
   JSON.stringify(
     {
       state,
+      codec,
+      receivedKbps: Math.round(rxKbps),
       rttMs: median(samples.map((s) => s.rttMs)),
       clockErrorMs: median(samples.map((s) => s.clockErrorMs)),
       bufferMs: median(samples.map((s) => s.bufferMs)),
@@ -93,6 +129,7 @@ console.log(
       videoDecode: stage("videoDecode"),
       videoShown: stage("videoShown"),
       hostVideo: video,
+      link,
     },
     null,
     2,

@@ -1,4 +1,5 @@
 import type { ClockSync } from "./clock";
+import { H264StereoDecoder, isH264Message, parseH264, type DecodedPair } from "./h264";
 
 // Stereo head-camera pairs in the Quest v1 "QTP1" framing:
 // ASCII "QTP1", uint32 BE lengths (metadata, left, right), JSON, JPEG, JPEG.
@@ -8,7 +9,7 @@ export interface PairMetadata {
   calibration_generation: number;
   capture_host_monotonic_s: number;
   sim_time_s: number;
-  codec: "jpeg";
+  codec: "jpeg" | "h264";
   width: number;
   height: number;
   eye_order: ["left", "right"];
@@ -23,6 +24,15 @@ export interface StereoPair {
   /** Local time the pair's message arrived, and when both eyes finished decoding. */
   arrivedAt: number;
   receivedAt: number;
+}
+
+/** Metadata of a QTP1 (JPEG) or QTH1 (H.264) message, for acks; null if malformed. */
+export function pairMetaOf(buffer: ArrayBuffer): PairMetadata | null {
+  try {
+    return isH264Message(buffer) ? parseH264(buffer).meta : parsePair(buffer).meta;
+  } catch {
+    return null;
+  }
 }
 
 /** Capture age (ms) of `pair` on the host clock when synced, else time since it arrived. */
@@ -60,32 +70,60 @@ export function parsePair(buffer: ArrayBuffer): EncodedPair {
 }
 
 /**
- * Latest-wins JPEG decoding: at most one pair decodes at a time and only the newest
- * waiting pair is kept, so a slow device skips frames instead of falling behind.
+ * Stereo pairs from either codec, by message magic. JPEG ("QTP1") decodes
+ * latest-wins: at most one pair at a time and only the newest waiting pair is
+ * kept, so a slow device skips frames instead of falling behind. H.264 ("QTH1")
+ * goes to WebCodecs (see h264.ts). Either way `latest` holds both eyes of one pair.
  */
 export class StereoDecoder {
   latest: StereoPair | null = null;
   decodedPairs = 0;
+  /** Codec of the newest message: "jpeg", "h264", or null before any. */
+  codec: "jpeg" | "h264" | null = null;
   private waiting: ArrayBuffer | null = null;
   private waitingSince = 0;
   private busy = false;
   private onPair: () => void;
+  private h264: H264StereoDecoder;
 
-  constructor(onPair: () => void) {
+  constructor(onPair: () => void, requestKeyframe: () => void = () => {}) {
     this.onPair = onPair;
+    this.h264 = new H264StereoDecoder((pair) => this.accept(pair), requestKeyframe);
   }
 
   push(buffer: ArrayBuffer, arrivedAt: number = performance.now()): void {
+    if (isH264Message(buffer)) {
+      this.codec = "h264";
+      try {
+        this.h264.push(buffer, arrivedAt);
+      } catch (error) {
+        console.warn("H.264 message dropped:", error);
+      }
+      return;
+    }
+    this.codec = "jpeg";
     this.waiting = buffer;
     this.waitingSince = arrivedAt;
     if (!this.busy) void this.drain();
   }
 
   clear(): void {
+    this.h264.clear();
+    this.codec = null;
     this.waiting = null;
     this.latest?.left.close();
     this.latest?.right.close();
     this.latest = null;
+  }
+
+  /** Swap in a decoded pair: both eyes together, never a new left with an old right. */
+  private accept(pair: DecodedPair): void {
+    const previous = this.latest;
+    this.latest = { ...pair, receivedAt: performance.now() };
+    previous?.left.close();
+    previous?.right.close();
+    this.decodedPairs += 1;
+    this.onPair();
   }
 
   private async drain(): Promise<void> {
