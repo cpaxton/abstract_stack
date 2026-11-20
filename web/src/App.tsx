@@ -1,4 +1,4 @@
-import { staleReason } from "./net/freshness";
+import { discountStall, staleReason } from "./net/freshness";
 import { useEffect, useMemo, useState } from "react";
 import { recentreHead } from "./input/headLook";
 import { installKeyboard } from "./input/keyboard";
@@ -107,16 +107,10 @@ export function App() {
       // stall from the data age. A truly frozen stream keeps ageing past it.
       const lag = Math.max(0, now - lastCheck - WATCHDOG_MS);
       lastCheck = now;
-      const fresh = client.freshness(now);
+      // Remember recent stalls (decaying) so Engage can discount them too.
+      client.pageStallMs = Math.max(lag, client.pageStallMs * 0.9);
       const state = useUi.getState();
-      const reason = staleReason(
-        {
-          ...fresh,
-          poseAgeMs: fresh.poseAgeMs - lag,
-          videoAgeMs: fresh.videoAgeMs === null ? null : fresh.videoAgeMs - lag,
-        },
-        state.mainView,
-      );
+      const reason = staleReason(discountStall(client.freshness(now), lag), state.mainView);
       staleSince = reason ? (staleSince ?? now) : null;
       // A momentary gap is not a frozen view: require it to persist.
       const stale = reason && now - staleSince! >= STALE_PERSIST_MS ? reason : null;

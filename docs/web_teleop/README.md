@@ -234,13 +234,16 @@ The connection chip shows the latency of the view you steer by ("3D 28 ms" or
 "Video 35 ms"). Its tooltip and the Diagnostics card break it down by stage.
 
 **Stale views pause.** Commands keep flowing when only the picture freezes, so
-the host's input timeout would never fire. The client therefore watches the
-view you steer by: poses for the 3D view (stale after 250 ms), or video for the
-camera view (stale after 300 ms). Engage is refused while that view is stale,
-and an engaged session pauses itself, naming the reason ("Paused: camera video
-is 420 ms old"). Staleness has to persist for 150 ms, and the page's own stalls
-(a long frame on a slow device) are discounted, so a slow phone does not pause
-spuriously.
+the host's input timeout would never fire. The client therefore watches what
+you actually see in the view you steer by: the pose the 3D view last drew
+(which plays back behind the newest arrival), stale after 250 ms; or the camera
+frame last drawn, stale after 300 ms. A view that hasn't drawn anything yet
+counts as unavailable. Engage checks the selected view at the moment you press
+it, so switching to a camera with no frame yet and engaging straight away is
+refused. An engaged session pauses itself and names the reason ("Paused: camera
+video is 420 ms old"). Before an automatic pause, staleness has to persist for
+150 ms, and the page's own stalls (a long frame on a slow device) are
+discounted, so a slow phone does not pause spuriously.
 
 WebSocket compression (permessage-deflate) is off by default, since frames are
 JPEG and float32 and gain little. Pass `--ws-deflate` to turn it on.
@@ -279,7 +282,10 @@ Implementations: `src/abstract_stack/web_teleop/protocol.py` and
    host's `time.monotonic()`).
 7. `status` (10 Hz) includes `command_timing {sequence, sent_ms,
    received_host_s, applied_host_s}` for the newest applied command, so the
-   client can measure send → applied.
+   client can measure send → applied. The host keys it by (session, sequence),
+   clears it when the operator changes, and sends it only to the session that
+   sent the command. Every other session gets `null`, because `sent_ms` is on the
+   sender's browser clock.
 
 **Target epoch.** Whenever the host moves arm references on its own (engage,
 ready, reset), it increments `target_epoch` and publishes `arm_targets`. The

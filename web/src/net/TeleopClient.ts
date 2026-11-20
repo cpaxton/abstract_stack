@@ -2,7 +2,7 @@ import { ClockSync } from "./clock";
 import { LatencyMonitor, type LatencySnapshot } from "./latency";
 import { PoseBuffer } from "./poseBuffer";
 import type { Freshness } from "./freshness";
-import { StereoDecoder, videoAgeMs } from "./stereo";
+import { StereoDecoder, videoAgeMs, type StereoPair } from "./stereo";
 import {
   PROFILE,
   SCHEMA_VERSION,
@@ -95,6 +95,10 @@ export class TeleopClient {
   private pingTimer: number | undefined;
   private burstTimers: number[] = [];
   private lastUplinkSequence = -1;
+  private shownPose: { hostTime: number; arrival: number } | null = null;
+  private shownVideo: StereoPair | null = null;
+  /** Longest recent main-thread stall seen by the freshness watchdog (ms). */
+  pageStallMs = 0;
   private retryTimer: number | undefined;
   private retries = 0;
   private stopped = true;
@@ -198,6 +202,9 @@ export class TeleopClient {
     this.burstTimers = [];
     this.clock.clear();
     this.latency.clear();
+    this.lastUplinkSequence = -1; // sequences restart with the next session
+    this.shownPose = null;
+    this.shownVideo = null;
     for (const socket of [this.control, this.state, this.video]) {
       if (socket) {
         socket.onclose = null;
@@ -274,6 +281,7 @@ export class TeleopClient {
       this.video.close();
       this.video = null;
       this.stereo.clear();
+      this.shownVideo = null;
     }
   }
 
@@ -380,15 +388,29 @@ export class TeleopClient {
     this.latency.uplink.push(this.clock.toLocalMs(timing.applied_host_s) - timing.sent_ms);
   }
 
-  /** Ages of the newest pose and camera frame, on the host clock when synced. */
+  /** Record that the 3D view just drew the pose from `poses.sample`. */
+  markPoseShown(): void {
+    this.shownPose = { hostTime: this.poses.sampledHostTime, arrival: this.poses.sampledArrival };
+  }
+
+  /** Record that a camera view just drew `pair`. */
+  markVideoShown(pair: StereoPair): void {
+    this.shownVideo = pair;
+  }
+
+  /**
+   * Ages of what the operator actually sees: the pose the 3D view last drew (it
+   * plays back behind the newest arrival) and the camera frame last drawn. A view
+   * that has not drawn anything yet is unavailable. Host clock when synced.
+   */
   freshness(now: number = performance.now()): Freshness {
-    const latest = this.poses.latest;
-    const poseAgeMs = !latest
+    const shown = this.shownPose;
+    const poseAgeMs = !shown
       ? Number.POSITIVE_INFINITY
       : this.clock.synced
-        ? this.clock.ageMs(latest.hostTime, now)
-        : this.poses.ageMs(now);
-    const pair = this.stereo.latest;
+        ? this.clock.ageMs(shown.hostTime, now)
+        : now - shown.arrival;
+    const pair = this.shownVideo;
     return {
       poseAgeMs,
       videoAgeMs: this.video && pair ? videoAgeMs(this.clock, pair, now) : null,

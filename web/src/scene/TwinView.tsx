@@ -76,6 +76,7 @@ function RobotTwin({
   useFrame(() => {
     const now = performance.now();
     if (!client.poses.sample(now)) return;
+    client.markPoseShown();
     if (client.clock.synced) {
       client.latency.poseShown.push(now - client.clock.toLocalMs(client.poses.sampledHostTime));
     }

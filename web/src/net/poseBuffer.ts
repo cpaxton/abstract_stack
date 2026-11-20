@@ -27,8 +27,9 @@ export class PoseBuffer {
   xpos = new Float32Array(0);
   xquat = new Float32Array(0);
   lastArrival = 0;
-  /** Host clock (s) of the pose last produced by `sample`, interpolated like the pose. */
+  /** Host clock (s) and local arrival (ms) of the pose last produced by `sample`. */
   sampledHostTime = Number.NaN;
+  sampledArrival = Number.NaN;
 
   readonly adaptive: boolean;
   private lateness = new Rolling(100);
@@ -102,13 +103,16 @@ export class PoseBuffer {
     const simMs = now - this.offset - this.delayMs;
     let i = n - 1;
     while (i > 0 && this.frames[i - 1]!.frame.simTime * 1000 > simMs) i--;
-    const b = this.frames[i]!.frame;
-    const a = i > 0 ? this.frames[i - 1]!.frame : b;
+    const bEntry = this.frames[i]!;
+    const aEntry = i > 0 ? this.frames[i - 1]! : bEntry;
+    const b = bEntry.frame;
+    const a = aEntry.frame;
     const span = (b.simTime - a.simTime) * 1000;
     const t = span > 0 ? Math.min(1, Math.max(0, (simMs - a.simTime * 1000) / span)) : 1;
     // If playback is past the newest frame, hold it (no extrapolation of contacts).
     const alpha = simMs >= b.simTime * 1000 && i === n - 1 ? 1 : t;
     this.sampledHostTime = a.hostTime + (b.hostTime - a.hostTime) * alpha;
+    this.sampledArrival = aEntry.arrival + (bEntry.arrival - aEntry.arrival) * alpha;
     for (let k = 0; k < this.xpos.length; k++) {
       this.xpos[k] = a.xpos[k]! + (b.xpos[k]! - a.xpos[k]!) * alpha;
     }

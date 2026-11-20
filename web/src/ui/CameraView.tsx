@@ -151,6 +151,7 @@ export function CameraView({
       setFov((prev) => (Math.abs(prev - vfov) < 1e-3 ? prev : vfov));
       draw(leftRef.current, pair.left);
       draw(rightRef.current, pair.right);
+      client.markVideoShown(pair);
       frames += 1;
       if (client.clock.synced) {
         const captured = client.clock.toLocalMs(pair.meta.capture_host_monotonic_s);
