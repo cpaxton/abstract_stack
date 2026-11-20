@@ -22,6 +22,8 @@ function ConnectionChip() {
   const latency = useUi((s) => s.latency);
   const mainView = useUi((s) => s.mainView);
   const stale = useUi((s) => s.stale);
+  const identity = useUi((s) => s.identity);
+  const operatorName = useUi((s) => s.status?.operator_name ?? null);
   const view = viewLatency(latency, mainView, rtt);
   const tone =
     connection === "open"
@@ -45,14 +47,28 @@ function ConnectionChip() {
           : "Offline";
   const title =
     detail ??
-    [stale ? `Stale: ${stale}` : null, ...latencyLines(latency), role ? `Role: ${role}` : null]
+    [
+      identity ? `Signed in as ${identity.name} (${identity.login})` : null,
+      stale ? `Stale: ${stale}` : null,
+      ...latencyLines(latency),
+      role ? `Role: ${role}` : null,
+    ]
       .filter(Boolean)
       .join("\n");
   return (
     <div className={`chip chip-${tone}`} title={title}>
       <span className="dot" />
       <span className="mono">{text}</span>
-      {role === "spectator" && <span className="chip-tag">View only</span>}
+      {role === "spectator" && (
+        <span className="chip-tag">
+          {operatorName ? `View only · ${operatorName} in control` : "View only"}
+        </span>
+      )}
+      {identity && role === "operator" && (
+        <span className="chip-tag" title={identity.login}>
+          {identity.name}
+        </span>
+      )}
     </div>
   );
 }

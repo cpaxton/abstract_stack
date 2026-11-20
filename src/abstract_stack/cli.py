@@ -102,6 +102,26 @@ def _parser():
             sub.add_argument("--output", type=Path, default=Path("outputs/shelf.xml"))
         if command == "teleop":
             sub.add_argument("--host", default="127.0.0.1", help="Bind address (0.0.0.0 for LAN)")
+            sub.add_argument(
+                "--tailscale",
+                action="store_true",
+                help="Serve over your Tailscale tailnet: bind to localhost, publish with "
+                "`tailscale serve` (HTTPS), and admit only allowlisted Tailscale logins",
+            )
+            sub.add_argument(
+                "--allow-user",
+                action="append",
+                default=[],
+                metavar="LOGIN",
+                help="With --tailscale: also allow this Tailscale login (repeatable; the "
+                "machine's owner is always allowed)",
+            )
+            sub.add_argument(
+                "--tailscale-serve",
+                action="store_true",
+                help="With --tailscale: run `tailscale serve` for this port (persists until "
+                "`tailscale serve reset`)",
+            )
             sub.add_argument("--port", type=int, default=8080)
             sub.add_argument(
                 "--token", help="Access token (default: stored in ~/.config/abstract_stack)"
@@ -338,7 +358,7 @@ def _teleop(env, args):
         raise ValueError("--input-timeout must be between 0.02 and 2.0 seconds")
     try:
         from abstract_stack.web_teleop.core import CoreConfig, TeleopCore
-        from abstract_stack.web_teleop.server import persistent_token, serve
+        from abstract_stack.web_teleop.server import persistent_token, print_qr, serve
     except ImportError as error:
         raise RuntimeError(
             f"web teleop needs the 'teleop' extra ({error.name} missing): uv sync --extra teleop"
@@ -370,8 +390,33 @@ def _teleop(env, args):
     web_dir = args.web_dir or Path(__file__).resolve().parents[2] / "web" / "dist"
     if not web_dir.is_dir():
         print(f"Web client not built at {web_dir}; serving the API only.", flush=True)
+    access = None
+    allowed_origins = tuple(args.allow_origin)
+    if args.tailscale:
+        from abstract_stack.web_teleop.tailscale import (
+            TailscaleAccess,
+            node_info,
+            print_setup,
+            start_serve,
+        )
+
+        if args.host not in ("127.0.0.1", "localhost", "::1"):
+            raise ValueError("--tailscale binds to localhost; drop --host")
+        info = node_info()
+        access = TailscaleAccess({info.owner_login, *args.allow_user})
+        allowed_origins += (info.origin,)
+        if args.tailscale_serve:
+            start_serve(args.port)
+        print_setup(info, args.port, serving=args.tailscale_serve)
+        print_qr(info.url)
+        if args.allow_user:
+            print(f"Also allowed: {', '.join(sorted(access.allowed - {info.owner_login}))}")
+    elif args.allow_user or args.tailscale_serve:
+        raise ValueError("--allow-user and --tailscale-serve need --tailscale")
     token = (
-        None if args.insecure_no_token else (args.token or persistent_token(rotate=args.new_token))
+        None
+        if args.insecure_no_token or access is not None
+        else (args.token or persistent_token(rotate=args.new_token))
     )
     serve(
         TeleopCore(env, config=CoreConfig(input_timeout_s=args.input_timeout), video=video),
@@ -379,9 +424,10 @@ def _teleop(env, args):
         port=args.port,
         token=token,
         static_dir=web_dir,
-        allowed_origins=tuple(args.allow_origin),
+        allowed_origins=allowed_origins,
         face_budget=args.face_budget,
         ws_deflate=args.ws_deflate,
+        access=access,
     )
 
 

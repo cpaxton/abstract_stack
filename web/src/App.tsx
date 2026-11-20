@@ -65,10 +65,17 @@ export function App() {
         ui.set({ connection, connectionDetail: detail ?? null }),
       ),
       client.on("hello", (ack) => {
-        ui.set({ role: ack.role, budgets: ack.budgets, videoAvailable: ack.video !== null });
+        ui.set({
+          role: ack.role,
+          budgets: ack.budgets,
+          videoAvailable: ack.video !== null,
+          identity: ack.identity ?? null,
+        });
         setModelHash(ack.model_hash);
-        if (ack.role === "spectator")
-          ui.toast("info", "Another operator is in control — viewing only");
+        if (ack.role === "spectator") {
+          const who = ack.status.operator_name;
+          ui.toast("info", `${who ?? "Another operator"} is in control — viewing only`);
+        }
       }),
       client.on("status", (status, role) => {
         const previous = useUi.getState().status;

@@ -23,6 +23,7 @@ const MIN_COMMAND_INTERVAL_MS = 8;
 // Application close codes sent by the host (see web_teleop/server.py).
 const CLOSE_UNAUTHORISED = 4401;
 const CLOSE_FORBIDDEN_ORIGIN = 4403;
+const CLOSE_FORBIDDEN_USER = 4405; // Tailscale login not on the host's allowlist
 
 export type ConnectionState = "idle" | "connecting" | "open" | "reconnecting" | "closed";
 
@@ -169,7 +170,11 @@ export class TeleopClient {
     control.onclose = (event) => {
       if (this.control !== control) return;
       this.teardown();
-      if (event.code === CLOSE_UNAUTHORISED || event.code === CLOSE_FORBIDDEN_ORIGIN) {
+      if (
+        event.code === CLOSE_UNAUTHORISED ||
+        event.code === CLOSE_FORBIDDEN_ORIGIN ||
+        event.code === CLOSE_FORBIDDEN_USER
+      ) {
         this.stopped = true;
         this.retries = 0;
         this.emit("connection", "closed", event.reason);
@@ -177,7 +182,9 @@ export class TeleopClient {
           "auth",
           event.code === CLOSE_UNAUTHORISED
             ? "This link's access token is not valid for the running host."
-            : "This page's address is not allowed to control the host.",
+            : event.code === CLOSE_FORBIDDEN_USER
+              ? event.reason || "Your Tailscale login is not allowed to operate this robot."
+              : "This page's address is not allowed to control the host.",
         );
         return;
       }

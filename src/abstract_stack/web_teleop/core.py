@@ -72,6 +72,7 @@ class TeleopCore:
         self._command: dict | None = None
         self._command_rx = 0.0
         self._command_timing: dict | None = None
+        self._operator_name: str | None = None
         self._accepted_sequence: int | None = None
         self._acks: OrderedDict[tuple[str, int], dict] = OrderedDict()
         self._episode_over = False
@@ -109,13 +110,18 @@ class TeleopCore:
         self._listeners.append(callback)
 
     # -- sessions (network threads) ------------------------------------------------
-    def open_session(self, session_id: str, role: str) -> str:
-        """Grant ``operator`` if the lease is free; otherwise the session spectates."""
+    def open_session(self, session_id: str, role: str, *, name: str | None = None) -> str:
+        """Grant ``operator`` if the lease is free; otherwise the session spectates.
+
+        ``name`` is the signed-in person's display name (Tailscale access), shown to
+        everyone so spectators know who holds control.
+        """
         with self._lock:
             if session_id == self._operator or session_id in self._spectators:
                 raise protocol.ProtocolError("session_id already connected")
             if role == "operator" and self._operator is None:
                 self._operator = session_id
+                self._operator_name = name
                 self._command = None
                 self._command_timing = None
                 self._accepted_sequence = None
@@ -132,6 +138,7 @@ class TeleopCore:
             self._spectators.discard(session_id)
             if session_id == self._operator:
                 self._operator = None
+                self._operator_name = None
                 self._command = None
                 self._command_timing = None
                 for key in [k for k in self._acks if k[0] == session_id]:
@@ -200,6 +207,7 @@ class TeleopCore:
             "calibration_generation": self._generation,
             "accepted_sequence": self._accepted_sequence,
             "operator_connected": self._operator is not None,
+            "operator_name": self._operator_name,
             "spectators": len(self._spectators),
             "episode_over": self._episode_over,
         }
