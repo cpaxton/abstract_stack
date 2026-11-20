@@ -32,6 +32,25 @@ fresh-state task/geometry admission before live execution. Report screened,
 guarded and unchecked counts alongside timing; a restored state earns no fresh
 manipulation credit. Keep compilation/cache and execution timings separate.
 
+Demonstration collection and the neutral episode format use the main simulator
+environment. The optional official LeRobot export worker has its own pinned
+project and lock in `tools/lfd_export/`: LeRobot 0.7 requires Python 3.12 and
+NumPy 2, conflicting with the simulator's NumPy 1.26.4 contract. Install it with:
+
+```bash
+UV_CACHE_DIR=outputs/cache/uv \
+  UV_PROJECT_ENVIRONMENT="$PWD/outputs/envs/lfd-export" \
+  uv sync --project tools/lfd_export --locked --python 3.12
+```
+
+Keep both locks current when changing their respective dependencies. The export
+worker uses CPU Torch and imports the NumPy-only neutral reader, not MuJoCo.
+See [collection and export](docs/learning_from_demonstration.md) for commands.
+Capture observations before the policy decision and nominal actions before
+every compensation path. Review videos and post-step diagnostic traces cannot
+substitute for causally aligned raw training observations. Keep privileged
+teacher context out of student features and preserve unknown/failed outcomes.
+
 ## Required checks
 
 ```bash
