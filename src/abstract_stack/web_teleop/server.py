@@ -779,4 +779,8 @@ def serve(
         # Frames are JPEG and float32 poses: deflate saves little and costs CPU and
         # latency on every message, so it is opt-in.
         ws_per_message_deflate=ws_deflate,
+        # Never rewrite the peer from X-Forwarded-For: Tailscale Serve sets it to the
+        # remote device's address, and the identity gate must see the real (loopback)
+        # peer to trust Serve's identity headers.
+        proxy_headers=False,
     )

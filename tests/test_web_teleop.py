@@ -961,6 +961,29 @@ def test_tailscale_mode_gates_the_web_client_api_and_sockets(clear_env, tmp_path
 # -- efficient transport ---------------------------------------------------------------
 
 
+def test_serve_keeps_the_real_peer_behind_tailscale_serve(clear_env, monkeypatch):
+    # Tailscale Serve connects from loopback and sets X-Forwarded-For to the remote
+    # device. uvicorn's default proxy-header handling would replace the loopback peer
+    # with that address, and the identity gate would then reject every tailnet user.
+    import uvicorn
+
+    from abstract_stack.web_teleop import server as server_module
+    from abstract_stack.web_teleop.core import TeleopCore
+    from abstract_stack.web_teleop.tailscale import TailscaleAccess
+
+    seen = {}
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: seen.update(kwargs))
+    server_module.serve(
+        TeleopCore(clear_env),
+        host="127.0.0.1",
+        port=0,
+        token=None,
+        static_dir=None,
+        access=TailscaleAccess({"owner@example.com"}),
+    )
+    assert seen["proxy_headers"] is False
+
+
 def test_compact_state_frames_halve_size_within_quarter_millimetre():
     from abstract_stack.web_teleop.protocol import compact_state, pack_state, unpack_state
 
