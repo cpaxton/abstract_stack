@@ -831,3 +831,33 @@ def test_websocket_compression_is_opt_in(monkeypatch, clear_env, tmp_path):
             core, host="127.0.0.1", port=0, token=None, static_dir=None, ws_deflate=deflate
         )
     assert [call["ws_per_message_deflate"] for call in calls] == [False, True]
+
+
+def test_command_timing_is_scoped_to_the_sending_session(clear_env):
+    from abstract_stack.web_teleop.server import _status_for
+
+    core, first = _engaged_from_ready(clear_env)
+    command = _arm_command(core, 1, np.zeros(3)) | {"session_id": first, "sent_monotonic_s": 10.0}
+    core.submit_command(first, command)
+    core._tick_once(clear_env.dt)
+    status = core._publish_status()
+    assert status["command_timing"]["session_id"] == first
+    # Only the sending session sees the echo, without the session id.
+    own = _status_for(first, status)["command_timing"]
+    assert own["sent_ms"] == pytest.approx(10000.0) and "session_id" not in own
+    assert _status_for("someone-else", status)["command_timing"] is None
+
+    # Review repro: a reconnecting browser restarts its sequences at 1 on its own clock.
+    core.close_session(first)
+    assert core._publish_status()["command_timing"] is None
+    second = str(uuid.uuid4())
+    core.open_session(second, "operator")
+    assert _event(core, second, "ready", 1)["accepted"]
+    assert _event(core, second, "engage", 2)["accepted"]
+    core._tick_once(clear_env.dt)
+    command = _arm_command(core, 1, np.zeros(3)) | {"session_id": second, "sent_monotonic_s": 99.0}
+    core.submit_command(second, command)
+    core._tick_once(clear_env.dt)
+    timing = core._publish_status()["command_timing"]
+    assert (timing["session_id"], timing["sequence"]) == (second, 1)
+    assert timing["sent_ms"] == pytest.approx(99000.0)

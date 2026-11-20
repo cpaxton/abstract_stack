@@ -52,6 +52,21 @@ CLOSE_FORBIDDEN_ORIGIN = 4403
 HELLO_TIMEOUT_S = 5.0
 
 
+def _status_for(session_id: str, status: dict) -> dict:
+    """Status as one session may see it: command timing only for its own commands.
+
+    ``sent_ms`` is on the sending browser's clock and sequences restart per
+    session, so another session's echo would be meaningless to it (and the
+    operator's session id is not shared with spectators).
+    """
+    timing = status.get("command_timing")
+    if not timing:
+        return status
+    own = timing.get("session_id") == session_id
+    public = {key: value for key, value in timing.items() if key != "session_id"}
+    return {**status, "command_timing": public if own else None}
+
+
 class Hub:
     """Fan out sim-thread frames to asyncio sockets with latest-wins semantics."""
 
@@ -268,7 +283,7 @@ class TeleopServer:
                     ),
                 },
                 video=self._video_descriptor(),
-                status=status,
+                status=_status_for(session_id, status),
             )
         )
         sender = asyncio.create_task(self._status_sender(websocket, session_id, role))
@@ -328,7 +343,9 @@ class TeleopServer:
                 status = self.hub.status
                 if status is not None:
                     await websocket.send_text(
-                        protocol.envelope("status", session_id, role=role, **status)
+                        protocol.envelope(
+                            "status", session_id, role=role, **_status_for(session_id, status)
+                        )
                     )
 
     def _video_descriptor(self) -> dict | None:

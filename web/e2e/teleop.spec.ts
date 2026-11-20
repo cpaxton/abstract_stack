@@ -202,10 +202,16 @@ test("first-run guide introduces the controls once", async ({ page }) => {
   await expect(guide).toBeVisible(); // reopened on demand
 });
 
-/** Drop robot-pose frames while `window.__dropState` is set (commands keep flowing). */
+/**
+ * Control robot-pose frames from the test while commands keep flowing:
+ * `window.__dropState` drops them, `window.__delayStateMs` delivers each one late.
+ */
 async function canFreezePoses(page: Page) {
   await page.addInitScript(() => {
+    type Hooks = { __dropState?: boolean; __delayStateMs?: number };
+    const hooks = window as unknown as Hooks;
     const Native = window.WebSocket;
+    const replayed = new WeakSet<Event>();
     class Freezable extends Native {
       constructor(url: string | URL, protocols?: string | string[]) {
         super(url, protocols);
@@ -213,16 +219,20 @@ async function canFreezePoses(page: Page) {
         this.addEventListener(
           "message",
           (event) => {
-            if ((window as unknown as { __dropState?: boolean }).__dropState) {
-              event.stopImmediatePropagation();
+            if (replayed.has(event)) return;
+            const delay = hooks.__delayStateMs ?? 0;
+            if (hooks.__dropState || delay > 0) event.stopImmediatePropagation();
+            if (!hooks.__dropState && delay > 0) {
+              const copy = new MessageEvent("message", { data: event.data });
+              replayed.add(copy);
+              window.setTimeout(() => this.dispatchEvent(copy), delay);
             }
           },
           { capture: true },
         );
       }
     }
-    // onmessage handlers run after capture listeners on the same target only when
-    // registered via addEventListener; route the property through it as well.
+    // Route `onmessage` through addEventListener so the capture listener runs first.
     Object.defineProperty(Freezable.prototype, "onmessage", {
       set(handler: ((event: MessageEvent) => void) | null) {
         if (handler) this.addEventListener("message", handler);
@@ -277,4 +287,38 @@ test("the latency chip reports the view being steered by", async ({ page }, info
   // Software rendering (E2E_GPU=0) has long frames, so the adaptive buffer grows.
   expect(latency.poseShown!.p50).toBeLessThan(process.env.E2E_GPU === "0" ? 1000 : 250);
   expect(latency.clockErrorMs).toBeLessThan(25);
+});
+
+test("the gate uses the pose the 3D view draws, not the newest one", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "keyboard flow");
+  await canFreezePoses(page);
+  await open(page);
+  // Review repro: a steady 235 ms state delay keeps the newest pose under the
+  // 250 ms limit, but the jitter buffer draws an older one.
+  await page.evaluate(
+    () => ((window as unknown as { __delayStateMs: number }).__delayStateMs = 235),
+  );
+  await expect(page.locator(".topbar .chip-error")).toContainText("Stale", { timeout: 5000 });
+  await page.keyboard.press("Enter");
+  await expect(
+    page.locator(".toast").filter({ hasText: /Can't engage: robot pose is \d+ ms old/ }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("status")).not.toContainText("Engaged");
+});
+
+test("engage checks a just-selected camera view that has no frame yet", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "keyboard flow");
+  await open(page);
+  // Hide the picture-in-picture so no camera frame is subscribed or drawn.
+  await page.getByTitle("Hide picture-in-picture").click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press("KeyV"); // main view → head camera
+  await page.keyboard.press("Enter"); // immediately, before its first frame
+  await expect(
+    page.locator(".toast").filter({ hasText: "Can't engage: camera video is not shown yet" }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("status")).not.toContainText("Engaged");
+  // Once the camera draws, engaging works.
+  await page.waitForTimeout(800);
+  await ensureEngaged(page);
 });

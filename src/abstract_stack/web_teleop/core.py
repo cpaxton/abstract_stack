@@ -117,6 +117,7 @@ class TeleopCore:
             if role == "operator" and self._operator is None:
                 self._operator = session_id
                 self._command = None
+                self._command_timing = None
                 self._accepted_sequence = None
                 if self._state is State.DISCONNECTED:
                     self._set_state(State.READY, "operator connected")
@@ -132,6 +133,7 @@ class TeleopCore:
             if session_id == self._operator:
                 self._operator = None
                 self._command = None
+                self._command_timing = None
                 for key in [k for k in self._acks if k[0] == session_id]:
                     del self._acks[key]
                 if self._state is not State.FAULT:
@@ -283,6 +285,7 @@ class TeleopCore:
             state = self._state
             command = self._command
             received = self._command_rx
+            operator = self._operator
             if state is State.ENGAGED and (
                 command is None or now - self._command_rx > self.config.input_timeout_s
             ):
@@ -297,12 +300,18 @@ class TeleopCore:
         try:
             if state is State.ENGAGED and command is not None:
                 self.retargeter.apply_intent(command, dt)
-                if self._command_timing is None or (
-                    self._command_timing["sequence"] != command["sequence"]
+                timing = self._command_timing
+                if timing is None or (timing["session_id"], timing["sequence"]) != (
+                    operator,
+                    command["sequence"],
                 ):
                     # First tick that applies this command: browser-side uplink latency
                     # is this host time (clock-synced) minus the echoed send time.
+                    # Sequences restart per session and sent_ms is on that session's
+                    # browser clock, so the echo is keyed by (session, sequence) and
+                    # only ever sent back to that session (see server._status_for).
                     self._command_timing = {
+                        "session_id": operator,
                         "sequence": command["sequence"],
                         "sent_ms": command["sent_monotonic_s"] * 1e3,
                         "received_host_s": received,
