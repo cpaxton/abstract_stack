@@ -20,6 +20,7 @@ manipulation in that house.
 
 | Report | What it establishes |
 |---|---|
+| [PR review follow-ups](reports/pr_review_followups.md) | Controller/planning contract fixes, native Mac CI and dense regression equivalence; no new dense success-rate claim. |
 | [Selected compliance study](reports/compliance_followup.md) | Current default; four ten-scene suites, 40/40 complete; matched force comparison and retained unknown search outcome. |
 | [Thumb preshape](reports/thumb_preshape_followup.md) | Intermediate 6 N / 2 N policy; 30/30 selected runs, top-edge diagnosis, rejected probes and native dual-view recording. |
 | [Contact control](reports/contact_control_followup.md) | Earlier 8/10 and 7/10 results; release/clearance changes and one unknown historical native crash. |
