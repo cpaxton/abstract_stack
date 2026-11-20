@@ -1,3 +1,5 @@
+import type { ClockSync } from "./clock";
+
 // Stereo head-camera pairs in the Quest v1 "QTP1" framing:
 // ASCII "QTP1", uint32 BE lengths (metadata, left, right), JSON, JPEG, JPEG.
 
@@ -18,7 +20,16 @@ export interface StereoPair {
   meta: PairMetadata;
   left: ImageBitmap;
   right: ImageBitmap;
+  /** Local time the pair's message arrived, and when both eyes finished decoding. */
+  arrivedAt: number;
   receivedAt: number;
+}
+
+/** Capture age (ms) of `pair` on the host clock when synced, else time since it arrived. */
+export function videoAgeMs(clock: ClockSync, pair: StereoPair, now: number): number {
+  return clock.synced
+    ? clock.ageMs(pair.meta.capture_host_monotonic_s, now)
+    : now - pair.receivedAt;
 }
 
 export interface EncodedPair {
@@ -56,6 +67,7 @@ export class StereoDecoder {
   latest: StereoPair | null = null;
   decodedPairs = 0;
   private waiting: ArrayBuffer | null = null;
+  private waitingSince = 0;
   private busy = false;
   private onPair: () => void;
 
@@ -63,8 +75,9 @@ export class StereoDecoder {
     this.onPair = onPair;
   }
 
-  push(buffer: ArrayBuffer): void {
+  push(buffer: ArrayBuffer, arrivedAt: number = performance.now()): void {
     this.waiting = buffer;
+    this.waitingSince = arrivedAt;
     if (!this.busy) void this.drain();
   }
 
@@ -80,6 +93,7 @@ export class StereoDecoder {
     try {
       while (this.waiting) {
         const buffer = this.waiting;
+        const arrivedAt = this.waitingSince;
         this.waiting = null;
         const pair = parsePair(buffer);
         const blob = (bytes: Uint8Array) => new Blob([bytes as BlobPart], { type: "image/jpeg" });
@@ -89,7 +103,13 @@ export class StereoDecoder {
         ]);
         // Swap both eyes together: never show a new left with an old right.
         const previous = this.latest;
-        this.latest = { meta: pair.meta, left, right, receivedAt: performance.now() };
+        this.latest = {
+          meta: pair.meta,
+          left,
+          right,
+          arrivedAt,
+          receivedAt: performance.now(),
+        };
         previous?.left.close();
         previous?.right.close();
         this.decodedPairs += 1;

@@ -52,6 +52,21 @@ CLOSE_FORBIDDEN_ORIGIN = 4403
 HELLO_TIMEOUT_S = 5.0
 
 
+def _status_for(session_id: str, status: dict) -> dict:
+    """Status as one session may see it: command timing only for its own commands.
+
+    ``sent_ms`` is on the sending browser's clock and sequences restart per
+    session, so another session's echo would be meaningless to it (and the
+    operator's session id is not shared with spectators).
+    """
+    timing = status.get("command_timing")
+    if not timing:
+        return status
+    own = timing.get("session_id") == session_id
+    public = {key: value for key, value in timing.items() if key != "session_id"}
+    return {**status, "command_timing": public if own else None}
+
+
 class Hub:
     """Fan out sim-thread frames to asyncio sockets with latest-wins semantics."""
 
@@ -261,14 +276,14 @@ class TeleopServer:
                 calibration_generation=status["calibration_generation"],
                 budgets={
                     "control_hz": round(1 / self.core.env.dt),
-                    "command_hz": 30,
+                    "command_hz": 60,
                     "input_timeout_s": self.core.config.input_timeout_s,
                     "status_hz": round(
                         1 / (self.core.env.dt * self.core.config.status_every_ticks)
                     ),
                 },
                 video=self._video_descriptor(),
-                status=status,
+                status=_status_for(session_id, status),
             )
         )
         sender = asyncio.create_task(self._status_sender(websocket, session_id, role))
@@ -328,7 +343,9 @@ class TeleopServer:
                 status = self.hub.status
                 if status is not None:
                     await websocket.send_text(
-                        protocol.envelope("status", session_id, role=role, **status)
+                        protocol.envelope(
+                            "status", session_id, role=role, **_status_for(session_id, status)
+                        )
                     )
 
     def _video_descriptor(self) -> dict | None:
@@ -479,6 +496,7 @@ def serve(
     static_dir: Path | None,
     allowed_origins: tuple[str, ...] = (),
     face_budget: int = 0,
+    ws_deflate: bool = False,
 ) -> None:
     import uvicorn
 
@@ -515,4 +533,7 @@ def serve(
         ws_max_size=protocol.MAX_JSON_BYTES * 2,
         ws_ping_interval=10,
         ws_ping_timeout=10,
+        # Frames are JPEG and float32 poses: deflate saves little and costs CPU and
+        # latency on every message, so it is opt-in.
+        ws_per_message_deflate=ws_deflate,
     )

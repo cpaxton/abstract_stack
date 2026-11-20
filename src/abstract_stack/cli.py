@@ -165,6 +165,12 @@ def _parser():
                 help="Simplify browser-preview meshes to at most this many faces each "
                 "(default 0: full resolution)",
             )
+            sub.add_argument(
+                "--ws-deflate",
+                action="store_true",
+                help="Compress WebSocket messages (permessage-deflate). Off by default: "
+                "frames are JPEG and float32, so it adds CPU and latency for little gain",
+            )
         if command == "build-scene":
             sub.add_argument("--output-dir", type=Path, default=Path("outputs/scene"))
             sub.add_argument("--render", action="store_true", help="Render scene preview images")
@@ -476,6 +482,7 @@ def _teleop(env, args):
         static_dir=web_dir,
         allowed_origins=tuple(args.allow_origin),
         face_budget=args.face_budget,
+        ws_deflate=args.ws_deflate,
     )
 
 

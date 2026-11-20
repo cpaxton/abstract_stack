@@ -1,5 +1,6 @@
 import type { TeleopClient } from "../net/TeleopClient";
 import type { ControlAction } from "../net/protocol";
+import { discountStall, staleReason } from "../net/freshness";
 import { useUi } from "../state/store";
 
 const LABEL: Record<ControlAction, string> = {
@@ -21,6 +22,18 @@ export function haptic(pattern: number | number[]): void {
 export async function runAction(client: TeleopClient, action: ControlAction): Promise<boolean> {
   const ui = useUi.getState();
   if (ui.busyAction && action !== "pause") return false;
+  if (action === "engage") {
+    // Check the view selected right now (it may have just been switched, with no
+    // frame drawn yet), as well as the watchdog's persistent verdict. Persistence
+    // only softens automatic pauses; engaging needs a fresh view at this moment.
+    const now = discountStall(client.freshness(), client.pageStallMs);
+    const reason = staleReason(now, ui.mainView) ?? ui.stale;
+    if (reason) {
+      ui.toast("warn", `Can't engage: ${reason}`);
+      haptic([60, 40, 60]);
+      return false;
+    }
+  }
   ui.set({ busyAction: action });
   try {
     const ack = await client.sendControl(action);

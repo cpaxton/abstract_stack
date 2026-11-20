@@ -71,6 +71,7 @@ class TeleopCore:
         self._spectators: set[str] = set()
         self._command: dict | None = None
         self._command_rx = 0.0
+        self._command_timing: dict | None = None
         self._accepted_sequence: int | None = None
         self._acks: OrderedDict[tuple[str, int], dict] = OrderedDict()
         self._episode_over = False
@@ -116,6 +117,7 @@ class TeleopCore:
             if role == "operator" and self._operator is None:
                 self._operator = session_id
                 self._command = None
+                self._command_timing = None
                 self._accepted_sequence = None
                 if self._state is State.DISCONNECTED:
                     self._set_state(State.READY, "operator connected")
@@ -131,6 +133,7 @@ class TeleopCore:
             if session_id == self._operator:
                 self._operator = None
                 self._command = None
+                self._command_timing = None
                 for key in [k for k in self._acks if k[0] == session_id]:
                     del self._acks[key]
                 if self._state is not State.FAULT:
@@ -281,6 +284,8 @@ class TeleopCore:
         with self._lock:
             state = self._state
             command = self._command
+            received = self._command_rx
+            operator = self._operator
             if state is State.ENGAGED and (
                 command is None or now - self._command_rx > self.config.input_timeout_s
             ):
@@ -295,6 +300,23 @@ class TeleopCore:
         try:
             if state is State.ENGAGED and command is not None:
                 self.retargeter.apply_intent(command, dt)
+                timing = self._command_timing
+                if timing is None or (timing["session_id"], timing["sequence"]) != (
+                    operator,
+                    command["sequence"],
+                ):
+                    # First tick that applies this command: browser-side uplink latency
+                    # is this host time (clock-synced) minus the echoed send time.
+                    # Sequences restart per session and sent_ms is on that session's
+                    # browser clock, so the echo is keyed by (session, sequence) and
+                    # only ever sent back to that session (see server._status_for).
+                    self._command_timing = {
+                        "session_id": operator,
+                        "sequence": command["sequence"],
+                        "sent_ms": command["sent_monotonic_s"] * 1e3,
+                        "received_host_s": received,
+                        "applied_host_s": time.monotonic(),
+                    }
             # Velocity intents only count while engaged with fresh input; otherwise
             # the base brakes on its deceleration ramp (pause, timeout, disconnect).
             engaged_base = command["base"] if state is State.ENGAGED and command else None
@@ -340,6 +362,7 @@ class TeleopCore:
                 "tick": self._tick,
                 "sim_time_s": float(self.env.data.time),
                 "host_monotonic_s": time.monotonic(),
+                "command_timing": self._command_timing,
                 "real_time_factor": round(self._rtf, 3),
                 "step_ms": round(self._step_ms, 2),
                 "overruns": self._overruns,
@@ -370,6 +393,7 @@ class TeleopCore:
             "render_ms": round(video.stats["render_ms"], 1),
             "encode_ms": round(video.stats["encode_ms"], 1),
             "pair_bytes": video.stats["bytes"],
+            "simplified_meshes": video.stats["simplified_meshes"],
         }
 
     def _run(self) -> None:

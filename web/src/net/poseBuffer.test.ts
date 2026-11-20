@@ -77,3 +77,34 @@ describe("decodeStateFrame", () => {
     expect(() => decodeStateFrame(buffer.slice(0, 30))).toThrow();
   });
 });
+
+describe("adaptive PoseBuffer", () => {
+  const feed = (buffer: PoseBuffer, n: number, jitter: (i: number) => number) => {
+    for (let i = 0; i < n; i++) buffer.push(frame(i * 0.02, i), 1000 + i * 20 + jitter(i));
+  };
+
+  it("settles near one frame period on a clean link", () => {
+    const buffer = new PoseBuffer(40, 16, true);
+    feed(buffer, 600, () => 0);
+    expect(buffer.delayMs).toBeGreaterThan(20);
+    expect(buffer.delayMs).toBeLessThan(26);
+  });
+
+  it("grows to cover jitter and still interpolates between frames", () => {
+    const buffer = new PoseBuffer(40, 16, true);
+    feed(buffer, 300, (i) => (i % 5 === 0 ? 30 : 0)); // every 5th frame 30 ms late
+    expect(buffer.delayMs).toBeGreaterThan(50);
+    // Mid-way between arrivals playback still has a newer frame: no hold.
+    buffer.sample(1000 + 299 * 20 + 10);
+    expect(buffer.xpos[0]! % 1).not.toBe(0);
+  });
+
+  it("rises fast and falls slowly", () => {
+    const buffer = new PoseBuffer(24, 16, true);
+    feed(buffer, 10, (i) => (i === 5 ? 60 : 0));
+    const peak = buffer.delayMs;
+    expect(peak).toBeGreaterThan(30);
+    buffer.push(frame(0.2, 10), 1000 + 10 * 20);
+    expect(peak - buffer.delayMs).toBeLessThanOrEqual(0.25 + 1e-9);
+  });
+});

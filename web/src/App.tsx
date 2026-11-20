@@ -1,3 +1,4 @@
+import { discountStall, staleReason } from "./net/freshness";
 import { useEffect, useMemo, useState } from "react";
 import { recentreHead } from "./input/headLook";
 import { installKeyboard } from "./input/keyboard";
@@ -26,6 +27,10 @@ const CAMERA_KEYS: Record<string, CameraPreset> = {
   Digit4: "front",
 };
 
+// Freshness watchdog cadence and how long staleness must persist to pause (ms).
+const WATCHDOG_MS = 50;
+const STALE_PERSIST_MS = 150;
+
 export function App() {
   const client = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
@@ -48,6 +53,7 @@ export function App() {
       intent: () => intent,
       poseAgeMs: () => client.poses.ageMs(),
       videoPairs: () => client.stereo.decodedPairs,
+      latency: () => client.latencySnapshot(),
     };
   }, [client]);
 
@@ -69,8 +75,11 @@ export function App() {
         if (rebaseFromStatus(status)) syncMirror();
         ui.set({ status, role });
         if (previous && previous.state !== status.state) {
-          if (status.state === "paused" && previous.state === "engaged")
-            ui.toast("warn", `Paused: ${status.reason}`);
+          if (status.state === "paused" && previous.state === "engaged") {
+            const own = useUi.getState().autoPauseReason;
+            ui.toast("warn", `Paused: ${own ?? status.reason}`);
+            ui.set({ autoPauseReason: null });
+          }
           if (status.state === "fault") ui.toast("error", status.reason);
         }
       }),
@@ -85,7 +94,43 @@ export function App() {
       }),
     ];
     client.start();
+    // Freshness watchdog and latency summary. Steering from a stale view is unsafe
+    // even though commands still flow (so the host's input timeout never fires):
+    // pause from the client and say why.
+    let lastLatency = 0;
+    let lastCheck = performance.now();
+    let staleSince: number | null = null;
+    const watchdog = window.setInterval(() => {
+      const now = performance.now();
+      // If the page itself was just blocked (a long frame on a slow device), frames
+      // that arrived meanwhile may still be queued behind this timer: discount the
+      // stall from the data age. A truly frozen stream keeps ageing past it.
+      const lag = Math.max(0, now - lastCheck - WATCHDOG_MS);
+      lastCheck = now;
+      // Remember recent stalls (decaying) so Engage can discount them too.
+      client.pageStallMs = Math.max(lag, client.pageStallMs * 0.9);
+      const state = useUi.getState();
+      const reason = staleReason(discountStall(client.freshness(now), lag), state.mainView);
+      staleSince = reason ? (staleSince ?? now) : null;
+      // A momentary gap is not a frozen view: require it to persist.
+      const stale = reason && now - staleSince! >= STALE_PERSIST_MS ? reason : null;
+      if (stale !== state.stale) ui.set({ stale });
+      if (
+        stale &&
+        state.role === "operator" &&
+        state.status?.state === "engaged" &&
+        !state.autoPauseReason
+      ) {
+        ui.set({ autoPauseReason: stale });
+        void client.sendControl("pause").catch(() => ui.set({ autoPauseReason: null }));
+      }
+      if (now - lastLatency >= 250) {
+        lastLatency = now;
+        ui.set({ latency: client.latencySnapshot() });
+      }
+    }, WATCHDOG_MS);
     return () => {
+      window.clearInterval(watchdog);
       off.forEach((fn) => fn());
       client.stop();
     };
