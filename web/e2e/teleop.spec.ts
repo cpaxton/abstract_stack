@@ -27,8 +27,13 @@ test.beforeEach(async ({ page }, info) => {
 const status = (page: Page) =>
   page.evaluate(() => (window as unknown as { __teleop: Debug }).__teleop.status());
 
+// Software rendering (E2E_GPU=0) decodes H.264 into bitmaps on the CPU, which
+// stalls an already slow page; real browsers decode in hardware. Use the JPEG
+// fallback there; GPU runs exercise H.264.
+const VIDEO = process.env.E2E_GPU === "0" ? "&video=jpeg" : "";
+
 async function open(page: Page) {
-  await page.goto("/?token=e2e&quality=low");
+  await page.goto(`/?token=e2e&quality=low${VIDEO}`);
   await expect(page.getByRole("status")).toContainText(/Ready|Paused/);
   await expect(page.locator(".loading")).toBeHidden({ timeout: 60_000 });
   await expect
@@ -121,11 +126,17 @@ test("a wrong token says so instead of retrying silently", async ({ page }, info
   await expect(page.getByRole("heading", { name: "Access needed" })).toBeVisible();
 });
 
-/** Engage (again, if a slow CPU-rendered frame let input go stale) right before acting. */
+/**
+ * Engage (again, if a slow CPU-rendered frame let input go stale) right before
+ * acting. Engage is refused while the view is stale, as it can be for a moment on a
+ * software-rendered page, so press again until it takes.
+ */
 async function ensureEngaged(page: Page) {
   const pill = page.getByRole("status");
-  if (!/Engaged/.test((await pill.textContent()) ?? "")) await page.keyboard.press("Enter");
-  await expect(pill).toContainText("Engaged");
+  await expect(async () => {
+    if (!/Engaged/.test((await pill.textContent()) ?? "")) await page.keyboard.press("Enter");
+    await expect(pill).toContainText("Engaged", { timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 test("drive mode moves the base and stops on release", async ({ page }, info) => {
@@ -321,4 +332,26 @@ test("engage checks a just-selected camera view that has no frame yet", async ({
   // Once the camera draws, engaging works.
   await page.waitForTimeout(800);
   await ensureEngaged(page);
+});
+
+test("camera video negotiates H.264 where supported and falls back to JPEG", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "same on all devices");
+  type Hooks = { __teleop: { videoCodec: () => string | null; videoPairs: () => number } };
+  const codec = () => page.evaluate(() => (window as unknown as Hooks).__teleop.videoCodec());
+  const pairs = () => page.evaluate(() => (window as unknown as Hooks).__teleop.videoPairs());
+  await open(page);
+  const h264 = await page.evaluate(async () =>
+    typeof VideoDecoder === "undefined"
+      ? false
+      : (await VideoDecoder.isConfigSupported({ codec: "avc1.42E01F" })).supported === true,
+  );
+  await expect.poll(codec).toBe(h264 && !VIDEO ? "h264" : "jpeg");
+  await expect.poll(pairs, { timeout: 10_000 }).toBeGreaterThan(5);
+
+  await page.goto("/?token=e2e&quality=low&video=jpeg");
+  await expect(page.locator(".loading")).toBeHidden({ timeout: 60_000 });
+  await expect.poll(codec).toBe("jpeg");
+  await expect.poll(pairs, { timeout: 10_000 }).toBeGreaterThan(5);
 });

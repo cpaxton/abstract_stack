@@ -40,6 +40,8 @@ export function App() {
       token: takeToken(),
       role,
       commandProvider: buildCommand,
+      videoCodec:
+        new URLSearchParams(window.location.search).get("video") === "jpeg" ? "jpeg" : "auto",
     });
   }, []);
   const [loaded, setLoaded] = useState<{ hash: string; model?: RobotModel; error?: string }>();
@@ -54,6 +56,7 @@ export function App() {
       poseAgeMs: () => client.poses.ageMs(),
       videoPairs: () => client.stereo.decodedPairs,
       latency: () => client.latencySnapshot(),
+      videoCodec: () => client.stereo.codec,
     };
   }, [client]);
 

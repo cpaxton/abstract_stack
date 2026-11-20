@@ -49,7 +49,9 @@ Useful options: `--scene`, `--seed`, `--spawn-backoff` (default 0.15 m; see
 below), `--time-limit` (default 3600 simulated
 seconds), `--input-timeout` (default 0.15 s), `--face-budget` (0 = full-resolution
 twin), `--no-video`, `--video-fps` (default 20), `--video-size` (default
-640x480 per eye) and `--video-quality` (JPEG quality, default 80).
+640x480 per eye), `--video-bitrate` (H.264 ceiling, default 1500 kbit/s) and
+`--video-quality` (JPEG quality, default 80). `?video=jpeg` in the address
+forces the JPEG fallback.
 
 Front-end development with hot reload proxies `/api` and `/teleop` to a
 running host:
@@ -206,6 +208,46 @@ Browser (web/)                                  Host (src/abstract_stack/web_tel
   handling (at most 125/s, with a 60 Hz timer fallback). High-rate data never
   touches React state; panels re-render at most 10 Hz.
 
+### Efficient streams for slow links
+
+Everything adapts to the operator's link, so a phone on mobile data stays
+responsive instead of falling seconds behind.
+
+- **H.264 video** (`video.py`). Both eyes are encoded side by side in one
+  stream with libx264, the same on macOS, Linux and Windows (bundled in the
+  PyAV wheels of the `teleop` extra): constrained baseline, zero latency, no
+  B-frames. Browsers decode it with WebCodecs, which needs a secure context
+  (HTTPS, or localhost). It's about 1.3 Mbit/s for motion that costs about
+  6.7 Mbit/s as JPEG, and encodes in under 2 ms. Viewers start on a keyframe,
+  and a decoder error asks for a new one. Browsers without WebCodecs H.264 get
+  the JPEG stream. Apple's hardware encoder was measured and rejected: it
+  buffered four frames (+200 ms).
+- **Compact poses.** Clients ask for `WTS2` frames: int16 positions
+  (1/4096 m) and quaternions, half the size of float32 `WTS1`
+  (0.92 → 0.46 Mbit/s at 50 Hz).
+- **Flow control.** The browser acks each pose and video frame on arrival. The
+  host keeps at most about one round trip plus slack of each stream in flight
+  (90th-percentile round trip, capped at 1 s). Beyond that, poses skip to the
+  newest frame and H.264 resumes at a keyframe, so buffers along the path never
+  fill with stale frames. Frames left unacked for 1.5 s count as lost.
+- **Link controller** (`link.py`). Four times a second the operator's browser
+  reports queueing delay: one-way pose and video delay above their recent
+  minimum, on the synced clock. Windows where the page itself stalled are
+  skipped, because a slow device must not look like a slow link. Above 80 ms
+  the host backs off, in order: H.264 bitrate (down to 250 kbit/s), pose and
+  status rate (25, then about 17 Hz), and video frame rate (10, then about
+  7 fps). Below 25 ms it recovers in reverse. Status shows it as `link`.
+
+Measured with Chromium's network emulation (40 ms added latency; rates are
+what the emulator actually delivered), host and browser on one Mac:
+
+| Delivered link | Before: poses / video (p50) | After: poses / video (p50, p95) |
+|---|---|---|
+| unthrottled | 27 / 35 ms | 27 / 34, 35 ms |
+| ≈1.1 Mbit/s | 51 ms / 7.1 s | 49 / 48, 99 ms |
+| ≈0.33 Mbit/s | 5.9 s / 10.3 s | 131 / 88, 232 ms (250 kbit/s, ~7 fps video) |
+| ≈0.27 Mbit/s | — | too little: the stale-view guard pauses |
+
 ### Latency
 
 The client syncs its clock to the host's `time.monotonic()` (NTP-style, using
@@ -260,13 +302,23 @@ Implementations: `src/abstract_stack/web_teleop/protocol.py` and
 
 1. Control socket: `hello {profile:"web_teleop_v1", role}` → `hello_ack {role,
    model_hash, calibration_generation, budgets, status}`.
-2. State socket `/teleop/state`: `state_bind {session_id}`, then binary frames. Each frame is
-   a 28-byte little-endian header (`"WTS1"`, tick u32, sim_time f64,
-   host_time f64, nbody u16, flags u16), then float32 `xpos[nbody·3]` and
-   `xquat[nbody·4]` (wxyz, world frame).
-3. Video socket `/teleop/video`: `video_bind {session_id}`, then `QTP1` stereo
-   pairs. `hello_ack.video` describes the cameras, size, rate and field of view,
-   or is `null` with `--no-video`.
+2. State socket `/teleop/state`: `state_bind {session_id, format?}`, then binary
+   frames. Each frame is a 28-byte little-endian header (`"WTS1"`, tick u32,
+   sim_time f64, host_time f64, nbody u16, flags u16), then float32
+   `xpos[nbody·3]` and `xquat[nbody·4]` (wxyz, world frame). With
+   `format: "wts2"` the magic is `"WTS2"` and the values are int16: positions in
+   1/4096 m, quaternion components ×32767. The client sends
+   `state_ack {tick}` for each frame it receives.
+3. Video socket `/teleop/video`: `video_bind {session_id, codecs?}`, where
+   `codecs` is the client's preference (`["h264", "jpeg"]`), then binary
+   messages. `QTP1` is JPEG pairs. `QTH1` is H.264: ASCII `QTH1`, big-endian
+   uint32 metadata and payload lengths, JSON metadata (`pair_id`,
+   `capture_host_monotonic_s`, `keyframe`, `layout: "side_by_side"`,
+   `bitrate_kbps`, …), then one Annex-B access unit, with SPS/PPS in-band on
+   keyframes. The client sends `video_ack {pair_id}` per message, and
+   `video_keyframe` after a decoder error. `hello_ack.video` lists `codecs` and
+   describes the cameras, size, rate and field of view, or is `null` with
+   `--no-video`.
 4. `command`: absolute intents with `calibration_generation`, `target_epoch`,
    `arms.{left,right}` (palm control-point `position_m` and `quaternion_wxyz`
    in the `mabel_chassis` frame, plus `grip` ∈ [0,1], or null to hold), and
@@ -286,6 +338,8 @@ Implementations: `src/abstract_stack/web_teleop/protocol.py` and
    clears it when the operator changes, and sends it only to the session that
    sent the command. Every other session gets `null`, because `sent_ms` is on the
    sender's browser clock.
+8. `link_feedback {queue_ms}` (operator, 4 Hz): queueing delay measured by the
+   browser; the host adapts the streams (status `link`).
 
 **Target epoch.** Whenever the host moves arm references on its own (engage,
 ready, reset), it increments `target_epoch` and publishes `arm_targets`. The
@@ -355,10 +409,13 @@ On macOS the tests use the GPU. `E2E_GPU=0` forces CPU rendering, and
   scan-out, up to one refresh, is not included. Stale-view pausing is enforced
   by the client; the host cannot check what the operator actually sees, and
   relies on its own input timeout.
-- **Video is JPEG over WebSocket.** That is simple and low-latency on a LAN,
-  but uses about 6 Mbit/s. For internet use, H.264 over WebRTC with
-  congestion control is the planned upgrade. Wrist cameras are not streamed
-  yet.
+- **Video rides TCP (WebSocket).** Flow control and the link controller keep
+  latency bounded and degrade gracefully, but a lost packet still delays the
+  frames behind it, where WebRTC over UDP would not. One shared encoder and
+  rate follow the operator's link, so a spectator on a slower link gets its
+  frames skipped. Wrist cameras are not streamed yet.
+- **Link numbers come from browser emulation** on one machine, not a real
+  mobile network.
 - **The stock scenes start with fingers intersecting the shelf.** In every
   bundled scene, MABEL's index or thumb links already penetrate the shelf at
   reset. Teleop's default `--spawn-backoff` avoids this; the scenes still need

@@ -1,8 +1,9 @@
 import { ClockSync } from "./clock";
-import { LatencyMonitor, type LatencySnapshot } from "./latency";
+import { canDecodeH264 } from "./h264";
+import { LatencyMonitor, QueueProbe, type LatencySnapshot } from "./latency";
 import { PoseBuffer } from "./poseBuffer";
 import type { Freshness } from "./freshness";
-import { StereoDecoder, videoAgeMs, type StereoPair } from "./stereo";
+import { pairMetaOf, StereoDecoder, videoAgeMs, type StereoPair } from "./stereo";
 import {
   PROFILE,
   SCHEMA_VERSION,
@@ -16,6 +17,10 @@ import {
   type ServerMessage,
   type Status,
 } from "./protocol";
+
+// Link feedback cadence, and the page lag beyond which arrival times are untrusted.
+const LINK_FEEDBACK_MS = 250;
+const PAGE_STALL_MS = 40;
 
 // At most 125 commands/s on high-refresh displays.
 const MIN_COMMAND_INTERVAL_MS = 8;
@@ -33,6 +38,8 @@ export interface TeleopClientOptions {
   role: Role;
   /** Called at `command_hz` while operator; return null to skip a send. */
   commandProvider: () => CommandBody | null;
+  /** "auto" prefers H.264 when the browser can decode it; "jpeg" forces JPEG. */
+  videoCodec?: "auto" | "jpeg";
 }
 
 export interface TeleopClientEvents {
@@ -69,8 +76,13 @@ export class TeleopClient {
   readonly poses = new PoseBuffer(40, 16, true);
   readonly clock = new ClockSync();
   readonly latency = new LatencyMonitor();
-  readonly stereo = new StereoDecoder(() => this.emit("video"));
+  readonly stereo = new StereoDecoder(
+    () => this.emit("video"),
+    () => this.sendVideo({ schema_version: SCHEMA_VERSION, type: "video_keyframe" }),
+  );
   videoAvailable = false;
+  /** Codecs the host offers (from hello_ack). */
+  private hostCodecs: string[] = ["jpeg"];
   sessionId = "";
   role: Role | null = null;
   generation = 0;
@@ -94,6 +106,9 @@ export class TeleopClient {
   private commandFrame = 0;
   private pingTimer: number | undefined;
   private burstTimers: number[] = [];
+  private linkTimer: number | undefined;
+  readonly queueProbe = new QueueProbe();
+  readonly videoProbe = new QueueProbe();
   private lastUplinkSequence = -1;
   private shownPose: { hostTime: number; arrival: number } | null = null;
   private shownVideo: StereoPair | null = null;
@@ -198,6 +213,9 @@ export class TeleopClient {
     window.clearInterval(this.commandTimer);
     cancelAnimationFrame(this.commandFrame);
     window.clearInterval(this.pingTimer);
+    window.clearInterval(this.linkTimer);
+    this.queueProbe.clear();
+    this.videoProbe.clear();
     this.burstTimers.forEach((timer) => window.clearTimeout(timer));
     this.burstTimers = [];
     this.clock.clear();
@@ -244,6 +262,7 @@ export class TeleopClient {
         this.generation = message.calibration_generation;
         this.openState();
         this.videoAvailable = message.video !== null;
+        this.hostCodecs = message.video?.codecs ?? ["jpeg"];
         if (this.videoWanted) this.openVideo();
         this.startLoops(message.budgets.command_hz);
         this.emit("connection", "open");
@@ -272,6 +291,10 @@ export class TeleopClient {
     }
   }
 
+  private sendVideo(message: object): void {
+    if (this.video?.readyState === WebSocket.OPEN) this.video.send(JSON.stringify(message));
+  }
+
   /** Subscribe to head-camera video only while it is visible (saves host GPU and bandwidth). */
   setVideoWanted(wanted: boolean): void {
     this.videoWanted = wanted;
@@ -290,15 +313,41 @@ export class TeleopClient {
     const video = new WebSocket(this.url("/teleop/video"));
     video.binaryType = "arraybuffer";
     this.video = video;
-    video.onopen = () =>
+    video.onopen = async () => {
+      // H.264 is about 7x lighter than JPEG; offer it when both ends support it.
+      const h264 =
+        this.options.videoCodec !== "jpeg" &&
+        this.hostCodecs.includes("h264") &&
+        (await canDecodeH264());
+      if (video.readyState !== WebSocket.OPEN) return;
       video.send(
         JSON.stringify({
           schema_version: SCHEMA_VERSION,
           type: "video_bind",
           session_id: this.sessionId,
+          codecs: h264 ? ["h264", "jpeg"] : ["jpeg"],
         }),
       );
-    video.onmessage = (event) => this.stereo.push(event.data as ArrayBuffer);
+    };
+    video.onmessage = (event) => {
+      const buffer = event.data as ArrayBuffer;
+      const arrival = performance.now();
+      // Ack on arrival: the host bounds frames in flight to about one round trip.
+      const meta = pairMetaOf(buffer);
+      if (meta) {
+        video.send(
+          JSON.stringify({
+            schema_version: SCHEMA_VERSION,
+            type: "video_ack",
+            pair_id: meta.pair_id,
+          }),
+        );
+        if (this.clock.synced) {
+          this.videoProbe.push(arrival - this.clock.toLocalMs(meta.capture_host_monotonic_s));
+        }
+      }
+      this.stereo.push(buffer, arrival);
+    };
     video.onclose = () => {
       if (this.video === video) this.video = null;
     };
@@ -314,15 +363,21 @@ export class TeleopClient {
           schema_version: SCHEMA_VERSION,
           type: "state_bind",
           session_id: this.sessionId,
+          format: "wts2", // compact int16 poses: half the bandwidth
         }),
       );
     state.onmessage = (event) => {
       try {
         const arrival = performance.now();
         const frame = decodeStateFrame(event.data as ArrayBuffer);
+        state.send(
+          JSON.stringify({ schema_version: SCHEMA_VERSION, type: "state_ack", tick: frame.tick }),
+        );
         this.poses.push(frame, arrival);
         if (this.clock.synced) {
-          this.latency.poseNetwork.push(arrival - this.clock.toLocalMs(frame.hostTime));
+          const delay = arrival - this.clock.toLocalMs(frame.hostTime);
+          this.latency.poseNetwork.push(delay);
+          this.queueProbe.push(delay);
         }
       } catch (error) {
         this.emit("error", String(error));
@@ -347,6 +402,24 @@ export class TeleopClient {
     // after that one round trip per second tracks drift and route changes.
     for (let i = 0; i < 5; i++) this.burstTimers.push(window.setTimeout(ping, i * 100));
     this.pingTimer = window.setInterval(ping, 1000);
+    // Report queueing delay so the host can adapt video bitrate and pose rate.
+    let lastLinkTick = performance.now();
+    this.linkTimer = window.setInterval(() => {
+      const now = performance.now();
+      const lag = now - lastLinkTick - LINK_FEEDBACK_MS;
+      lastLinkTick = now;
+      // Either stream queueing means the link is full (browsers may queue sockets
+      // separately); report the worse of the two.
+      const pose = this.queueProbe.window();
+      const video = this.videoProbe.window();
+      // Arrival times are taken on the main thread: while the page itself stalls
+      // (long frames on a slow device), they measure the page, not the network.
+      // Skip such windows; the host holds its levels without feedback.
+      const pageStalled = lag > PAGE_STALL_MS || this.pageStallMs > PAGE_STALL_MS;
+      if ((pose !== null || video !== null) && this.role === "operator" && !pageStalled) {
+        send({ type: "link_feedback", queue_ms: Math.min(60000, Math.max(pose ?? 0, video ?? 0)) });
+      }
+    }, LINK_FEEDBACK_MS);
     let lastSent = Number.NEGATIVE_INFINITY;
     const sendCommand = () => {
       if (this.role !== "operator") return;

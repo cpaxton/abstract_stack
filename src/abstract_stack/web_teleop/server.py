@@ -43,10 +43,19 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from abstract_stack.web_teleop import protocol
 from abstract_stack.web_teleop.core import TeleopCore
 from abstract_stack.web_teleop.geometry import load_model_export
+from abstract_stack.web_teleop.link import InFlightWindow, LinkController
+from abstract_stack.web_teleop.video import H264_CODEC_STRING
 
 log = logging.getLogger(__name__)
 MAX_PROTOCOL_ERRORS = 20
 LOW_DETAIL_FACE_BUDGET = 800
+# Frames an H.264 viewer may fall behind before it skips to the next keyframe.
+H264_MAX_BACKLOG = 2
+# Queueing allowed beyond one round trip before a sender skips (see InFlightWindow).
+# Video gets more: a keyframe is several frames' worth of bytes, and resynchronising
+# H.264 costs another keyframe.
+POSE_SLACK_S = 0.06
+VIDEO_SLACK_S = 0.2
 CLOSE_UNAUTHORISED = 4401  # application close codes (4000-4999)
 CLOSE_FORBIDDEN_ORIGIN = 4403
 HELLO_TIMEOUT_S = 5.0
@@ -67,57 +76,100 @@ def _status_for(session_id: str, status: dict) -> dict:
     return {**status, "command_timing": public if own else None}
 
 
+def _state_tick(frame: bytes) -> int:
+    """Tick from a WTS1/WTS2 header (uint32 little-endian at byte 4)."""
+    return int.from_bytes(frame[4:8], "little")
+
+
 class Hub:
     """Fan out sim-thread frames to asyncio sockets with latest-wins semantics."""
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
         self.loop = loop
         self.frame: bytes | None = None
+        self.frame_compact: bytes | None = None
+        self._frame_compact_waiters: set[asyncio.Event] = set()
+        self._ticks = 0
+        self._statuses = 0
+        # Send poses only every Nth tick when the link controller asks (congestion).
+        self.pose_divider = 1
         self.status: dict | None = None
         self.video: bytes | None = None
+        self.video_id = 0
         self._frame_waiters: set[asyncio.Event] = set()
         self._status_waiters: set[asyncio.Event] = set()
         self._video_waiters: set[asyncio.Event] = set()
-        self.on_video_subscribers: Callable[[int], None] | None = None
+        self._h264_queues: set[asyncio.Queue] = set()
+        self.on_video_demand: Callable[[str, int], None] | None = None
 
     def from_sim_thread(self, frame: bytes | None, status: dict | None) -> None:
         self.loop.call_soon_threadsafe(self._publish, frame, status)
 
     def _publish(self, frame, status) -> None:
         if frame is not None:
-            self.frame = frame
-            for event in self._frame_waiters:
-                event.set()
+            self._ticks += 1
+            if self._ticks % self.pose_divider == 0:
+                self.frame = frame
+                for event in self._frame_waiters:
+                    event.set()
+                if self._frame_compact_waiters:
+                    self.frame_compact = protocol.compact_state(frame)
+                    for event in self._frame_compact_waiters:
+                        event.set()
         if status is not None:
-            self.status = status
-            for event in self._status_waiters:
-                event.set()
+            self._statuses += 1
+            # Status (10 Hz JSON) thins out with poses on a congested link.
+            if self._statuses % self.pose_divider == 0:
+                self.status = status
+                for event in self._status_waiters:
+                    event.set()
 
-    def video_from_thread(self, pair: bytes) -> None:
-        self.loop.call_soon_threadsafe(self._publish_video, pair)
+    def video_from_thread(self, codec: str, message: bytes, keyframe: bool, pair_id: int) -> None:
+        self.loop.call_soon_threadsafe(self._publish_video, codec, message, keyframe, pair_id)
 
-    def _publish_video(self, pair: bytes) -> None:
-        self.video = pair
+    def _publish_video(self, codec: str, message: bytes, keyframe: bool, pair_id: int) -> None:
+        if codec == "h264":
+            # Every viewer needs every H.264 frame (deltas depend on their
+            # predecessors), so each gets a queue rather than a latest-wins slot.
+            for queue in self._h264_queues:
+                queue.put_nowait((message, keyframe, pair_id))
+            return
+        self.video = message
+        self.video_id = pair_id
         for event in self._video_waiters:
             event.set()
+
+    @contextlib.contextmanager
+    def subscribe_h264(self):
+        queue: asyncio.Queue = asyncio.Queue()
+        self._h264_queues.add(queue)
+        if self.on_video_demand:
+            self.on_video_demand("h264", len(self._h264_queues))
+        try:
+            yield queue
+        finally:
+            self._h264_queues.discard(queue)
+            if self.on_video_demand:
+                self.on_video_demand("h264", len(self._h264_queues))
 
     @contextlib.contextmanager
     def subscribe(self, kind: str):
         event = asyncio.Event()
         waiters = {
             "frame": self._frame_waiters,
+            "frame_compact": self._frame_compact_waiters,
             "status": self._status_waiters,
             "video": self._video_waiters,
         }[kind]
         waiters.add(event)
-        if kind == "video" and self.on_video_subscribers:
-            self.on_video_subscribers(len(waiters))
+        if kind == "video" and self.on_video_demand:
+            self.on_video_demand("jpeg", len(waiters))
         try:
             yield event
         finally:
             waiters.discard(event)
-            if kind == "video" and self.on_video_subscribers:
-                self.on_video_subscribers(len(waiters))
+            if kind == "video" and self.on_video_demand:
+                self.on_video_demand("jpeg", len(waiters))
 
 
 class TeleopServer:
@@ -141,6 +193,10 @@ class TeleopServer:
         self.manifest = self._export("full")[0]
         self.hub: Hub | None = None
         self._sessions: dict[str, str] = {}  # session_id -> role
+        video = core.video
+        self.link = LinkController(video.h264_max_kbps if video is not None else 1500)
+        if video is not None:
+            video.on_congestion = lambda: self._apply_link(self.link.video_congestion)
         routes = [
             Route("/api/model", self.model_manifest),
             Route("/api/model.bin", self.model_blob),
@@ -164,7 +220,7 @@ class TeleopServer:
         video = self.core.video
         if video is not None:
             video.set_listener(self.hub.video_from_thread)
-            self.hub.on_video_subscribers = lambda count: video.set_active(count > 0)
+            self.hub.on_video_demand = video.set_demand
         self.core.start()
         try:
             yield
@@ -320,6 +376,12 @@ class TeleopServer:
             self._check_session(event, session_id)
             ack = await asyncio.wrap_future(self.core.control(session_id, event))
             await websocket.send_text(protocol.envelope("control_ack", session_id, **ack))
+        elif kind == "link_feedback":
+            feedback = protocol.parse_link_feedback(message)
+            self._check_session(feedback, session_id)
+            # The operator's link drives adaptation (one shared encoder and rate).
+            if self._sessions.get(session_id) == "operator":
+                self._apply_link(lambda: self.link.feedback(feedback["queue_ms"]))
         elif kind == "ping":
             ping = protocol.parse_ping(message)
             self._check_session(ping, session_id)
@@ -328,6 +390,15 @@ class TeleopServer:
             )
         else:
             raise protocol.ProtocolError(f"unknown message type {kind!r}")
+
+    def _apply_link(self, update) -> None:
+        """Run a link-controller update, then push its levels to video and poses."""
+        update()
+        if self.core.video is not None:
+            self.core.video.set_bitrate_kbps(self.link.kbps)
+            self.core.video.frame_divider = self.link.video_divider
+        if self.hub is not None:
+            self.hub.pose_divider = self.link.pose_divider
 
     @staticmethod
     def _check_session(message: dict, session_id: str) -> None:
@@ -344,7 +415,10 @@ class TeleopServer:
                 if status is not None:
                     await websocket.send_text(
                         protocol.envelope(
-                            "status", session_id, role=role, **_status_for(session_id, status)
+                            "status",
+                            session_id,
+                            role=role,
+                            **_status_for(session_id, {**status, "link": self.link.report()}),
                         )
                     )
 
@@ -358,63 +432,170 @@ class TeleopServer:
             "height": video.height,
             "fps": video.fps,
             "codec": "jpeg",
+            # Encodings this host offers; the client lists its preference in video_bind.
+            "codecs": list(video.codecs),
+            "h264_codec_string": H264_CODEC_STRING if "h264" in video.codecs else None,
             "vertical_fov_deg": video.fovy,
         }
 
     async def _bind(self, websocket: WebSocket, kind: str) -> str | None:
         """Accept a secondary socket bound to an open control session."""
+        message = await self._bind_message(websocket, kind)
+        return None if message is None else message["session_id"]
+
+    async def _bind_message(self, websocket: WebSocket, kind: str) -> dict | None:
+        """Like ``_bind`` but returns the bind message (video carries ``codecs``)."""
         if not await self._accept(websocket):
             return None
         try:
             message = protocol.decode_json(
                 await asyncio.wait_for(websocket.receive_text(), HELLO_TIMEOUT_S)
             )
-            if message.get("type") != f"{kind}_bind" or set(message) != {
-                "schema_version",
-                "type",
-                "session_id",
-            }:
+            required = {"schema_version", "type", "session_id"}
+            optional = {"video": {"codecs"}, "state": {"format"}}.get(kind, set())
+            keys = set(message)
+            if message.get("type") != f"{kind}_bind" or not required <= keys <= required | optional:
                 raise protocol.ProtocolError(f"first {kind} message must be {kind}_bind")
+            codecs = message.get("codecs", ["jpeg"])
+            if not (
+                isinstance(codecs, list)
+                and 0 < len(codecs) <= 4
+                and all(isinstance(codec, str) for codec in codecs)
+            ):
+                raise protocol.ProtocolError("codecs must be a short list of codec names")
+            if message.get("format", "wts1") not in ("wts1", "wts2"):
+                raise protocol.ProtocolError("format must be wts1 or wts2")
             if message["session_id"] not in self._sessions:
                 raise protocol.ProtocolError(f"{kind}_bind requires an open control session")
-            return message["session_id"]
+            return message
         except (protocol.ProtocolError, asyncio.TimeoutError, WebSocketDisconnect):
             with contextlib.suppress(Exception):
                 await websocket.close(code=1008)
             return None
 
     async def _stream(self, websocket: WebSocket, session_id: str, kind: str) -> None:
-        """Latest-wins binary stream until the socket or its control session closes."""
+        """Latest-wins binary stream, flow-controlled by the client's acks.
+
+        Poses ("frame"/"frame_compact") are acked by tick, JPEG video by pair id. A
+        frame that would exceed the in-flight window is skipped (the next one is
+        newer anyway) and counts as congestion for the link controller.
+        """
         assert self.hub is not None
-        attribute = "frame" if kind == "frame" else "video"
+        video = kind == "video"
+        window = InFlightWindow(slack_s=VIDEO_SLACK_S if video else POSE_SLACK_S)
+        reader = asyncio.create_task(
+            self._acks(websocket, window, "video_ack" if video else "state_ack")
+        )
         with self.hub.subscribe(kind) as event:
             try:
-                while session_id in self._sessions:
+                while session_id in self._sessions and not reader.done():
                     try:
                         await asyncio.wait_for(event.wait(), 1.0)
                     except asyncio.TimeoutError:
                         continue
                     event.clear()
-                    payload = getattr(self.hub, attribute)
-                    if payload is not None:
-                        await websocket.send_bytes(payload)
+                    payload = getattr(self.hub, kind)
+                    if payload is None:
+                        continue
+                    now = time.monotonic()
+                    if not window.can_send(now, self._frame_interval(kind)):
+                        continue  # latest-wins: the next frame is newer anyway
+                    window.sent(self.hub.video_id if video else _state_tick(payload), now)
+                    await websocket.send_bytes(payload)
             except (WebSocketDisconnect, RuntimeError):
                 return
+            finally:
+                reader.cancel()
         with contextlib.suppress(Exception):
             await websocket.close(code=1000, reason="control session closed")
 
+    def _frame_interval(self, kind: str) -> float:
+        if kind in ("video", "h264"):
+            return self.core.video.frame_divider / self.core.video.fps
+        return self.core.env.dt * (self.hub.pose_divider if self.hub else 1)
+
+    async def _acks(self, websocket: WebSocket, window: InFlightWindow, ack_type: str) -> None:
+        """Client → host on a stream socket: cumulative acks (and keyframe requests)."""
+        key = "pair_id" if ack_type == "video_ack" else "tick"
+        last_keyframe_request = 0.0
+        while True:
+            raw = await websocket.receive_text()
+            with contextlib.suppress(protocol.ProtocolError, KeyError, TypeError, ValueError):
+                message = protocol.decode_json(raw)
+                now = time.monotonic()
+                if message["type"] == ack_type:
+                    window.ack(int(message[key]), now)
+                elif message["type"] == "video_keyframe" and now - last_keyframe_request > 0.5:
+                    last_keyframe_request = now
+                    self.core.video.request_keyframe()
+
     async def state_socket(self, websocket: WebSocket) -> None:
-        session_id = await self._bind(websocket, "state")
-        if session_id is not None:
-            await self._stream(websocket, session_id, "frame")
+        message = await self._bind_message(websocket, "state")
+        if message is not None:
+            compact = message.get("format") == "wts2"
+            await self._stream(
+                websocket, message["session_id"], "frame_compact" if compact else "frame"
+            )
 
     async def video_socket(self, websocket: WebSocket) -> None:
         if self.core.video is None:
             await websocket.close(code=1008, reason="video disabled on this host")
             return
-        session_id = await self._bind(websocket, "video")
-        if session_id is not None:
-            await self._stream(websocket, session_id, "video")
+        message = await self._bind_message(websocket, "video")
+        if message is None:
+            return
+        # First codec in the client's preference order that this host can encode.
+        offered = self.core.video.codecs
+        codec = next((c for c in message.get("codecs", ["jpeg"]) if c in offered), None)
+        if codec is None:
+            await websocket.close(code=1008, reason=f"no common video codec (host: {offered})")
+            return
+        if codec == "h264":
+            await self._stream_h264(websocket, message["session_id"])
+        else:
+            await self._stream(websocket, message["session_id"], "video")
+
+    async def _stream_h264(self, websocket: WebSocket, session_id: str) -> None:
+        """Ordered H.264 stream, flow-controlled by the client's acks.
+
+        A delta frame cannot be skipped without corrupting the frames after it. When
+        the in-flight window is full (the link cannot keep up), or this viewer's queue
+        grows beyond ``H264_MAX_BACKLOG``, the sender drops its queue, reports
+        congestion, and resumes at a fresh keyframe once the window has room.
+        """
+        assert self.hub is not None
+        video = self.core.video
+        window = InFlightWindow(slack_s=VIDEO_SLACK_S)
+        reader = asyncio.create_task(self._acks(websocket, window, "video_ack"))
+        with self.hub.subscribe_h264() as queue:
+            waiting_for_key = True
+            try:
+                while session_id in self._sessions and not reader.done():
+                    try:
+                        message, keyframe, pair_id = await asyncio.wait_for(queue.get(), 1.0)
+                    except asyncio.TimeoutError:
+                        continue
+                    now = time.monotonic()
+                    interval = self._frame_interval("h264")
+                    if queue.qsize() > H264_MAX_BACKLOG or not window.can_send(now, interval):
+                        while not queue.empty():
+                            queue.get_nowait()
+                        if not waiting_for_key:
+                            self._apply_link(self.link.video_congestion)
+                        waiting_for_key = True
+                        continue
+                    if waiting_for_key and not keyframe:
+                        video.request_keyframe()  # the window has room again
+                        continue
+                    waiting_for_key = False
+                    window.sent(pair_id, now)
+                    await websocket.send_bytes(message)
+            except (WebSocketDisconnect, RuntimeError):
+                return
+            finally:
+                reader.cancel()
+        with contextlib.suppress(Exception):
+            await websocket.close(code=1000, reason="control session closed")
 
 
 def print_qr(url: str) -> None:
