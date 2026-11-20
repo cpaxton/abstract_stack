@@ -98,6 +98,8 @@ def test_invalid_tracking_configuration():
         TrackingConfig(lift_speed=0)
     with pytest.raises(ValueError):
         TrackingConfig(wrist_damping=-1)
+    with pytest.raises(ValueError):
+        TrackingConfig(wrist_offset_limit=float("nan"))
 
 
 @pytest.mark.mabel
@@ -114,3 +116,31 @@ def test_partial_update_validates_retained_nominal_instead_of_live_servo_target(
     assert tracker.nominal[index] == nominal
     with pytest.raises(ValueError, match="joint bounds"):
         tracker.targets({"Left Arm 1": nominal + 0.02}, dt=env.dt)
+
+
+@pytest.mark.mabel
+def test_load_compensation_is_bounded_and_does_not_reinterpret_nominal(clear_robot):
+    env = clear_robot
+    config = TrackingConfig(gravity_compensation=False, wrist_damping=0, wrist_offset_limit=0.5)
+    tracker = MabelController(env.model, env.data, config)
+    wrist = tracker.NAMES.index("Left Wrist")
+    nominal = tracker.nominal.copy()
+    before = (env.data.qpos.copy(), env.data.qvel.copy(), env.data.ctrl.copy())
+    gains = env.model.actuator_gainprm.copy()
+    for _ in range(100):
+        action = tracker.targets({}, dt=env.dt, load_feedforward={"Left Wrist": 0.3})
+    assert action[tracker.ids[wrist]] == pytest.approx(nominal[wrist] + 0.3)
+    np.testing.assert_array_equal(tracker.nominal, nominal)
+    assert tracker.last_report["load_force"]["Left Wrist"] == 0.3
+    assert not tracker.last_report["feedforward_limited"]
+    tracker.targets({}, dt=env.dt, load_feedforward={"Left Wrist": 2.0})
+    assert "Left Wrist" in tracker.last_report["feedforward_limited"]
+    for _ in range(100):
+        tracker.targets({"Left Wrist": 0.6}, dt=env.dt, load_feedforward={"Left Wrist": 0.3})
+    assert "Left Wrist" in tracker.last_report["target_limited"]
+    for current, old in zip((env.data.qpos, env.data.qvel, env.data.ctrl), before, strict=True):
+        np.testing.assert_array_equal(current, old)
+    np.testing.assert_array_equal(env.model.actuator_gainprm, gains)
+    for load in ({"not an actuator": 0.1}, {"Left Wrist": float("nan")}):
+        with pytest.raises(ValueError, match="finite named"):
+            tracker.targets({}, dt=env.dt, load_feedforward=load)

@@ -63,8 +63,10 @@ class IKPrediction:
     angle_tolerance_degrees: float = 12.0
     allowed_contact_object: str | None = None
     carried_object: str | None = None
+    sliding_object: str | None = None
     path_mode: str = "joint"
     path_ik_error: dict | None = None
+    posture_constraints: dict = field(default_factory=dict)
     baseline_qpos: np.ndarray | None = field(default=None, repr=False)
 
     @property
@@ -97,6 +99,7 @@ class IKPrediction:
             ),
             "selected_orientation": self.requested_rotation.tolist(),
             "active_limits": self.active_limits,
+            "planning_posture_constraints": self.posture_constraints,
             "collisions": self.collisions,
             "sampled_path_collisions": self.path_collisions,
             "sampled_path_model": self.path_mode,
@@ -108,6 +111,17 @@ class IKPrediction:
             "rejection_reasons": reasons if not self.feasible else [],
             "allowed_target_hand_contact": self.allowed_contact_object,
             "carried_object_swept_volume": self.carried_object,
+            "supported_slide_prediction": None
+            if self.sliding_object is None
+            else {
+                "object": self.sliding_object,
+                "motion": "translate along -X after closing the measured tool/front-face gap",
+                "backstop": (
+                    "stop at geometric shelf-back contact when Y/Z overlap; tool preload allowed"
+                ),
+                "fixed": "current object Y, Z and orientation",
+                "scope": "scratch kinematics only; no attachment or dynamics guarantee",
+            },
             "collision_tolerance_m": 0.002,
             "existing_contact_allowance_m": 0.001,
             "candidate": self.candidate,
@@ -140,6 +154,15 @@ class PoseIK:
         self.scratch = mujoco.MjData(model)
         self.jacp, self.jacr = np.zeros((3, model.nv)), np.zeros((3, model.nv))
         self.carry = None
+        self.slide = None
+        self.posture_constraints = {}
+
+    def constrain_posture(self, name, value):
+        """Constrain a planning coordinate without editing native joint bounds."""
+        index = self.names.index(name)
+        if not np.isfinite(value) or not self.lower[index] <= value <= self.upper[index]:
+            raise ValueError("Planning posture must remain inside native coordinate limits")
+        self.posture_constraints[index] = float(value)
 
     def measured_q(self):
         return np.r_[
@@ -165,12 +188,21 @@ class PoseIK:
             )
             mujoco.mj_kinematics(self.model, self.scratch)
             mujoco.mj_comPos(self.model, self.scratch)
+        if self.slide is not None:
+            _, qadr, position, start_x, approach_gap, minimum_x = self.slide
+            self.scratch.qpos[qadr : qadr + 3] = position
+            advance = max(0.0, start_x - point[0] - approach_gap)
+            self.scratch.qpos[qadr] -= min(advance, max(0.0, position[0] - minimum_x))
+            mujoco.mj_kinematics(self.model, self.scratch)
+            mujoco.mj_comPos(self.model, self.scratch)
         return point.copy(), rotation
 
     def solve(
         self, target, rotation, seed, *, iterations=100, rotation_weight=0.12, reference=None
     ):
         q = np.clip(seed, self.lower, self.upper).copy()
+        for index, value in self.posture_constraints.items():
+            q[index] = value
         best, best_q = float("inf"), q.copy()
         for _ in range(iterations):
             point, actual_rotation = self.forward(q, reference)
@@ -190,6 +222,8 @@ class PoseIK:
                     np.r_[self.jacp[:, lift_dofs].mean(axis=1), np.zeros(3)],
                 )
             )
+            for index in self.posture_constraints:
+                jacobian[:, index] = 0
             delta = jacobian.T @ np.linalg.solve(
                 jacobian @ jacobian.T + 1e-4 * np.eye(6),
                 error,
@@ -287,7 +321,11 @@ class PoseIK:
         for contact in self.scratch.contact:
             g1, g2 = int(contact.geom1), int(contact.geom2)
             b1, b2 = int(self.model.geom_bodyid[g1]), int(self.model.geom_bodyid[g2])
-            carried = self.carry[0] if self.carry is not None else None
+            carried = (
+                self.carry[0]
+                if self.carry is not None
+                else (self.slide[0] if self.slide is not None else None)
+            )
             if b1 not in self.robot and b2 not in self.robot and carried not in (b1, b2):
                 continue
             names = [self.model.body(b).name for b in (b1, b2)]
@@ -377,6 +415,7 @@ class PoseIK:
         alternatives=True,
         finger_positions=None,
         carrying=False,
+        sliding=False,
         path_mode="joint",
     ):
         if path_mode not in ("joint", "cartesian"):
@@ -394,6 +433,9 @@ class PoseIK:
             raise ValueError("IK orientation must be a proper rotation matrix")
         baseline_reference = self.data.qpos.copy()
         self.carry = None
+        self.slide = None
+        if carrying and sliding:
+            raise ValueError("Rigid carrying and supported translation are different contact modes")
         if carrying:
             if allowed_object is None:
                 raise ValueError("A carried product must be named")
@@ -405,6 +447,33 @@ class PoseIK:
                 qadr,
                 palm_rotation.T @ (self.data.xpos[bid] - self.data.xpos[self.palm]),
                 palm_rotation.T @ self.data.xmat[bid].reshape(3, 3),
+            )
+        if sliding:
+            if allowed_object is None:
+                raise ValueError("A sliding carton must be named")
+            bid = self.model.body(allowed_object).id
+            geom = self.model.geom(f"{allowed_object}_geom").id
+            if int(self.model.geom_type[geom]) != int(mujoco.mjtGeom.mjGEOM_BOX):
+                raise ValueError("Supported translation prediction currently requires a box")
+            point, _ = self.forward(self.measured_q(), baseline_reference)
+            extent = np.abs(self.data.xmat[bid].reshape(3, 3)) @ self.model.geom_size[geom]
+            position = self.data.xpos[bid].copy()
+            qadr = int(self.model.joint(f"{allowed_object}_joint").qposadr[0])
+            back = self.model.geom("shelf_back").id
+            back_extent = (
+                np.abs(self.data.geom_xmat[back].reshape(3, 3)) @ self.model.geom_size[back]
+            )
+            back_position = self.data.geom_xpos[back]
+            overlaps_back = np.all(
+                np.abs(position[1:] - back_position[1:]) < extent[1:] + back_extent[1:]
+            )
+            self.slide = (
+                bid,
+                qadr,
+                position,
+                point[0],
+                max(0.0, point[0] - position[0] - extent[0]),
+                float(back_position[0] + back_extent[0] + extent[0]) if overlaps_back else -np.inf,
             )
         reference = baseline_reference.copy()
         for index, value in (finger_positions or {}).items():
@@ -530,8 +599,12 @@ class PoseIK:
                     angle_tolerance_degrees=angle_tolerance_degrees,
                     allowed_contact_object=allowed_object,
                     carried_object=allowed_object if carrying else None,
+                    sliding_object=allowed_object if sliding else None,
                     path_mode=path_mode,
                     path_ik_error=path_ik_error,
+                    posture_constraints={
+                        self.names[i]: value for i, value in self.posture_constraints.items()
+                    },
                     baseline_qpos=baseline_reference.copy(),
                 )
                 key = (position_error, angular_error)

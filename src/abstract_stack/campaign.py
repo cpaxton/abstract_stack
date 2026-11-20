@@ -7,8 +7,11 @@ import os
 import signal
 import subprocess
 import sys
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+from abstract_stack.evaluation import reported_manipulations
 
 
 def summarize_run(directory, returncode, *, video):
@@ -49,6 +52,7 @@ def summarize_run(directory, returncode, *, video):
         result.update(
             verification_status="verified",
             physical_success=summary["physical_success"],
+            task_success=summary.get("task_success", summary["physical_success"]),
             failure=summary.get("failure"),
             stocked_count=summary["metrics"]["stocked_count"],
             product_count=summary["metrics"]["product_count"],
@@ -56,6 +60,13 @@ def summarize_run(directory, returncode, *, video):
             stage_evaluation=summary.get("stage_evaluation"),
             peak_forces_N=summary.get("peak_forces_N"),
         )
+        for key in (
+            "scheduled_pick_products",
+            "initially_stocked_products",
+            "manipulation_evaluation",
+        ):
+            if key in summary:
+                result[key] = summary[key]
         result["artifacts_valid"] = all(
             (directory / name).exists() for name in ("trace.npz", "rollout_start.npz")
         )
@@ -68,8 +79,10 @@ def summarize_run(directory, returncode, *, video):
                     for name in ("first_person", "third_person")
                 )
                 and metadata["physical_success"] == summary["physical_success"]
+                and metadata.get("task_success", metadata["physical_success"])
+                == summary.get("task_success", summary["physical_success"])
             )
-    except (OSError, ValueError, KeyError) as error:
+    except (OSError, ValueError, KeyError, TypeError) as error:
         result["artifacts_valid"] = False
         result["artifact_error"] = str(error)
     return result
@@ -89,6 +102,8 @@ def run_campaign(
     guarded_approach=False,
     fixture_avoidance=True,
     thumb_preshape=True,
+    total_free_space=None,
+    initially_stocked=0,
 ):
     from abstract_stack.control_profiles import force_profile_settings
     from abstract_stack.provenance import policy_provenance
@@ -108,8 +123,20 @@ def run_campaign(
         raise ValueError("episode_timeout must be finite and positive")
     if not seeds or len(set(seeds)) != len(seeds) or any(seed < 0 for seed in seeds):
         raise ValueError("campaign seeds must be distinct nonnegative integers")
-    if not 1 <= objects <= 6:
-        raise ValueError("campaigns support 1 through 6 cartons")
+    if total_free_space is None:
+        if not 1 <= objects <= 6 or initially_stocked != 0:
+            raise ValueError("spacious campaigns support 1 through 6 cartons without prefills")
+    else:
+        from abstract_stack.packing import dense_shelf_config
+
+        dense_shelf_config(
+            seeds[0],
+            product_count=objects,
+            total_free_space=total_free_space,
+            initially_stocked=initially_stocked,
+        )
+        if initially_stocked == objects:
+            raise ValueError("dense campaigns require at least one scheduled manipulation")
     if not isinstance(fps, int) or not 1 <= fps <= 60:
         raise ValueError("campaign video fps must be an integer between 1 and 60")
     root = Path(directory)
@@ -120,6 +147,8 @@ def run_campaign(
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "seeds": list(seeds),
         "objects": objects,
+        "initially_stocked": initially_stocked,
+        "total_free_space_m": total_free_space,
         "video": video,
         "fps": fps,
         "policy": "world_state_stocking",
@@ -154,14 +183,23 @@ def run_campaign(
             "-m",
             "abstract_stack.cli",
             "solve",
-            "--random-scene",
-            "--objects",
-            str(objects),
             "--seed",
             str(seed),
             "--output-dir",
             str(episode),
         ]
+        if total_free_space is None:
+            command += ["--random-scene", "--objects", str(objects)]
+        else:
+            scene_path = episode / "scene.json"
+            scene = dense_shelf_config(
+                seed,
+                product_count=objects,
+                total_free_space=total_free_space,
+                initially_stocked=initially_stocked,
+            )
+            scene_path.write_text(json.dumps(asdict(scene), indent=2) + "\n")
+            command += ["--config", str(scene_path.resolve())]
         if video:
             command += ["--video", "--fps", str(fps)]
         if legacy_contact_control:
@@ -204,7 +242,7 @@ def run_campaign(
     manifest.pop("active_run", None)
     manifest["completed_utc"] = datetime.now(timezone.utc).isoformat()
     manifest["successful_runs"] = sum(
-        r["physical_success"] is True and r["returncode"] == 0 and r["artifacts_valid"]
+        reported_manipulations(r)["clean_success"] and r["returncode"] == 0 and r["artifacts_valid"]
         for r in manifest["runs"]
     )
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

@@ -59,8 +59,12 @@ abstract-stack sim --scene house
 
 Development rules and hook/CI setup are in [CONTRIBUTING.md](CONTRIBUTING.md)
 and [AGENTS.md](AGENTS.md).
-The [workflow and experiment index](docs/experiments.md) separates the supported
-controller, historical studies and upcoming dense/material tasks.
+The [workflow and experiment index](docs/experiments.md) links the supported
+controller and historical studies. The [dense-row prototype](docs/dense_stocking.md)
+targets 10 mm or 5 mm total unused shelf width: seed-0 trials complete one or two
+insertions beside prefilled cartons, while full stocking and fresh-scene robustness
+remain open. The [cardboard investigation](docs/cardboard_simulation.md) documents
+separate material fixtures and engine limitations.
 
 The [research draft and Agentic GenTAMP review](paper/README.md) describe the
 task, controller interface and planned experiments. Build with `./paper/build.sh`.

@@ -12,8 +12,80 @@ from abstract_stack.bundle import build_scene_bundle
 from abstract_stack.campaign import run_campaign
 from abstract_stack.config import load_scene_config
 from abstract_stack.env import ShelfStockingEnv
-from abstract_stack.evaluation import StageObserver
+from abstract_stack.evaluation import StageObserver, manipulation_evaluation
 from abstract_stack.tuning import load_control_config, score_campaign
+
+
+def test_prefilled_cartons_do_not_earn_manipulation_stage_credit():
+    stages = ("pick", "place", "final_position", "retreat")
+    result = {
+        "physical_success": True,
+        "scheduled_pick_products": ["inserted"],
+        "initially_stocked_products": ["prefilled"],
+        "stage_evaluation": {
+            "no_knockovers": True,
+            "products": {
+                "inserted": dict.fromkeys(stages, True),
+                "prefilled": dict.fromkeys(stages, False),
+            },
+        },
+    }
+    report = manipulation_evaluation(result)
+    assert report["scheduled_manipulations"] == 1
+    assert report["stages"] == dict.fromkeys(stages, 1)
+    assert report["clean_success"]
+    result["stage_evaluation"]["products"]["inserted"]["retreat"] = False
+    assert not manipulation_evaluation(result)["clean_success"]
+    result["scheduled_pick_products"] = []
+    assert not manipulation_evaluation(result)["clean_success"]
+
+
+def test_campaign_and_search_use_scheduled_manipulations_consistently(tmp_path):
+    episode = tmp_path / "episode"
+    episode.mkdir()
+    stages = ("pick", "place", "final_position", "retreat")
+    summary = {
+        "physical_success": True,
+        "task_success": True,
+        "scheduled_pick_products": ["inserted"],
+        "initially_stocked_products": ["prefilled"],
+        "controller": {},
+        "trace_columns": ["sim_time"],
+        "metrics": {"stocked_count": 2, "product_count": 2, "elapsed_sim_time": 90},
+        "stage_evaluation": {
+            "no_knockovers": True,
+            "incidents": [],
+            "products": {
+                "inserted": dict.fromkeys(stages, True),
+                "prefilled": dict.fromkeys(stages, False),
+            },
+        },
+    }
+    (episode / "summary.json").write_text(json.dumps(summary))
+    np.savez(episode / "trace.npz", samples=np.zeros((1, 1)))
+    np.savez(episode / "rollout_start.npz", state=np.zeros(0))
+    path = tmp_path / "campaign.json"
+    campaign = {
+        "seeds": [0, 1],
+        "objects": 2,
+        "initially_stocked": 1,
+        "video": False,
+        "runs": [{"seed": 0, "directory": str(episode), "returncode": 0}],
+    }
+    path.write_text(json.dumps(campaign))
+    report = campaign_report(path)
+    assert report["clean_successes"] == 1
+    assert report["scheduled_objects"] == 2  # Includes the unrun insertion.
+    assert report["total_products"] == 4
+    assert report["stages"] == dict.fromkeys(stages, 1)
+    from abstract_stack.campaign import summarize_run
+
+    run = summarize_run(episode, 0, video=False)
+    assert score_campaign({"runs": [run]})[0] == 1
+    assert score_campaign({"runs": [run]})[3] == 4
+    summary["task_success"] = False
+    (episode / "summary.json").write_text(json.dumps(summary))
+    assert campaign_report(path)["clean_successes"] == 0
 
 
 def test_transient_inactive_tip_is_retained_without_mutating_physics():
@@ -101,8 +173,10 @@ def test_unreached_and_crashed_objects_stay_in_report_denominator(tmp_path):
     assert not any(report["stages"].values())
 
 
-def test_wall_timeout_retains_unknown_process_and_does_not_count_completion(tmp_path):
-    result = run_campaign(tmp_path, [0], episode_timeout=0.01)
+@pytest.mark.parametrize("dense", [False, True])
+def test_wall_timeout_retains_unknown_process_and_does_not_count_completion(tmp_path, dense):
+    options = dict(objects=10, initially_stocked=9, total_free_space=0.005) if dense else {}
+    result = run_campaign(tmp_path, [0], episode_timeout=0.01, **options)
     run = result["runs"][0]
     assert run["returncode"] == 124
     assert run["verification_status"] == "unknown"
@@ -111,6 +185,11 @@ def test_wall_timeout_retains_unknown_process_and_does_not_count_completion(tmp_
     evidence = json.loads((tmp_path / "seed-0/process_failure.json").read_text())
     assert evidence["kind"] == "wall_timeout"
     assert (tmp_path / "seed-0/run.log").exists()
+    if dense:
+        assert result["initially_stocked"] == 9
+        assert result["total_free_space_m"] == 0.005
+        assert json.loads((tmp_path / "seed-0/scene.json").read_text())["product_count"] == 10
+        assert campaign_report(tmp_path / "campaign.json")["scheduled_objects"] == 1
 
 
 def test_search_never_rewards_unknown_force_or_extra_progress_after_knocking():

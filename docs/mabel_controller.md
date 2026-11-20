@@ -44,8 +44,23 @@ for joints and 0.01 m for the lift, then clipped to joint/control bounds and rat
 limited. Reports expose force, offset, range and rate limiting. No integrator
 learns an opposing contact force as a persistent bias.
 
-Only robot gravity is modeled. Unknown payloads, contact loads, changing grasp
-geometry and dynamic coupling can leave residual error. A controller must never
+By default only robot gravity is modeled. Callers can supply named actuator
+efforts with `targets(..., load_feedforward={"Left Wrist": torque_Nm})` and opt
+into a different `TrackingConfig(wrist_offset_limit=...)`. This does not change
+native gains or bounds. The report separates gravity, supplied loads, and limit
+diagnostics. Omitted dimensions retain nominal references even with load offsets.
+The caller must bound and validate its estimate; this API does not infer payloads.
+
+The experimental dense-row pusher estimates the measured hand/carton reaction
+moment about the native wrist axis, limited to 0.3 Nm and 0.5 Nm/s, with a 0.5 rad
+wrist reference-offset cap. The native wrist itself defines no effort cap.
+It retains native joint/control bounds and the 25 N contact abort. The larger
+cap is enabled only during this contact protocol, with nominal and applied
+tracker states carried separately across tool changes. It is not promoted into
+the spacious benchmark. See [dense stocking](dense_stocking.md) for limitations.
+
+Unknown payloads, changing grasp geometry and dynamic coupling can still leave
+residual error. A controller must never
 fight a jam merely to reach a reference. The task executor retains physics-step
 force and tilt aborts, validates actual tracking/grasp/lift/release, and must add
 whole-body support and payload checks before claiming robust contact execution.

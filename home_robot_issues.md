@@ -62,18 +62,26 @@ project names, task descriptions, repository links, or private context.
   speech lazily on the first speech operation. A constructor regression should
   assert that a speech-disabled server makes no downloads or speech directories.
 
-## SIM-001 — Unreproduced native MuJoCo signal during headless MABEL control
+## SIM-001 — Intermittent native MuJoCo signal during MABEL control
 
-- **Status:** one SIGSEGV observed 2026-11-16 in an isolated headless process
-  during concurrent simulation runs. A separate serial retry completed. The
-  native cause is unknown; this is not an established Emet defect.
+- **Status:** at least two SIGSEGVs observed 2026-11-16: an isolated headless
+  process during concurrent simulation runs, and a later serial pre-push test
+  process. Separate serial full-suite runs completed. The native cause remains
+  unknown; this is not an established Emet defect.
 - **Environment:** MuJoCo 3.17.0, Python 3.11.12, NumPy 1.26.4; upstream MABEL
   revision `d0181f04025c06e1790b7ab41fe44d602cc2ee5b`.
 - **Scope:** direct MuJoCo stepping and scratch-data kinematics/collision queries;
-  no ZMQ server, publisher or renderer was active in the affected process.
+  no ZMQ server or publisher. The first process had no renderer; the later test
+  process had executed rendering tests earlier, with no active rollout renderer.
 - **Evidence boundary:** the original process has exit signal 11 and no terminal
   summary. Keep that outcome unknown; do not replace it with the successful retry.
-  The first attempt did not have a native stack trace.
+  The first attempt did not have a native stack trace. The later process has a
+  Python faulthandler traceback, with its current frame at a named body-matrix
+  access during a physics observer. This location does not establish a binding
+  defect or the source of memory corruption. Its initial model/state and an
+  explicit traceback excerpt are retained under ignored
+  `outputs/native-crashes/dense-prepush-abd1297/`. No terminal summary exists,
+  and the failed test receives zero successful stages.
 - **Next diagnostic:** enable `PYTHONFAULTHANDLER=1`, retain the model revision,
   initial integration state and controls, and isolate a standalone upstream-only
   model/state sequence before reporting a library bug. Do not include downstream
