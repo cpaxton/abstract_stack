@@ -19,7 +19,7 @@ from abstract_stack.contact_refinement import refine_supported_contact
 from abstract_stack.continuation import CheckpointContinuationEnv
 from abstract_stack.finger_pusher import FingerPusher
 from abstract_stack.grasp_skill import grasp_lift_and_hold
-from abstract_stack.interactions import ScriptConfig
+from abstract_stack.interactions import ScriptConfig, contact_forces
 from abstract_stack.interleaved_stocking import PressInterleavedStockingScript
 from abstract_stack.mabel_controller import MabelController
 from abstract_stack.provenance import policy_provenance
@@ -50,6 +50,7 @@ CAPTURED_ENTRIES = {
         "contact_finish",
         "front_insertion",
         "front_squaring_complete",
+        "side_slide_unloaded",
         "motion_failure",
         "release_reapproach",
     },
@@ -216,6 +217,9 @@ def _admit(script, entry, skill):
                 )
             )
         if skill == "push":
+            if entry["skill"] == "side_slide_unloaded":
+                arm_load = contact_forces(env, script.product.name, script.arm_bodies)["hand"]
+                return supported and grip is None and carry is None and arm_load <= 0.2
             return (supported if grip is None else held_at_board) and (
                 entry["skill"] != "motion_failure"
                 or failed_phase == "push"
@@ -278,18 +282,23 @@ def _run_captured(script, skill, action, entry):
         script._press_stocked_pair(evidence)
         return evidence["interleaved_row_press"]["verified_staging_press"]
     if skill == "push":
+        if entry["skill"] == "side_slide_unloaded":
+            script._square_after_side_press(0.0)
         if action == "release-reapproach":
             script._release_for_finger_push()
         if script.active_grip is not None:
             script._push_grasped(script.active_grip, retreat=False)
             return bool(script.events[-1].get("back_contact_verified"))
         if action != "recorded":
+            paired = action != "single"
             script.config = replace(
                 script.config,
                 ungrasped_insertion=True,
-                paired_finger_insertion=action != "single",
+                paired_finger_insertion=paired,
+                balance_contact_alignment=paired and script.config.balance_contact_alignment,
+                screen_supported_unload=paired and script.config.screen_supported_unload,
             )
-        if entry["skill"] == "front_squaring_complete":
+        if entry["skill"] in {"front_squaring_complete", "side_slide_unloaded"}:
             script._insert_from_front(
                 retreat=False, precontact_standoff_m=script.config.post_square_pusher_standoff_m
             )
@@ -461,6 +470,7 @@ class StockingCurriculumEnv(gym.Env):
                 original_failure=case.original_failure,
                 historical_recovery=case.historical_recovery,
                 controller_initialization=controller_initialization,
+                head_gaze_restored=self.script.gaze is not None,
                 controller_overrides=self.control_overrides,
                 status="ready" if admitted else "reset_rejected",
                 admitted=admitted,
@@ -486,6 +496,8 @@ class StockingCurriculumEnv(gym.Env):
         if self.skill == "push":
             if self._case is None:
                 mask[2:] = 0
+            elif self._entry["skill"] == "side_slide_unloaded":
+                mask[1:] = 0
             elif self.script.active_grip is not None:
                 mask[1:3] = 0
             else:
@@ -722,10 +734,8 @@ def attempt_skill(
         available = [name for index, name in enumerate(env.actions) if entry["action_mask"][index]]
         if env.skill == "push" and env._case is not None and env.script.active_grip is None:
             alias = "paired" if env.script.config.paired_finger_insertion else "single"
-            if preferred == alias:
-                available.remove("recorded")
-            else:
-                available.remove(alias)
+            if alias in available and "recorded" in available:
+                available.remove("recorded" if preferred == alias else alias)
         remaining = [name for name in available if name not in seen]
         if not remaining:
             return dict(

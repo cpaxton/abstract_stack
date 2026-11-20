@@ -171,8 +171,16 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             raise InteractionFailure("contact_refine: no checked preload-taper candidate")
         lateral_error = lateral_reference - float(data.xpos[monitor.active, 1])
         objective = "square_backstop"
+        alignment_goal = None
         if monitor.last.get("back_N", 0) < config.contact_threshold:
             objective = "advance"
+        elif config.balance_contact_alignment and registration_required:
+            objective = "align_backstop"
+            alignment_goal = (
+                lateral_reference,
+                lateral_tolerance,
+                np.radians(dwell.yaw_limit_degrees),
+            )
         elif paired and registration_required and abs(lateral_error) > lateral_tolerance:
             objective = "lateral_left" if lateral_error < 0 else "lateral_right"
         evaluated = evaluate_screened_batch(
@@ -185,6 +193,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             shortlist=min(4, len(candidates)),
             objective=objective,
             yaw_target_rad=float(np.radians(yaw_target_deg)),
+            alignment_goal=alignment_goal,
         )
         event["decisions"].append(
             dict(

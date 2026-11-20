@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import sys
 
+import mujoco
+import numpy as np
 import pytest
 
 from abstract_stack.assets import mabel_model_path
@@ -40,6 +42,52 @@ def test_isolated_grasp_video_verdict_does_not_claim_shelf_success(tmp_path, ver
     assert metadata["task_success"] is False
     assert ("GRASP VERIFIED" in labels[0]) is verified
     assert "SUCCESS" not in labels[0]
+
+
+@pytest.mark.mabel
+def test_head_gaze_checkpoint_preserves_next_commands_and_native_motion(tmp_path):
+    from abstract_stack.checkpoints import load_checkpoint, native_state, save_checkpoint
+    from abstract_stack.config import load_scene_config
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.recording import HeadGaze
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(load_scene_config(scene="pick_place"))
+    try:
+        original = HeadGaze(env.model, env.data)
+
+        def advance(gaze):
+            targets = gaze.targets(gaze.data.body("carton_1").xpos.copy(), env.dt)
+            for name, reference in targets.items():
+                gaze.data.ctrl[gaze.model.actuator(name).id] = reference
+            for _ in range(env.config.frame_skip):
+                mujoco.mj_step(gaze.model, gaze.data)
+            mujoco.mj_forward(gaze.model, gaze.data)
+            return targets
+
+        for _ in range(3):
+            advance(original)
+        assert env.data.time < original.next_update
+        path = save_checkpoint(
+            tmp_path / "gaze",
+            env.model,
+            env.data,
+            scene={"kind": "gaze_fixture"},
+            controller={"head_gaze": original.snapshot()},
+            context={"kind": "gaze_replay"},
+        )
+        loaded = load_checkpoint(path)
+        restored = HeadGaze.restore(loaded.model, loaded.data, loaded.controller["head_gaze"])
+        for _ in range(10):
+            assert advance(original) == advance(restored)
+            np.testing.assert_array_equal(
+                native_state(env.model, env.data), native_state(loaded.model, loaded.data)
+            )
+    finally:
+        env.close()
 
 
 @pytest.mark.mabel

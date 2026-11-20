@@ -532,6 +532,7 @@ def evaluate_screened_batch(
     shortlist=4,
     objective="advance",
     yaw_target_rad=0.0,
+    alignment_goal=None,
 ):
     """Rank with C++ trajectories, then guard a bounded shortlist from reset.
 
@@ -543,11 +544,22 @@ def evaluate_screened_batch(
 
     if type(shortlist) is not int or not 1 <= shortlist <= len(candidates) <= 32:
         raise ValueError("Shortlist must be between one and the bounded candidate count")
-    if objective not in ("advance", "square_backstop", "lateral_left", "lateral_right"):
+    if objective not in (
+        "advance",
+        "square_backstop",
+        "lateral_left",
+        "lateral_right",
+        "align_backstop",
+    ):
         raise ValueError("Unknown contact forecast objective")
     if not np.isfinite(yaw_target_rad) or abs(yaw_target_rad) > np.pi:
         raise ValueError("Yaw reference must be a finite angle inside +/-pi")
     direction = -1 if objective == "lateral_left" else 1
+    if objective == "align_backstop":
+        goal = np.asarray(alignment_goal, dtype=float)
+        if goal.shape != (3,) or not np.isfinite(goal).all() or min(goal[1:]) <= 0:
+            raise ValueError("Alignment objective requires lateral target and positive scales")
+        goal_y, y_scale, yaw_scale = goal
 
     def score(progress, yaw, lateral):
         error = float(np.arctan2(np.sin(yaw - yaw_target_rad), np.cos(yaw - yaw_target_rad)))
@@ -555,6 +567,9 @@ def evaluate_screened_batch(
             return (progress,)
         if objective == "square_backstop":
             return (-abs(error), progress)
+        if objective == "align_backstop":
+            lateral_error = (initial_y + lateral - goal_y) / y_scale
+            return (-float(np.hypot(lateral_error, error / yaw_scale)), progress)
         return (direction * lateral, -abs(error))
 
     # Validate every complete applied-target sequence before launching the
@@ -622,6 +637,7 @@ def evaluate_screened_batch(
     ):
         raise ValueError("Screen ranking requires a world-root free-joint product")
     x_index = 1 + int(model.jnt_qposadr[joint])
+    initial_y = float(data.qpos[x_index])
     started = time.monotonic()
     with mujoco.rollout.Rollout(nthread=workers) as pool:
         states, _ = pool.rollout(
@@ -696,6 +712,7 @@ def evaluate_screened_batch(
         kind="screen_then_guard_forecast_zero_task_credit",
         objective=objective,
         yaw_target_rad=float(yaw_target_rad),
+        alignment_goal=goal.tolist() if objective == "align_backstop" else None,
         candidates=rows,
         selected_name=None if best is None else best["name"],
         screen_seconds=screen_seconds,

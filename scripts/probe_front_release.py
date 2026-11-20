@@ -238,10 +238,11 @@ def worker(args):
         if hashlib.sha256(source.read_bytes()).hexdigest() != controller["sha256"]:
             raise ValueError("Frozen probe controller input changed")
         settings.update(load_control_config(source))
-    settings.update(
-        record_skill_starts=args.record_skill_starts,
-        continuous_finger_opening=not args.legacy_opening,
-    )
+    settings["record_skill_starts"] = args.record_skill_starts
+    if args.legacy_opening:
+        settings.update(continuous_finger_opening=False, release_pose_feedback=False)
+    if args.release_pose_feedback:
+        settings.update(continuous_finger_opening=True, release_pose_feedback=True)
     if args.paired_fingers:
         settings["paired_finger_insertion"] = True
     if args.live_guarded_withdrawal:
@@ -249,11 +250,20 @@ def worker(args):
     if args.plan_driven:
         settings["plan_driven"] = True
     if args.center_last:
-        settings.update(center_last=True, wall_packing=False, guided_wall_entry=False)
+        settings.update(
+            center_last=True,
+            wall_packing=False,
+            guided_wall_entry=False,
+            side_square_recovery=False,
+        )
     if args.guided_wall_entry:
         settings["guided_wall_entry"] = True
     if args.side_square_recovery:
         settings["side_square_recovery"] = True
+    if args.balance_contact_alignment:
+        settings["balance_contact_alignment"] = True
+    if args.screen_supported_unload:
+        settings["screen_supported_unload"] = True
     if args.back_force_target is not None:
         settings["insertion_back_force_target"] = args.back_force_target
     if args.alignment_seconds is not None:
@@ -308,6 +318,8 @@ def worker(args):
     script.product = next(
         p for p in env.products if p.name == checkpoint.context["skill_entry"]["active_product"]
     )
+    if skill == "front_squaring_complete":
+        script.phase = "front_squaring_complete"
     if args.record_skill_starts:
         scene["continuation"] = dict(checkpoint=str(path), fresh_task_credit=0)
         initial = script.directory / "initial-scene"
@@ -438,6 +450,10 @@ def worker(args):
             value = set(value)
         setattr(script.observer, name, value)
     script.last_forces = contact_forces(env, script.product.name, script.hand_bodies)
+    if script.config.head_tracking and state.get("head_gaze") is not None:
+        from abstract_stack.recording import HeadGaze
+
+        script.gaze = HeadGaze.restore(env.model, env.data, state["head_gaze"])
     initial = native_state(env.model, env.data)
     failure = None
     progress = None
@@ -704,6 +720,7 @@ def worker(args):
             placement_assignment=scene.get("placement_assignment"),
             skill_boundary=skill_boundary,
             reference_initialization=initialization,
+            head_gaze_restored=script.gaze is not None,
             config=vars(script.config),
             single_center_finger=args.single_center_finger,
             guided_entry_deg=args.guided_entry_deg,
@@ -735,7 +752,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--legacy-opening", action="store_true")
+    opening = parser.add_mutually_exclusive_group()
+    opening.add_argument("--legacy-opening", action="store_true")
+    opening.add_argument("--release-pose-feedback", action="store_true")
     parser.add_argument("--insert", action="store_true")
     parser.add_argument("--insert-only", action="store_true")
     parser.add_argument("--register-wall", choices=("center", "front-corner"))
@@ -787,6 +806,8 @@ def main():
     parser.add_argument("--plan-driven", action="store_true")
     parser.add_argument("--guided-wall-entry", action="store_true")
     parser.add_argument("--side-square-recovery", action="store_true")
+    parser.add_argument("--balance-contact-alignment", action="store_true")
+    parser.add_argument("--screen-supported-unload", action="store_true")
     parser.add_argument("--unloaded-clear", action="store_true")
     parser.add_argument("--bimanual-clear", action="store_true")
     parser.add_argument("--transfer", action="store_true")
@@ -990,6 +1011,8 @@ def main():
     ]
     if args.legacy_opening:
         command.append("--legacy-opening")
+    if args.release_pose_feedback:
+        command.append("--release-pose-feedback")
     if args.paired_fingers:
         command.append("--paired-fingers")
     if args.single_center_finger:
@@ -1044,6 +1067,10 @@ def main():
         command.append("--guided-wall-entry")
     if args.side_square_recovery:
         command.append("--side-square-recovery")
+    if args.balance_contact_alignment:
+        command.append("--balance-contact-alignment")
+    if args.screen_supported_unload:
+        command.append("--screen-supported-unload")
     if args.withdrawal:
         command.append("--withdrawal")
     if args.live_guarded_withdrawal:

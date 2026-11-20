@@ -560,7 +560,7 @@ class SelectedFingerInsertion:
                 )
             return retained, collisions
 
-        def tick(*, opening=None):
+        def tick(*, opening=None, pressure_relief=None):
             nonlocal yaw_correction
             body = env.data.body(product.name)
             rotation = body.xmat.reshape(3, 3)
@@ -575,12 +575,19 @@ class SelectedFingerInsertion:
                 if self.last_forces["hand"] < 0.2:
                     speed[:] = 0
                     yaw_speed = 0.0
-                if self.config.ungrasped_insertion and self.config.continuous_finger_opening:
+                if (
+                    self.config.ungrasped_insertion
+                    and self.config.continuous_finger_opening
+                    and not self.config.release_pose_feedback
+                ):
                     # A loosening grasp no longer transmits a reliable rigid
                     # pose correction. Hold the arm reference while pressure
                     # unloads instead of winding it up against a slipping box.
                     speed[:] = 0
                     yaw_speed = 0.0
+            if pressure_relief is not None:
+                speed = pressure_relief
+                yaw_speed = 0.0
             step = float(np.clip(yaw_speed * env.dt, -0.3 * env.dt, 0.3 * env.dt))
             c, s = np.cos(step), np.sin(step)
             turn = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
@@ -698,7 +705,47 @@ class SelectedFingerInsertion:
             ):
                 break
         else:
-            raise InteractionFailure("release_unload: hand pressure did not unload on the support")
+            if (
+                not self.config.release_pose_feedback
+                or self.last_forces[self.FRONT_SUPPORT] <= 0.2
+                or min(self.last_forces["thumb_normal"], self.last_forces["nonthumb_normal"])
+                >= group_gate
+            ):
+                raise InteractionFailure(
+                    "release_unload: hand pressure did not unload on the support"
+                )
+            # With one contact group already light, the arm can hold the other
+            # against the supported carton even as finger pressure requests fall.
+            # Escape the remaining measured load at the same checked finger pose.
+            reaction = -np.asarray(self.last_forces["hand_force_world_N"][:2])
+            reaction[0] = max(reaction[0], abs(reaction[1]), 0.001)
+            direction = reaction / max(float(np.linalg.norm(reaction)), 1e-9)
+            relief_speed = 0.002 * direction
+            limit_s = 2.0
+            start_position = env.data.body(product.name).xpos.copy()
+            self._stage("release_pressure_relief")
+            self.events[-1].update(
+                direction_world_xy=direction.tolist(),
+                maximum_tool_translation_m=0.004,
+                maximum_carton_translation_m=0.002,
+                handoff_group_force_gate_N=group_gate,
+            )
+            for _ in range(int(limit_s / env.dt)):
+                tick(opening=goals, pressure_relief=relief_speed)
+                if (
+                    self.last_forces[self.FRONT_SUPPORT] <= 0.2
+                    or np.linalg.norm(env.data.body(product.name).xpos - start_position) > 0.002
+                ):
+                    raise InteractionFailure("release_pressure_relief: supported pose changed")
+                if max(self.last_forces["thumb_normal"], self.last_forces["nonthumb_normal"]) < (
+                    group_gate
+                ):
+                    self.events[-1]["verified_pressure_relief"] = True
+                    break
+            else:
+                raise InteractionFailure(
+                    "release_pressure_relief: measured pressure did not unload"
+                )
         self._stage("release_front")
         self.release_origin = env.data.body(product.name).xpos.copy()
         opened = hand.finger_targets(0)
@@ -1257,7 +1304,7 @@ class SelectedFingerInsertion:
             partial_stop_x=current_x - 0.004, front_squaring=True, square_in_place=True
         )
 
-    def _recover_front_square_clearance(self, occupied_front_x, extent):
+    def _recover_front_square_clearance(self, occupied_front_x, extent, yaw):
         """Make room for the positive-wall square using the observed carton footprint."""
         from abstract_stack.interactions import contact_forces
         from abstract_stack.lateral_contact import LateralContact, LateralPushConfig
@@ -1294,6 +1341,10 @@ class SelectedFingerInsertion:
             event["decision"] = "use_standard_square"
             return False
         event["decision"] = "side_press_then_short_square"
+        # The negative-Y push at the front patch adds negative yaw torque.
+        # Use the side center if that moment would amplify the measured yaw.
+        contact_fraction = 0.0 if yaw < 0 else 0.65
+        event["side_press_contact_fraction"] = contact_fraction
         turn = float(np.radians(-60))
         side = LateralContact.push_laterally(
             self,
@@ -1302,6 +1353,7 @@ class SelectedFingerInsertion:
             near_front_corner=True,
             stage_for_squaring=True,
             base_turn_rad=turn,
+            front_contact_fraction=contact_fraction,
             settings=LateralPushConfig(
                 speed_m_s=0.004,
                 force_target_N=2.5,
@@ -1370,7 +1422,7 @@ class SelectedFingerInsertion:
                     recovered = (
                         config.side_square_recovery
                         and self._recover_front_square_clearance(
-                            max(stops) - extent[0] - square_clearance, extent
+                            max(stops) - extent[0] - square_clearance, extent, yaw
                         )
                     )
                     standard_square = not recovered and body.xpos[0] - max(stops) > 0.015
@@ -1625,8 +1677,9 @@ class SelectedFingerInsertion:
                 and self.observer.completed
             ):
                 # Use the unoccupied side during front squaring and forward advance. Blend back to
-                # the measured registration target over the last 12 mm.
-                clearance = 0.004 * float(np.clip((backstop_gap - 0.003) / 0.012, 0, 1))
+                # the measured registration target before backstop loading.
+                registration_ramp = (backstop_gap - config.insertion_registration_gap_m) / 0.012
+                clearance = 0.004 * float(np.clip(registration_ramp, 0, 1))
                 advance_goal_y -= clearance
                 event["advance_lateral_clearance_m"] = clearance
             separating = diagonal_goal_y is not None and body.xpos[1] > diagonal_goal_y

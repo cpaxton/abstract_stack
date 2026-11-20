@@ -75,7 +75,11 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
     scene = monitor.scene
     from abstract_stack.contact_rollout import integration_state
     from abstract_stack.env import ShelfStockingEnv
-    from abstract_stack.release_planning import ReleaseForecast, choose_release_reference
+    from abstract_stack.release_planning import (
+        ReleaseForecast,
+        choose_release_reference,
+        choose_unload_feedback,
+    )
 
     unloaded = False
     error = None
@@ -206,6 +210,30 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
     elif not coarse_loaded:
         push_event["back_contact_verified"] = True
     script.supported_slide = False
+    neighbors = (
+        tuple(item["product"] for item in script._adjacent_placed_neighbors())
+        if config.wall_packing and not unloaded
+        else ()
+    )
+    release_yaw_limit = 1.0 if config.live_guarded_withdrawal and not unloaded else 0.15
+    exit_distance = release_plan.get("clear_distance_m", shelf_exit_distance(env, hand))
+    feedback = WithdrawalFeedbackConfig(
+        yaw_feedback=True,
+        yaw_reference_deg=release_plan["yaw_reference_deg"],
+        straight_retreat_first=release_plan.get("straight_retreat_first", True),
+        paired_plane_feedback=bool(getattr(hand, "fingers", ())),
+    )
+    if config.screen_supported_unload and neighbors and feedback.paired_plane_feedback:
+        feedback = choose_unload_feedback(
+            script,
+            monitor,
+            dwell,
+            feedback,
+            clear_distance_m=exit_distance,
+            contact_neighbors=neighbors,
+            release_yaw_limit_deg=release_yaw_limit,
+            coarse_loaded_entry=coarse_loaded,
+        )
     script.observer.begin_retreat(script.product.name)
     script._stage("release")
     release_event = script.events[-1]
@@ -225,19 +253,12 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
         dwell,
         resume_withdrawal=unloaded,
         coarse_loaded_entry=coarse_loaded,
-        release_yaw_limit_deg=1.0 if config.live_guarded_withdrawal and not unloaded else 0.15,
-        clear_distance_m=release_plan.get("clear_distance_m", shelf_exit_distance(env, hand)),
+        release_yaw_limit_deg=release_yaw_limit,
+        clear_distance_m=exit_distance,
         clear_speed_m_s=0.02,
-        feedback=WithdrawalFeedbackConfig(
-            yaw_feedback=True,
-            yaw_reference_deg=release_plan["yaw_reference_deg"],
-            straight_retreat_first=release_plan.get("straight_retreat_first", True),
-            paired_plane_feedback=bool(getattr(hand, "fingers", ())),
-        ),
+        feedback=feedback,
         on_physics_step=withdrawal_sample,
-        contact_neighbors=tuple(item["product"] for item in script._adjacent_placed_neighbors())
-        if script.config.wall_packing and not unloaded
-        else (),
+        contact_neighbors=neighbors,
     )
     sync_tracking_state(script)
     release_event["supported_withdrawal"] = report

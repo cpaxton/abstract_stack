@@ -1,0 +1,9 @@
+{
+  "push_force_target": 2.5,
+  "insertion_back_force_target": 2.0,
+  "alignment_timeout_seconds": 10.0,
+  "front_alignment_position_gain_s": 3.0,
+  "front_alignment_yaw_gain_s": 4.0,
+  "insertion_lateral_position_gain": 2.0,
+  "insertion_registration_gap_m": 0.025
+}

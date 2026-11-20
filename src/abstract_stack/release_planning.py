@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 
 import mujoco
@@ -88,6 +89,73 @@ class ReleaseForecast:
         self.last_forces = self._forces(env, self.product.name, self.hand_bodies)
         self.controls.append(env.data.ctrl.copy())
         self.nominal.append(self.controller.command.copy())
+
+
+def choose_unload_feedback(
+    script,
+    monitor,
+    dwell,
+    feedback,
+    *,
+    clear_distance_m,
+    contact_neighbors,
+    release_yaw_limit_deg,
+    coarse_loaded_entry,
+):
+    """Forecast two unload prefixes independently from the measured contact state."""
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.interactions import InteractionFailure
+
+    initial = integration_state(script.env.model, script.env.data)
+    required = script.observer.completed | {script.product.name}
+    script._stage("release_unload_forecast")
+    event = script.events[-1]
+    event.update(candidates=[], fresh_task_credit=0)
+    chosen = None
+    for candidate in (feedback, replace(feedback, paired_plane_feedback=False)):
+        forecast = ReleaseForecast(script)
+        env, hand = forecast.env, forecast.controller
+        if not np.array_equal(initial, integration_state(env.model, env.data)):
+            raise InteractionFailure("release_unload_forecast: clone changed native state")
+        guarded = ContactMonitor(env.model, env.data, monitor.scene)
+        guarded.restore_state(monitor.state_dict(), env.data)
+        report, _, _ = supported_withdrawal(
+            hand,
+            hand.command.copy(),
+            guarded,
+            copy.deepcopy(dwell),
+            clear_distance_m=clear_distance_m,
+            clear_speed_m_s=0.02,
+            feedback=candidate,
+            contact_neighbors=contact_neighbors,
+            release_yaw_limit_deg=release_yaw_limit_deg,
+            coarse_loaded_entry=coarse_loaded_entry,
+            unload_only=True,
+        )
+        placed = all(
+            ok
+            for p, ok in zip(env.products, ShelfStockingEnv._placement_conditions(env), strict=True)
+            if p.name in required
+        )
+        admitted = report["unloaded_support_verified"] and placed
+        event["candidates"].append(
+            dict(
+                paired_plane_feedback=candidate.paired_plane_feedback,
+                required_placements_preserved=placed,
+                admitted=admitted,
+                unload=report,
+            )
+        )
+        if not np.array_equal(initial, integration_state(script.env.model, script.env.data)):
+            raise InteractionFailure("release_unload_forecast: live state changed during planning")
+        if admitted and (chosen is None or report["strict_release_yaw_verified"]):
+            chosen = candidate
+        if admitted and report["strict_release_yaw_verified"]:
+            break
+    if chosen is None:
+        raise InteractionFailure("release_unload_forecast: no guarded unload preserved placement")
+    event["selected_paired_plane_feedback"] = chosen.paired_plane_feedback
+    return chosen
 
 
 def choose_release_reference(script, monitor, dwell):
