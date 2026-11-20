@@ -15,7 +15,11 @@ from abstract_stack.source_store import freeze_source, resolve_source_reference
 
 
 @pytest.fixture
-def source_tree(tmp_path):
+def source_tree(tmp_path, monkeypatch):
+    # A Git hook can export repository-local variables that override git -C.
+    local_variables = subprocess.check_output(["git", "rev-parse", "--local-env-vars"], text=True)
+    for name in local_variables.splitlines():
+        monkeypatch.delenv(name, raising=False)
     root = tmp_path / "repo"
     (root / "src/example").mkdir(parents=True)
     (root / "scripts").mkdir()
