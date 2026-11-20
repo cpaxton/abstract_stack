@@ -94,6 +94,7 @@ class StockingSkillEnv:
         self.output = Path(output)
         self.mabel_root = mabel_root
         self.env = None
+        self.script = None
         self._episode = 0
         self._ready = False
 
@@ -129,6 +130,7 @@ class StockingSkillEnv:
             self.env = _FixtureEnv(fixture, seed=seed, mabel_root=self.mabel_root)
             self.env.validate_robot_fixture_clearance()
             script = self._script(self.actions[0])
+            self.script = script
             script.phase = "fixture_settle"
             for _ in range(round(self.env.config.stable_seconds / self.env.dt) + 1):
                 self.env.step(on_physics_step=script._sample)
@@ -162,6 +164,7 @@ class StockingSkillEnv:
     def _script(self, action):
         config = ScriptConfig(
             grasp_skill=self.skill == "grasp-lift",
+            head_tracking=False,
             base_reposition=True,
             ungrasped_insertion=self.skill in ("insert", "push-to-contact")
             or action in SIDE_ACTIONS,
@@ -433,6 +436,12 @@ class StockingSkillEnv:
             raise ValueError(f"Choose one of {self.actions}")
         self._ready = False
         script = self._script(action)
+        if self.script.execution_history is not None:
+            script.execution_history = self.script.execution_history
+            script._agent_skill = self.script._agent_skill
+            script._agent_branch = self.script._agent_branch
+            script._agent_artifacts = self.script._agent_artifacts
+        self.script = script
         start = float(self.env.data.time)
         verified = False
         failure = None
@@ -478,6 +487,7 @@ class StockingSkillEnv:
 
     def close(self):
         self._ready = False
+        self.script = None
         if self.env is not None:
             self.env.close()
             self.env = None

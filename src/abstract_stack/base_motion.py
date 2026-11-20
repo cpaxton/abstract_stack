@@ -208,8 +208,10 @@ class NativeSwerve:
         return result
 
 
-def screen_base_translation(env, displacement_xy, *, config=None, carried_product=None):
-    """Screen translation, yaw uncertainty and steering sweeps using scratch data.
+def screen_base_translation(
+    env, displacement_xy, *, config=None, carried_product=None, turn_rad=0.0
+):
+    """Screen translation or an unloaded in-place turn using scratch data.
 
     A named ``carried_product`` moves rigidly with the robot: its geoms are
     removed from the fixture set and its free-joint position tracks the base, so
@@ -225,10 +227,16 @@ def screen_base_translation(env, displacement_xy, *, config=None, carried_produc
         raise ValueError("Base probe displacement must be finite and within 0.15 m")
     if carried_product is not None and not isinstance(carried_product, str):
         raise ValueError("carried_product must be a product name or None")
+    if (
+        not np.isfinite(turn_rad)
+        or abs(turn_rad) > np.pi / 2
+        or (turn_rad and (np.any(displacement) or carried_product is not None))
+    ):
+        raise ValueError("A screened turn must be in place, unloaded and within 90 degrees")
     snapshot = env.clone_for_planning()
     model, data = snapshot.model, snapshot.data
     swerve = NativeSwerve(model, data, config)
-    desired, _, _ = swerve.module_requests([*displacement, 0])
+    desired, _, _ = swerve.module_requests([*displacement, turn_rad])
     initial = data.qpos.copy()
     base_adr = int(model.joint("base_root").qposadr[0])
     carried_body = model.body(carried_product).id if carried_product is not None else None
@@ -261,8 +269,10 @@ def screen_base_translation(env, displacement_xy, *, config=None, carried_produc
     )
     floor = model.geom("floor").id
     samples = 0
-    for alpha in np.linspace(0, 1, max(2, int(np.ceil(np.linalg.norm(displacement) / 0.005)) + 1)):
-        for yaw in (-config.path_yaw_margin_rad, 0, config.path_yaw_margin_rad):
+    segments = int(np.ceil(max(np.linalg.norm(displacement) / 0.005, abs(turn_rad) / 0.025)))
+    for alpha in np.linspace(0, 1, max(2, segments + 1)):
+        for margin in (-config.path_yaw_margin_rad, 0, config.path_yaw_margin_rad):
+            yaw = alpha * turn_rad + margin
             for steer_alpha in (0, 0.5, 1):
                 data.qpos[:] = initial
                 data.qpos[base_adr : base_adr + 2] += alpha * displacement
@@ -343,6 +353,8 @@ class BaseContactGuard:
         reference_yaw=None,
         max_product_displacement_m=None,
         exclude_products=(),
+        turn_rad=0.0,
+        max_base_displacement_m=None,
     ):
         self.model = env.model
         self.config = config or BaseMotionConfig()
@@ -363,6 +375,15 @@ class BaseContactGuard:
         )
         if not np.isfinite(self.reference_yaw):
             raise ValueError("Base guard yaw reference must be finite")
+        if not np.isfinite(turn_rad) or abs(turn_rad) > np.pi / 2:
+            raise ValueError("Base guard turn must be finite and within 90 degrees")
+        if max_base_displacement_m is not None and (
+            not np.isfinite(max_base_displacement_m) or max_base_displacement_m <= 0
+        ):
+            raise ValueError("Base drift bound must be finite and positive")
+        self.turn_rad = turn_rad
+        self.base_displacement_limit = max_base_displacement_m
+        self.initial_base_xy = env.data.xpos[self.base, :2].copy()
         self.robot = set()
         for body in range(self.model.nbody):
             ancestor = body
@@ -461,8 +482,15 @@ class BaseContactGuard:
             raise BaseMotionFailure("base_motion: carton tip/drop incident")
         if rotation[2, 2] < np.cos(np.radians(2)):
             raise BaseMotionFailure("base_motion: base tilt guard")
-        if abs(yaw_error) > self.config.path_yaw_margin_rad:
+        margin = self.config.path_yaw_margin_rad
+        if not min(0, self.turn_rad) - margin <= yaw_error <= max(0, self.turn_rad) + margin:
             raise BaseMotionFailure("base_motion: yaw left screened envelope")
+        if (
+            self.base_displacement_limit is not None
+            and np.linalg.norm(data.xpos[self.base, :2] - self.initial_base_xy)
+            > self.base_displacement_limit
+        ):
+            raise BaseMotionFailure("base_motion: turn drift left screened envelope")
         if (
             self.displacement_limit is not None
             and max(self.maximum_product_displacement_m.values(), default=0)
@@ -480,5 +508,7 @@ class BaseContactGuard:
             maximum_product_displacement_m=self.maximum_product_displacement_m.copy(),
             incidents=self.incidents.copy(),
             reference_yaw_rad=self.reference_yaw,
+            screened_turn_rad=self.turn_rad,
+            base_displacement_limit_m=self.base_displacement_limit,
             product_displacement_limit_m=self.displacement_limit,
         )

@@ -14,6 +14,18 @@ finger insertion, then run fresh tight three/four/ten-carton episodes. Use
 all failures under `outputs/adjacent-insertion-v1/`. These are development
 trials, not a generalization success rate.
 
+The current ten-carton development suite uses the 20 mm row to advance the
+sequence. Keep the 10 mm whole-row benchmark for acceptance. Reuse the saved
+fifth approach and ninth front-square boundaries from the
+[development curriculum](configs/curricula/development.json). Compare any
+candidate on other lineages and preserve exact terminal failures when admission
+requires rewinding to an earlier boundary.
+
+- [x] Finish ten checkpoint-assisted withdrawals and verify the packed hold in
+  the 20 mm development row with zero prefills and zero tip/drop incidents.
+- [ ] Reproduce ten strict final positions from reset, then verify the 10 mm
+  benchmark across independent scene starts.
+
 - [x] Share the existing dense selected-finger skill with ordinary stocking;
   opt in with `--ungrasped-insertion`. Recheck the pusher after native base moves.
 - [x] Choose neighbor-clear front staging during carried transfer, hold the arm

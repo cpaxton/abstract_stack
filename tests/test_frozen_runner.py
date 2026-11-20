@@ -88,6 +88,7 @@ def test_timeout_terminates_the_created_process_group_including_its_child(tmp_pa
         wall_seconds=0.5,
     )
     assert result["timeout"]
+    assert result["timeout_reason"] == "wall"
     assert result["returncode"] == -signal.SIGKILL
     stat = Path(f"/proc/{int(pid_path.read_text())}/stat")
     try:
@@ -96,3 +97,29 @@ def test_timeout_terminates_the_created_process_group_including_its_child(tmp_pa
         # A killed child may be reaped between opening and reading /proc.
         state = None
     assert state is None or state.startswith("Z ")
+
+
+def test_progress_timeout_uses_the_last_update_and_retains_evidence(tmp_path, runner):
+    progress = tmp_path / "physics-progress.json"
+    code = f"""\
+import pathlib
+import time
+progress = pathlib.Path({str(progress)!r})
+for step in range(6):
+    progress.write_text(str(step))
+    time.sleep(0.15)
+time.sleep(30)
+"""
+    result = runner["supervise"](
+        [sys.executable, "-c", code],
+        cwd=tmp_path,
+        environment=os.environ.copy(),
+        log=tmp_path / "run.log",
+        wall_seconds=5,
+        progress_path=progress,
+        idle_seconds=0.7,
+    )
+    assert result["timeout"]
+    assert result["timeout_reason"] == "progress_idle"
+    assert result["returncode"] == -signal.SIGKILL
+    assert progress.read_text() == "5"

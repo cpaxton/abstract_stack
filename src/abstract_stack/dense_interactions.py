@@ -45,6 +45,12 @@ class DenseStockingScript(StockingScript):
         return self.env.config.front_x - self.config.front_staging_depth
 
     def _one_box(self, selected=None):
+        self._record_agent_event(
+            "carton_plan",
+            protocol="dense_released_finger",
+            steps=["pick", "place", "insert", "push_to_contact", "retreat"],
+            plan_driven=self.config.plan_driven,
+        )
         self._move("clear_high", [-0.30, -0.20, 1.35])
         if self.config.plan_driven:
             self._execute_planned_box(selected)

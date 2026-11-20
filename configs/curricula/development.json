@@ -1,0 +1,577 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "spacious-pick",
+      "skill": "pick",
+      "role": "captured",
+      "checkpoint": "interleaved-stock-press-intermediate-v7/episode/skill-entries/000-carton_2-grasp_lift/checkpoint",
+      "manifest_sha256": "77c5c38733bec76a4eec9b0e7e17c8abf4ead1554e4df33f0e99b5e8872460ba",
+      "lineage": "interleaved-three-seed0"
+    },
+    {
+      "id": "tight-pick",
+      "skill": "pick",
+      "role": "captured",
+      "checkpoint": "adjacent-insertion-v1/tight-three-14/episode/skill-entries/005-carton_1-grasp_lift/checkpoint",
+      "manifest_sha256": "2d3e236056a8b8d717cff3540ddcd7647e9e192691488a6c48d840490376f78b",
+      "lineage": "tight-three-seed0"
+    },
+    {
+      "id": "spacious-place",
+      "skill": "place",
+      "role": "captured",
+      "checkpoint": "interleaved-stock-press-intermediate-v7/episode/skill-entries/001-carton_2-transfer/checkpoint",
+      "manifest_sha256": "abb673e60f7ecfa869ca6d2c7d0160acfabeec031d6add1db7ea81930c6820ea",
+      "lineage": "interleaved-three-seed0"
+    },
+    {
+      "id": "tight-place",
+      "skill": "place",
+      "role": "captured",
+      "checkpoint": "adjacent-insertion-v1/tight-three-14/episode/skill-entries/006-carton_1-transfer/checkpoint",
+      "manifest_sha256": "18218488a6738bc6507782385e019fa3abef2f56ee15bf8817f8297f33b9ba44",
+      "lineage": "tight-three-seed0"
+    },
+    {
+      "id": "spacious-push",
+      "skill": "push",
+      "role": "captured",
+      "checkpoint": "interleaved-stock-press-intermediate-v7/episode/skill-entries/003-carton_2-contact_finish/checkpoint",
+      "manifest_sha256": "b39e209dc17efc7160b378d60e01e9ece1a68f52be2f05a01dfacd16a45ce913",
+      "lineage": "interleaved-three-seed0"
+    },
+    {
+      "id": "spacious-slide",
+      "skill": "slide",
+      "role": "captured",
+      "checkpoint": "interleaved-stock-press-intermediate-v7/episode/skill-entries/012-carton_1-row_press_entry/checkpoint",
+      "manifest_sha256": "8c8d1968ea37ffab428f4d921fe3910f470b54a06b8504f7a0b19f29ab7a1753",
+      "lineage": "interleaved-three-seed0"
+    },
+    {
+      "id": "spacious-retreat",
+      "skill": "retreat",
+      "role": "captured",
+      "checkpoint": "interleaved-stock-press-intermediate-v7/episode/skill-entries/004-carton_2-release_retreat/checkpoint",
+      "manifest_sha256": "196b0e496054a98cde28729fff5218f39ce01f1141206d512f1fc5781f6b1f5a",
+      "lineage": "interleaved-three-seed0"
+    },
+    {
+      "id": "tight-retreat",
+      "skill": "retreat",
+      "role": "captured",
+      "checkpoint": "adjacent-insertion-v1/tight-three-14/episode/skill-entries/010-carton_1-release_retreat/checkpoint",
+      "manifest_sha256": "86989267449149fd722dca9c3af9841f25faf92a43d30bf98c486727359491d3",
+      "lineage": "tight-three-seed0"
+    },
+    {
+      "id": "lift-body-push-stop",
+      "skill": "push",
+      "role": "recovery",
+      "checkpoint": "interleaved-stock-press-intermediate-v7/episode/skill-entries/019-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "264147cc79be5808a093c6b2a345b20b39d225c58e65875d43befdc214499318",
+      "lineage": "interleaved-three-seed0",
+      "original_failure": "push: feedback pose/path rejected before actuation",
+      "rewind_case_id": "lift-body-before-push"
+    },
+    {
+      "id": "fourth-carton-stall",
+      "skill": "push",
+      "role": "recovery",
+      "checkpoint": "adjacent-insertion-v1/tight-four-13/episode/skill-entries/022-carton_0-contact_finish/checkpoint",
+      "manifest_sha256": "b103d6486e472dd692d8f35814d03ec0e01e488621051d93cefa61bc3242d0bc",
+      "lineage": "tight-four-seed0",
+      "original_failure": "Fourth carton stalled about 25 mm short of the backstop",
+      "historical_recovery": "adjacent-insertion-v1/fourth-finish-push-06/summary.json",
+      "replan_released_tool": true
+    },
+    {
+      "id": "unloaded-retreat-stop",
+      "skill": "retreat",
+      "role": "recovery",
+      "checkpoint": "adjacent-insertion-v1/tight-four-16/episode/skill-entries/008-carton_2-motion_failure/checkpoint",
+      "manifest_sha256": "a72ebb63cf0e941605a870c43809ec6285d4ee84f33f6eabc02eedbfd3d564dc",
+      "lineage": "tight-four-seed0",
+      "original_failure": "unloaded_clear: no verified withdrawal forecast",
+      "historical_recovery": "adjacent-insertion-v1/four-first-clear-exact-02/summary.json"
+    },
+    {
+      "id": "dense-retreat",
+      "skill": "retreat",
+      "role": "captured",
+      "checkpoint": "adjacent-insertion-v1/ten-chain-five-01/episode/skill-entries/010-carton_5-withdrawal_planning/checkpoint",
+      "manifest_sha256": "1f85659a343ba14fb5d8c3ee84ea98b77e6786062d2800a78e5facbc70b88aee",
+      "lineage": "tight-ten-seed0"
+    },
+    {
+      "id": "lift-body-before-push",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "interleaved-three-seed0",
+      "checkpoint": "interleaved-stock-press-intermediate-v7/episode/skill-entries/018-carton_0-contact_finish/checkpoint",
+      "manifest_sha256": "d891d601fd5e68d748b85adff4a81a46cdf644730e2452afe767622c846aed78",
+      "original_failure": "Later supported push stopped on lift/body interference"
+    },
+    {
+      "id": "ninth-carton-before-insert",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "adjacent-insertion-v1/tight-ten-20mm-ninth-held-opening-02/episode/skill-entries/002-carton_1-front_insertion/checkpoint",
+      "manifest_sha256": "19b71f58c81b9c54628c4181b3154a95a1651ce35914900a0ed87bcad77327e5",
+      "original_failure": "The subsequent guided front-square push timed out"
+    },
+    {
+      "id": "ninth-carton-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "adjacent-insertion-v1/tight-ten-20mm-ninth-guided-01/episode/skill-entries/002-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "fac91cc4f1cb803444e11143b640e55c36a0c404732591c27b2d64531f6c68ca",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "ninth-carton-before-insert"
+    },
+    {
+      "id": "eighth-carton-before-retreat",
+      "skill": "retreat",
+      "role": "captured",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "adjacent-insertion-v1/tight-ten-20mm-side-square-advance-05/episode/skill-entries/004-carton_2-contact_refinement/checkpoint",
+      "manifest_sha256": "18de42e9eb60bd2d5dbf313389d1dd2823699af5273aab39735396560cbcf7de"
+    },
+    {
+      "id": "post-press-seed1-before-refine",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "interleaved-three-seed1",
+      "checkpoint": "runs/agent-harness/three-cartons-post-press-seed1-v1/episode/skill-entries/019-carton_0-contact_refinement/checkpoint",
+      "manifest_sha256": "4d404dc3ca96ed99219ee55c4df94f3087404af17593b85f84566a520217a3ed",
+      "original_failure": "The subsequent release-goal search exhausted its budget"
+    },
+    {
+      "id": "post-press-seed1-refine-stop",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "interleaved-three-seed1",
+      "checkpoint": "runs/agent-harness/three-cartons-post-press-seed1-v1/episode/skill-entries/020-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "47c06074b3db8bdc401205c05d04723b5069621711cb20599ad5bab81f9ed4aa",
+      "original_failure": "contact_refine: bounded release-goal search exhausted",
+      "rewind_case_id": "post-press-seed1-before-refine"
+    },
+    {
+      "id": "tight-ten-edge-paired-control",
+      "skill": "push",
+      "role": "captured",
+      "lineage": "tight-ten-seed0",
+      "checkpoint": "adjacent-insertion-v1/tight-ten-11/episode/skill-entries/011-carton_9-front_insertion/checkpoint",
+      "manifest_sha256": "d1243a8362afcce537f19f2e4ad685574cf207111b683c6b264550fefef94fc7",
+      "replan_released_tool": true
+    },
+    {
+      "id": "outer-carton-inventory-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/from-eight-center-last/episode/skill-entries/000-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "893ff732dde0ec3bfd77270509cc370226dd7187be5c7e2a4e31381335851120",
+      "original_failure": "No checked object-aligned grasp candidate; no grasp motion commanded"
+    },
+    {
+      "id": "roomy-ten-before-close",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "roomy-ten-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-roomy-v1/episode/skill-entries/011-carton_9-grasp_lift/checkpoint",
+      "manifest_sha256": "b5c77371ff0dd6b49d4d0e93f040f212931e468849d02396be57d00cd97ec1a0",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation"
+    },
+    {
+      "id": "roomy-ten-close-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "roomy-ten-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-roomy-v1/episode/skill-entries/012-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "5e00bc45551fff0ee91614759b1bac2c267b28b00b890f9836658a546872529d",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation",
+      "rewind_case_id": "roomy-ten-before-close"
+    },
+    {
+      "id": "ninth-inner-loaded-route-stop",
+      "skill": "place",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "adjacent-insertion-v1/tight-ten-20mm-from-interleaved-eight-01/episode/skill-entries/002-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "b504cb84f5983401f2da2fe5ea4daa5ed8abbecc44719e542529137805e44cfc",
+      "original_failure": "loaded_stage: no checked shelf approach candidate"
+    },
+    {
+      "id": "ninth-outer-loaded-route-stop",
+      "skill": "place",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/from-eight-center-last-swapped/episode/skill-entries/002-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "01cd51c05557a03c1b33f56c59e64d343976468b5ebb946667e07698bfd0acf1",
+      "original_failure": "loaded_stage: no checked shelf approach candidate"
+    },
+    {
+      "id": "roomy-forward-pregrasp-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "roomy-ten-forward-table-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-roomy-table-forward-v1/episode/skill-entries/001-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "729f41540a619d6545706de8f74d5dfd5aad980555118e1490954ce0e2d36a6f",
+      "original_failure": "pregrasp_route: no checked empty-hand route around shelf fixtures"
+    },
+    {
+      "id": "fifth-carton-after-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-20mm-v2/episode/skill-entries/055-carton_5-front_squaring_complete/checkpoint",
+      "manifest_sha256": "ddf889f3a0eb0d5bbef49205dbddc5c0ff184461d8468debdf8ce53c900b5728",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected"
+    },
+    {
+      "id": "fifth-carton-pusher-approach-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-20mm-v2/episode/skill-entries/056-carton_5-motion_failure/checkpoint",
+      "manifest_sha256": "313a73400a02491625557aa57e300fe0553060baccdc74ec822f41623e3d9c68",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected",
+      "rewind_case_id": "fifth-carton-after-front-square"
+    },
+    {
+      "id": "tight-three-support-release",
+      "skill": "insert",
+      "role": "captured",
+      "lineage": "tight-three-seed0",
+      "checkpoint": "adjacent-insertion-v1/tight-three-14/episode/skill-entries/008-carton_1-front_release/checkpoint",
+      "manifest_sha256": "c1b8b8bfbaa8b2f6eb502ac41503a4bb32a99294a3e4e037602180c20134557e"
+    },
+    {
+      "id": "eighth-carton-before-opening",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/from-five-continued/episode/skill-entries/027-carton_2-front_release/checkpoint",
+      "manifest_sha256": "07c56dbd75e086b15006d1cc203b4c82304417dfaaf8052f28c7b48d49d774da",
+      "original_failure": "The subsequent native thumb opening was rejected"
+    },
+    {
+      "id": "eighth-carton-opening-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/from-five-continued/episode/skill-entries/028-carton_2-motion_failure/checkpoint",
+      "manifest_sha256": "66f28232a38666a67439dd03d39294ee2c45a4b21091f4995a817b59ee63cf08",
+      "original_failure": "release_front: no coupled native thumb opening",
+      "rewind_case_id": "eighth-carton-before-opening"
+    },
+    {
+      "id": "sixth-carton-before-lateral-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/from-four-post-square-profile/episode/skill-entries/017-carton_4-front_insertion/checkpoint",
+      "manifest_sha256": "514f62fff997aa2bd294d683169cb33f1bc9b646d2b6e3733decca1beaa37f93",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "sixth-carton-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/from-four-post-square-profile/episode/skill-entries/020-carton_4-motion_failure/checkpoint",
+      "manifest_sha256": "512573aa402636f2f9957d1c64f7f39b2bac6dc998ba3dc3d1628814480ed9ec",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "sixth-carton-before-lateral-square"
+    },
+    {
+      "id": "ninth-carton-before-wall-alignment",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/last-two-from-eight-wide-reserve/episode/skill-entries/003-carton_1-front_release/checkpoint",
+      "manifest_sha256": "9c7d2910e013480af3f47c1034f13cdbe8975085dc8336d4202feecfac182519",
+      "original_failure": "stage_align: measured-pose feedback rejected before actuation"
+    },
+    {
+      "id": "ninth-carton-wall-alignment-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/last-two-from-eight-wide-reserve/episode/skill-entries/004-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "b0a80b29bcfdf6cfd2091a0f8a968b23500f93cb0a74b968ef2e5906450b5f1c",
+      "original_failure": "stage_align: measured-pose feedback rejected before actuation",
+      "rewind_case_id": "ninth-carton-before-wall-alignment"
+    },
+    {
+      "id": "ninth-carton-released-before-pusher",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/ninth-multi-digit-hold-y6/episode/skill-entries/002-carton_1-front_insertion/checkpoint",
+      "manifest_sha256": "f5626e4ef78fb4821e6eb8b234166effad8a2e43df2204e912c086c868fda4a8",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected"
+    },
+    {
+      "id": "ninth-carton-pusher-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/ninth-multi-digit-hold-y6/episode/skill-entries/004-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "46059f57f2e084dcac3ad4ad21280bf375e0f0a3834dbae5f6039424cfd20e46",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected",
+      "rewind_case_id": "ninth-carton-released-before-pusher"
+    },
+    {
+      "id": "tenth-before-loaded-transfer",
+      "skill": "place",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/ninth-after-opening-y6-035/episode/skill-entries/007-carton_0-transfer/checkpoint",
+      "manifest_sha256": "2501eeaaa76198cef05d9cc66a95cfbd7e5d311c7dc8c0aacd5772304232bd37",
+      "original_failure": "The subsequent loaded shelf approach search exhausted its candidates"
+    },
+    {
+      "id": "tenth-loaded-route-stop",
+      "skill": "place",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/ninth-after-opening-y6-035/episode/skill-entries/008-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "5d44f8d39c8e8187d24c79101193c3862706ba91c5a282793965940d53fa9055",
+      "original_failure": "loaded_stage: no checked shelf approach candidate",
+      "rewind_case_id": "tenth-before-loaded-transfer"
+    },
+    {
+      "id": "tenth-released-before-wall-registration",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/tenth-lead-6mm/episode/skill-entries/002-carton_0-free_landing/checkpoint",
+      "manifest_sha256": "ddb7713f194155e7732510915181aa60a97b88d0aabcc9a6ba59405586d85a6b",
+      "original_failure": "The subsequent exposed-side approach failed to find a checked path"
+    },
+    {
+      "id": "tenth-exposed-side-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/tenth-lead-6mm/episode/skill-entries/003-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "4ff2502b946941e7a2d3eedfbe49fc2728742db11168fa06d7f083a37bc83418",
+      "original_failure": "lateral_plan: no checked exposed-side approach; replan",
+      "rewind_case_id": "tenth-released-before-wall-registration"
+    },
+    {
+      "id": "tenth-clockwise-push-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/tenth-turn-60-home/episode/skill-entries/001-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "1e6fdab2f620addbe44573e6f85ed9222b77801d780ae9eb97784a724d968bb0",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan",
+      "rewind_case_id": "tenth-released-before-wall-registration"
+    },
+    {
+      "id": "tenth-quarter-turn-push-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/tenth-turn-90-home/episode/skill-entries/001-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "1adf6f597544e9662359ef481b8047e3a2f6bc5cf8f1a13459024845a73f9c8b",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan",
+      "rewind_case_id": "tenth-released-before-wall-registration"
+    },
+    {
+      "id": "tenth-wall-clearance-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/tenth-short-intermediate-15/episode/skill-entries/001-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "9e1e1b874d1f8bf67df86f8b08405ff22d0d6a0d62767d034dd95df75d3a2ece",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected",
+      "rewind_case_id": "tenth-released-before-wall-registration"
+    },
+    {
+      "id": "tenth-after-wall-clearance",
+      "skill": "push",
+      "role": "captured",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/curriculum/ten-carton-late-v1/tenth-after-wall-clearance-0/episode/skill-entries/000-carton_0-front_insertion/checkpoint",
+      "manifest_sha256": "87fc866739e902d4f9f7b0b3d584900193dc423e88ea54d0fe423f7712e7a468"
+    },
+    {
+      "id": "fresh-fourth-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-fresh-v3/postSquare/episode/skill-entries/040-carton_6-front_insertion/checkpoint",
+      "manifest_sha256": "1818b9d8c803fa483d5313e7ba2b293551be8b6563973753ff91ef492cc9e6d6",
+      "original_failure": "Subsequent front squaring reached the depth target and timed out at 2.63 degrees yaw"
+    },
+    {
+      "id": "fresh-fourth-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-fresh-v3/postSquare/episode/skill-entries/043-carton_6-motion_failure/checkpoint",
+      "manifest_sha256": "7a89b198ce59ea4e61838805ed80735429037ef865137ca11e052ea88075ffa1",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "fresh-fourth-before-front-square"
+    },
+    {
+      "id": "dense-seed1-second-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed1",
+      "checkpoint": "runs/agent-harness/ten-cartons-runtime-v1/seed1-progress-watch/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "17bcb73637fb5d14a6b973948c70e2f582d88554125b9c098983620e20163bd6",
+      "original_failure": "The following front-square push reached staging depth but timed out at 2.46 degrees yaw"
+    },
+    {
+      "id": "dense-seed1-second-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed1",
+      "checkpoint": "runs/agent-harness/ten-cartons-runtime-v1/seed1-progress-watch/episode/skill-entries/019-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "0baf2ba4b62afeac1418d56b60443124e58da72a19680456e218829e92c73fe1",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-seed1-second-before-front-square"
+    },
+    {
+      "id": "fresh-eighth-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-runtime-v1/mujoco317-malloc/episode/skill-entries/088-carton_2-front_insertion/checkpoint",
+      "manifest_sha256": "1ee271172b2ec4fa5eba4243c8192c25d4b0c6293bba0499f555fa458e929989",
+      "original_failure": "With seven prior withdrawals from the same reset, front squaring reached staging depth and timed out at 2.94 degrees yaw"
+    },
+    {
+      "id": "fresh-eighth-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed0",
+      "checkpoint": "runs/agent-harness/ten-cartons-runtime-v1/mujoco317-malloc/episode/skill-entries/091-carton_2-motion_failure/checkpoint",
+      "manifest_sha256": "fcecd77c8d0ca58874d7a21603e8bbd37bf89e942f3cc9183f924605948c567b",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "fresh-eighth-before-front-square"
+    },
+    {
+      "id": "dense-seed2-second-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed2",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-2/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "4b17f190148c593ce5fe1932c4c40022bd2329f4f271a74f9111d3b8782b56be",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "dense-seed2-second-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed2",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-2/episode/skill-entries/019-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "ad2771ffbd20de7d5b30d188d1eb833c461c5ca1b793561d7724189e61e91c3a",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-seed2-second-before-front-square"
+    },
+    {
+      "id": "dense-seed3-second-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed3",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-3/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "ab10e073f98bcab849c76c046c65c6b985042631fa60faeaa7d19f3375f8f950",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "dense-seed3-second-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed3",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-3/episode/skill-entries/019-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "35389e3e6bb6eab73159b79dd544a5b6d09fc9bd7da84e8512086cb00f5c58e5",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-seed3-second-before-front-square"
+    },
+    {
+      "id": "dense-seed4-second-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed4",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-4/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "dc789c6da2444b9ea5521e48d81b698250c72822402329f0c3620f1e86250aee",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "dense-seed4-second-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed4",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-4/episode/skill-entries/019-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "f875d5ecf1c30b9e8ebe464af330920c87f9d4994f38eac780f2298fa2dd7ed4",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-seed4-second-before-front-square"
+    },
+    {
+      "id": "dense-seed5-second-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-5/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "c8b13bfd62f1a341264891d4496cd1cc7ac4c7e3b2a06257f2f54f575b91966b",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "dense-seed5-second-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-5/episode/skill-entries/019-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "4e7943cdf36c429b9329a681b3fe9a3a2221e9f2d37979829718d7b06066d6f7",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-seed5-second-before-front-square"
+    },
+    {
+      "id": "dense-seed6-second-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed6",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-6/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "918e3ed9db76db5ee380351721868438541057fe47aae5d7626ac2ba6af8927a",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "dense-seed6-second-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed6",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-6/episode/skill-entries/019-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "bcadf2015e275e3b2249f4678d6f1b3cb2a5c92ee126cda605ebac68cdc1d5ae",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-seed6-second-before-front-square"
+    },
+    {
+      "id": "dense-seed7-second-before-front-square",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-7/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "ee6556753f565f9592d805e8e7113d58c875853e78ff50be2c1bd914b11c7d89",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "dense-seed7-second-front-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/ten-cartons-seed-study-v1/seed-7/episode/skill-entries/019-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "6ebc863d7891c5e5891a6bbcf072ec3ab346016f46d8d36a60e7f30fd17e3f95",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-seed7-second-before-front-square"
+    }
+  ]
+}

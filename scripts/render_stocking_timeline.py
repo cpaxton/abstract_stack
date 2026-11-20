@@ -117,11 +117,10 @@ def render_sequence(recipe, output, fps, speed):
                 draw.rectangle((0, 0, 960, 40), fill="#15212c")
                 draw.text((10, 4), f"Third person | {recipe['title']}", fill="white")
                 draw.text((490, 4), f"Robot camera | {speed:g}x simulation", fill="white")
-                draw.text(
-                    (10, 22),
-                    f"{completed}/{recipe['scheduled']} withdrawals | {label}",
-                    fill="#bde7f4",
-                )
+                caption = label
+                if "scheduled" in recipe:
+                    caption = f"{completed}/{recipe['scheduled']} withdrawals | {label}"
+                draw.text((10, 22), caption, fill="#bde7f4")
                 product = event.get("product", "")
                 phase = event.get("phase", "recorded start").replace("_", " ")
                 draw.text((490, 22), f"{data.time:.1f} s sim | {product} | {phase}", fill="#bde7f4")
@@ -133,6 +132,8 @@ def render_sequence(recipe, output, fps, speed):
                 episode = "episode" in segment
                 directory = Path(segment["episode"] if episode else segment["continuation"])
                 summary = directory / "summary.json"
+                if not episode and not summary.is_file():
+                    summary = directory / "result.json"
                 trace = directory / ("trace.npz" if episode else "continuation.npz")
                 sources.update({str(path): sha256(path) for path in (summary, trace)})
                 events = sorted(read_json(summary)["events"], key=lambda event: event["sim_time"])

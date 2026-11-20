@@ -18,8 +18,10 @@ from abstract_stack.navigation import plan_base_path
 class PressInterleavedStockingScript(LateralContact, StockingScript):
     """Stock two cartons, press their exposed seam, then stock the third."""
 
-    def __init__(self, env, *args, **kwargs):
+    def __init__(self, env, *args, post_press_release_reapproach=False, **kwargs):
         super().__init__(env, *args, **kwargs)
+        self.post_press_release_reapproach = post_press_release_reapproach
+        self._row_press_completed = False
         if (
             len(env.config.levels) != 1
             or len(env.products) != 3
@@ -40,18 +42,59 @@ class PressInterleavedStockingScript(LateralContact, StockingScript):
         self.press_and_finish(result)
 
     def episode_evidence(self):
-        return {**super().episode_evidence(), "interleave_row_press": True}
+        return {
+            **super().episode_evidence(),
+            "interleave_row_press": True,
+            "post_press_release_reapproach": self.post_press_release_reapproach,
+        }
+
+    def _one_box(self, selected=None):
+        if not (self._row_press_completed and self.post_press_release_reapproach):
+            return super()._one_box(selected)
+
+        self._record_agent_event(
+            "carton_plan",
+            protocol="release_reapproach_after_row_press",
+            steps=["pick", "place", "insert", "push_to_contact", "retreat"],
+        )
+        self._pick_and_place_front(selected)
+        self._release_for_finger_push()
+        config = self.config
+        self.config = replace(config, ungrasped_insertion=True, paired_finger_insertion=True)
+        try:
+            self._insert_from_front()
+        finally:
+            self.config = config
 
     def press_and_finish(self, result):
         """Run the remaining sequence from the measured two-carton boundary."""
         stocking_config = self.config
+        prior_skill, prior_step = self._agent_skill, self._agent_carton_step
+        self._agent_skill, self._agent_carton_step = "slide", None
+        self._record_agent_event(
+            "skill_started",
+            skill="slide",
+            product=None,
+            participants=sorted(self.observer.completed),
+        )
         try:
-            self.config = replace(stocking_config, ungrasped_insertion=True)
-            self._press_stocked_pair(result)
+            try:
+                self.config = replace(stocking_config, ungrasped_insertion=True)
+                self._press_stocked_pair(result)
+            finally:
+                self.config = stocking_config
+            self._restore_grasp_hand()
+            self._settle_pusher_preshape()
+        except (RuntimeError, ValueError, FloatingPointError) as error:
+            self._record_agent_event(
+                "skill_finished", skill="slide", outcome="failed", failure=str(error)
+            )
+            raise
+        else:
+            self._record_agent_event("skill_finished", skill="slide", outcome="verified")
+            self._row_press_completed = True
         finally:
-            self.config = stocking_config
-        self._restore_grasp_hand()
-        self._settle_pusher_preshape()
+            self._agent_skill, self._agent_carton_step = prior_skill, prior_step
         super()._execute_task(result)
 
     def _press_stocked_pair(self, result):

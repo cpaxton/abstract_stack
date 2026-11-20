@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import os
 import runpy
@@ -20,10 +21,17 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--wall-seconds", type=float, default=300)
+    parser.add_argument(
+        "--idle-seconds",
+        type=float,
+        help="Stop if neither the phase nor the physics heartbeat updates for this many seconds",
+    )
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if not 0 < args.wall_seconds <= 1800:
         parser.error("Bound each native episode to at most 1800 wall seconds")
+    if args.idle_seconds is not None and not 0 < args.idle_seconds <= args.wall_seconds:
+        parser.error("The idle budget must be positive and fit inside the wall budget")
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
     content = args.config.read_bytes()
@@ -95,6 +103,13 @@ def main():
             command=command,
             controller_inputs=controller_inputs,
             wall_budget_seconds=args.wall_seconds,
+            idle_budget_seconds=args.idle_seconds,
+            runtime=dict(
+                python=sys.version,
+                mujoco=importlib.metadata.version("mujoco"),
+                numpy=importlib.metadata.version("numpy"),
+                python_allocator=os.environ.get("PYTHONMALLOC", "default"),
+            ),
         ),
     )
     write(args.output / "process.json", dict(outcome="scheduled", task_success=False))
@@ -111,9 +126,14 @@ def main():
             PYTHONFAULTHANDLER="1",
             ABSTRACT_STACK_SOURCE_REFERENCE=str(args.output / "source_ref.json"),
             ABSTRACT_STACK_SOURCE_STORE=str(frozen.archive.parent),
+            MABEL_ROOT=os.environ.get("MABEL_ROOT", str(root / "third_party/open_mabel")),
         ),
         log=args.output / "run.log",
         wall_seconds=args.wall_seconds,
+        progress_path=args.output / "episode/physics-progress.json"
+        if args.idle_seconds is not None
+        else None,
+        idle_seconds=args.idle_seconds,
     )
     summary_path = args.output / "episode/summary.json"
     result.update(outcome="unknown_process_failure", task_success=False)
@@ -132,6 +152,7 @@ def main():
                 output=str(args.output),
                 returncode=result["returncode"],
                 timeout=result["timeout"],
+                timeout_reason=result["timeout_reason"],
                 task_success=result["task_success"],
                 failure=result.get("failure"),
                 wall_seconds=result["wall_seconds"],

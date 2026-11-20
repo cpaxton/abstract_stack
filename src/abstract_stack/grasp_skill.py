@@ -122,6 +122,20 @@ def empty_reachable(
     more lenient than the real move. This is a kinematic reachability screen,
     not a tracking or contact guarantee.
     """
+    hand = _scratch_empty_hand(env, controller, config, base_xy)
+    if active_rotation is not None:
+        hand.active_rotation = np.asarray(active_rotation, dtype=float).copy()
+    prediction = hand.predict(
+        np.asarray(target, dtype=float),
+        alternatives=alternatives,
+        grip=0,
+        check_path=False,
+        path_mode=path_mode,
+    )
+    return prediction.feasible
+
+
+def _scratch_empty_hand(env, controller, config, base_xy):
     from abstract_stack.env import PlanningState
 
     data = mujoco.MjData(env.model)
@@ -135,23 +149,38 @@ def empty_reachable(
     hand.command = controller.command.copy()
     hand.abduction_targets = dict(controller.abduction_targets)
     hand.open_posture_overrides = dict(controller.open_posture_overrides)
-    if active_rotation is not None:
-        hand.active_rotation = np.asarray(active_rotation, dtype=float).copy()
-    prediction = hand.predict(
-        np.asarray(target, dtype=float),
-        alternatives=alternatives,
-        grip=0,
-        check_path=False,
-        path_mode=path_mode,
-    )
-    return prediction.feasible
+    return hand
+
+
+def _grasp_candidates(hand, product, grasp_rotation, deadline=float("inf")):
+    body = hand.env.data.body(product.name)
+    turn = grasp_rotation @ hand.ROTATION.T
+    offsets = ((0, 0), (0.004, -0.004), (0.008, -0.004), (0.004, -0.008), (0.008, -0.008))
+    for height in (product.half_size[2] / 3, 0.0, product.half_size[2] * 2 / 3):
+        for x, y in offsets:
+            if time.monotonic() >= deadline:
+                return
+            target = body.xpos + [0, 0, height] + turn @ np.array([x, y, 0])
+            hand.active_rotation = grasp_rotation.copy()
+            prediction = hand.predict(
+                target, allowed_object=product.name, alternatives=False, check_path=False
+            )
+            yield (
+                target,
+                prediction,
+                open_hand_clearance(hand, prediction, product.name),
+                [
+                    x,
+                    y,
+                    height,
+                ],
+            )
 
 
 def select_grasp(script, pending):
     """Search bounded object-frame grasp offsets with native open-hand clearance."""
     env, hand = script.env, script.controller
     base = env.data.body("mabel_chassis").xpos
-    offsets = ((0, 0), (0.004, -0.004), (0.008, -0.004), (0.004, -0.008), (0.008, -0.008))
     for product in sorted(
         pending, key=lambda p: np.linalg.norm(env.data.body(p.name).xpos[:2] - base[:2])
     ):
@@ -164,33 +193,25 @@ def select_grasp(script, pending):
             script._stage("grasp_candidate")
             script.events[-1].update(decision="unsupported_grasp_entry", reason=str(error))
             continue
-        for height in (product.half_size[2] / 3, 0.0, product.half_size[2] * 2 / 3):
-            for x, y in offsets:
-                # Offset directions follow the selected symmetric grasp frame.
-                local = np.array([x, y, 0])
-                turn = grasp_rotation @ hand.ROTATION.T
-                target = body.xpos + [0, 0, height] + turn @ local
-                hand.active_rotation = grasp_rotation.copy()
-                prediction = hand.predict(
-                    target, allowed_object=product.name, alternatives=False, check_path=False
-                )
-                clearance = open_hand_clearance(hand, prediction, product.name)
-                script._stage("grasp_candidate")
-                script.events[-1].update(
-                    ik_prediction=prediction.report(),
-                    object_aligned_yaw_deg=yaw,
-                    object_frame_offset_m=[x, y, height],
-                    open_hand_clearance=clearance,
-                    minimum_open_clearance_m=0.002,
-                    decision="try_next_candidate",
-                )
-                if not prediction.feasible:
-                    continue
-                if clearance["minimum_distance_m"] < 0.002:
-                    script.events[-1]["decision"] = "reject_open_hand_object_overlap"
-                    continue
-                script.events[-1]["decision"] = "select_candidate"
-                return target.copy(), prediction
+        for target, prediction, clearance, offset in _grasp_candidates(
+            hand, product, grasp_rotation
+        ):
+            script._stage("grasp_candidate")
+            script.events[-1].update(
+                ik_prediction=prediction.report(),
+                object_aligned_yaw_deg=yaw,
+                object_frame_offset_m=offset,
+                open_hand_clearance=clearance,
+                minimum_open_clearance_m=0.002,
+                decision="try_next_candidate",
+            )
+            if not prediction.feasible:
+                continue
+            if clearance["minimum_distance_m"] < 0.002:
+                script.events[-1]["decision"] = "reject_open_hand_object_overlap"
+                continue
+            script.events[-1]["decision"] = "select_candidate"
+            return target.copy(), prediction
     raise InteractionFailure("No checked object-aligned grasp candidate; no grasp motion commanded")
 
 
@@ -286,7 +307,8 @@ def navigate_to_inventory(script, pending, *, pregrasp=None, rotation=None):
             if pregrasp is None
             else pregrasp
         )
-        for dy in (0.30, 0.40, 0.50):
+        lateral_offsets = (0.30, 0.25, 0.35, 0.40, 0.50) if pregrasp is None else (0.30, 0.40, 0.50)
+        for dy in lateral_offsets:
             for extra in (0.02, 0.06, 0.10):
                 if time.monotonic() - started > 15:
                     event["decision"] = "bounded_inventory_search_exhausted"
@@ -318,6 +340,16 @@ def navigate_to_inventory(script, pending, *, pregrasp=None, rotation=None):
                 row["pregrasp_endpoint_reachable"] = reachable
                 if not reachable:
                     continue
+                if pregrasp is None:
+                    hand = _scratch_empty_hand(env, script.controller, script.config, shift)
+                    row["open_grasp_endpoint_reachable"] = any(
+                        prediction.feasible and clearance["minimum_distance_m"] >= 0.002
+                        for _, prediction, clearance, _ in _grasp_candidates(
+                            hand, product, grasp_rotation, started + 15
+                        )
+                    )
+                    if not row["open_grasp_endpoint_reachable"]:
+                        continue
                 script.product = product
                 event.update(
                     decision="guarded_empty_navigation_then_fresh_grasp_selection",

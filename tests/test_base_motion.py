@@ -40,6 +40,13 @@ def test_invalid_base_probe_settings():
         closest_steering(float("nan"), 0)
 
 
+def test_a_screened_turn_cannot_translate_or_carry():
+    with pytest.raises(ValueError, match="in place, unloaded"):
+        screen_base_translation(None, [0.02, 0], turn_rad=-0.5)
+    with pytest.raises(ValueError, match="in place, unloaded"):
+        screen_base_translation(None, [0, 0], turn_rad=-0.5, carried_product="carton_0")
+
+
 @pytest.fixture
 def native_env():
     try:

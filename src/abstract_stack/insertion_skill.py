@@ -17,6 +17,7 @@ from abstract_stack.skill_entries import record_skill_entry
 
 class SelectedFingerInsertion:
     FORWARD_UNLOAD_DOWNFORCE_N = 0.6
+    IN_PLACE_SQUARE_UNLOAD_GOAL_DEG = 0.10
 
     def _pusher_class(self):
         from abstract_stack.finger_pusher import (
@@ -216,11 +217,11 @@ class SelectedFingerInsertion:
         default keeps the fused release/insert/retreat behavior unchanged.
         """
         self.carry_reference = None
-        self._precision_release(grip)
+        retained_wall_digits = self._precision_release(grip)
         self.payload_rotation_goal = None
         retreat = self.controller.last_target.copy()
         clear_fractions = np.linspace(1 / 6, 1, 6)
-        if getattr(self, "front_lead_y_m", 0.0):
+        if retained_wall_digits or getattr(self, "front_lead_y_m", 0.0):
             self._cartesian_move("staging_clear_prefix", retreat + [0.02, 0, 0])
             clear_fractions = clear_fractions[1:]
         for fraction in clear_fractions:
@@ -363,28 +364,51 @@ class SelectedFingerInsertion:
 
         return LateralStockingScript._cartesian_move(self, *args, **kwargs)
 
-    def _register_front_laterally(self):
+    def _register_front_laterally(
+        self,
+        *,
+        near_front_corner=False,
+        base_goal_xy=None,
+        base_turn_rad=0.0,
+        front_contact_fraction=0.65,
+    ):
         from abstract_stack.interactions import InteractionFailure
         from abstract_stack.lateral_contact import LateralPushConfig, LateralStockingScript
 
         registration_y = self.lateral_goal_y
-        for _ in range(2):
+        for move in range(2):
             error = float(registration_y - self.env.data.body(self.product.name).xpos[1])
             if abs(error) <= 0.0005:
                 break
+            distance_limit = 0.05
+            brace_wall = abs(error) <= distance_limit + 0.0005
+            # First close only enough distance to admit a separate wall-braced
+            # push. Keep room for measured settling at the intermediate pose.
+            distance = (
+                min(abs(error), distance_limit)
+                if brace_wall
+                else min(distance_limit, abs(error) - distance_limit + 0.005)
+            )
             LateralStockingScript.push_laterally(
                 self,
                 direction=1 if error > 0 else -1,
-                distance_m=min(abs(error), 0.05),
+                distance_m=distance,
                 settings=LateralPushConfig(
                     speed_m_s=0.015,
                     force_target_N=2.5,
                     timeout_s=30,
-                    distance_limit_m=0.05,
+                    distance_limit_m=distance_limit,
                     position_tolerance_m=0.0005,
                 ),
                 yaw_candidates=(90, 60, 45, 30),
-                brace_wall=True,
+                near_front_corner=near_front_corner,
+                front_contact_fraction=front_contact_fraction,
+                base_goal_xy=base_goal_xy,
+                base_turn_rad=base_turn_rad if move == 0 else 0.0,
+                # Only the move to the wall can require wall contact. An
+                # intermediate bounded shift has its own displacement gate.
+                brace_wall=brace_wall,
+                stage_for_squaring=near_front_corner and not brace_wall,
             )
         error = float(registration_y - self.env.data.body(self.product.name).xpos[1])
         if abs(error) > 0.0005:
@@ -392,6 +416,30 @@ class SelectedFingerInsertion:
         goal = self.controller.last_target.copy()
         goal[0] = max(goal[0], self.env.config.front_x + 0.08)
         self._cartesian_move("lateral_front_exit", goal)
+
+    def _clear_registered_wall_hand(self):
+        """Resume clearance from a squared, unloaded carton at its wall slot."""
+        from abstract_stack.interactions import InteractionFailure
+
+        env, product = self.env, self.product
+        body = env.data.body(product.name)
+        yaw = float(np.arctan2(body.xmat[3], body.xmat[0]))
+        if (
+            self.observer.incidents
+            or self.last_forces["shelf"] <= 0.2
+            or self.last_forces["hand"] > 0.2
+            or self._wall_front_staging_y() == product.target[1]
+            or abs(body.xpos[1] - self.lateral_goal_y) > 0.0005
+            or abs(yaw) > np.radians(0.15)
+        ):
+            raise InteractionFailure("wall_clearance: requires a square, unloaded stop at the wall")
+        room_side = 1 if env.config.center_y > product.target[1] else -1
+        self._cartesian_move(
+            "lateral_unload",
+            self.controller.position() + [0, room_side * 0.02, 0],
+            allowed_object=product.name,
+        )
+        self._register_front_laterally()
 
     def _front_reference_y(self):
         """Choose the handoff corridor before seating, preserving task targets."""
@@ -498,6 +546,20 @@ class SelectedFingerInsertion:
             }
             return held
 
+        def check_wall_safe_opening(prediction, opening, collisions):
+            retained = {}
+            for _ in range(4):
+                if not collisions:
+                    break
+                held = wall_digit_holds(opening, collisions)
+                if not held.keys() - retained.keys():
+                    break
+                retained.update(held)
+                collisions = hand.check_hand_step(
+                    prediction, 0, product.name, targets=opening | retained
+                )
+            return retained, collisions
+
         def tick(*, opening=None):
             nonlocal yaw_correction
             body = env.data.body(product.name)
@@ -557,14 +619,11 @@ class SelectedFingerInsertion:
                     and self.config.live_guarded_withdrawal
                     and self.phase == "release_front"
                 ):
-                    held = wall_digit_holds(opening, collisions)
-                    if held:
-                        candidate = opening | held
-                        if not hand.check_hand_step(prediction, 0, product.name, targets=candidate):
-                            hand.open_posture_overrides.update(held)
-                            opening = candidate
-                            self.events[-1].setdefault("wall_side_digit_holds_rad", {}).update(held)
-                            collisions = []
+                    held, collisions = check_wall_safe_opening(prediction, opening, collisions)
+                    if not collisions:
+                        hand.open_posture_overrides.update(held)
+                        opening |= held
+                        self.events[-1].setdefault("wall_side_digit_holds_rad", {}).update(held)
                 if collisions:
                     self.events[-1]["finger_sweep_rejection"] = collisions
                     raise InteractionFailure("release_front: coupled stationary opening rejected")
@@ -643,6 +702,7 @@ class SelectedFingerInsertion:
         self._stage("release_front")
         self.release_origin = env.data.body(product.name).xpos.copy()
         opened = hand.finger_targets(0)
+        retained_wall_digits = False
         if self.config.paired_finger_insertion:
             # A splayed thumb can extend into a side panel during opening even
             # though the retained grasp fits. Search native folded-thumb goals;
@@ -695,10 +755,11 @@ class SelectedFingerInsertion:
                 }
                 errors = hand.check_hand_step(endpoint, 0, product.name, targets=candidate)
                 retained = {}
-                if errors and getattr(self, "front_lead_y_m", 0.0):
-                    retained = wall_digit_holds(candidate, errors)
+                if errors and (
+                    self.config.live_guarded_withdrawal or getattr(self, "front_lead_y_m", 0.0)
+                ):
+                    retained, errors = check_wall_safe_opening(endpoint, candidate, errors)
                     candidate.update(retained)
-                    errors = hand.check_hand_step(endpoint, 0, product.name, targets=candidate)
                 departure = None
                 if not errors:
                     previous_overrides = hand.open_posture_overrides
@@ -714,7 +775,7 @@ class SelectedFingerInsertion:
                             grip=0,
                             carrying=False,
                             path_mode="cartesian"
-                            if getattr(self, "front_lead_y_m", 0.0)
+                            if retained or getattr(self, "front_lead_y_m", 0.0)
                             else "joint",
                         )
                     finally:
@@ -724,11 +785,13 @@ class SelectedFingerInsertion:
                         thumb_pip_rad=candidate["Left Thumb PIP"],
                         thumb_dip_rad=candidate["Left Thumb DIP"],
                         rejections=errors,
+                        retained_wall_digits_rad=retained,
                         departure_prediction=departure.report() if departure is not None else None,
                     )
                 )
                 if not errors and departure is not None and departure.feasible:
                     opened = candidate
+                    retained_wall_digits = bool(retained)
                     hand.open_posture_overrides = {
                         name: value
                         for name, value in opened.items()
@@ -790,6 +853,7 @@ class SelectedFingerInsertion:
             stationary_opening=not separated,
         )
         self.release_origin = None
+        return retained_wall_digits
 
     @staticmethod
     def _planning_pose(hand, prediction):
@@ -1153,6 +1217,105 @@ class SelectedFingerInsertion:
                 return
         raise InteractionFailure("pusher_preshape: measured native hand did not settle")
 
+    def _screen_pusher_waypoints(self, settings, waypoints):
+        """Recheck the planned unloaded approach before changing the live tool."""
+        from abstract_stack.payload_control import screen_unloaded_servo_path
+
+        kind = self._pusher_class()
+        hand = kind(self.env.clone_for_planning(), self.config, **settings)
+        hand.command = self.controller.command.copy()
+        tracking = replace(self.tracker.config, wrist_offset_limit=self._wrist_offset_limit(kind))
+        reports = []
+        for point in waypoints:
+            prediction = hand.predict(
+                point,
+                alternatives=False,
+                carrying=False,
+                path_mode=getattr(self, "PUSHER_APPROACH_PATH_MODE", "joint"),
+            )
+            if not prediction.feasible:
+                reports.append(dict(admitted=False, prediction=prediction.report()))
+                break
+            report = screen_unloaded_servo_path(
+                hand, prediction, tracking, product=self.product.name
+            )
+            reports.append(report)
+            if not report["admitted"]:
+                break
+            self._planning_pose(hand, prediction)
+        return reports
+
+    def _square_after_side_press(self, base_turn_rad):
+        """Clear the side tool before the checked turn and short front square."""
+        self.controller.park_all_fingers = True
+        self._settle_pusher_preshape()
+        if base_turn_rad:
+            self._turn_base(-base_turn_rad)
+            self._stage("side_slide_unloaded")
+        current_x = float(self.env.data.body(self.product.name).xpos[0])
+        self._insert_from_front(
+            partial_stop_x=current_x - 0.004, front_squaring=True, square_in_place=True
+        )
+
+    def _recover_front_square_clearance(self, occupied_front_x, extent):
+        """Make room for the positive-wall square using the observed carton footprint."""
+        from abstract_stack.interactions import contact_forces
+        from abstract_stack.lateral_contact import LateralContact, LateralPushConfig
+
+        env = self.env
+        center = env.data.body(self.product.name).xpos.copy()
+        side_limit_y = self.lateral_goal_y - 0.001 - max(0.0, extent[1] - self.product.half_size[1])
+        deficit = float(center[1] - side_limit_y)
+        if deficit <= 0:
+            return False
+        # Keep the short square and both tools ahead of the already stocked row.
+        depth_before_row = float(center[0] - 0.004 - extent[0] - occupied_front_x)
+        shift = deficit + 0.0025
+        lower_wall_y = env.config.center_y - env.config.width / 2
+        available = float(center[1] - extent[1] - lower_wall_y)
+        self._stage("front_square_clearance_plan")
+        event = self.events[-1]
+        event.update(
+            measured_y_m=float(center[1]),
+            projected_corner_limit_y_m=float(side_limit_y),
+            lateral_shortfall_m=deficit,
+            requested_shift_y_m=-shift,
+            depth_before_row_m=depth_before_row,
+            wall_clearance_m=available,
+        )
+        loads = contact_forces(env, self.product.name, self.arm_bodies)
+        if (
+            depth_before_row < 0.01
+            or shift > min(0.01, available - 0.001)
+            or loads["shelf"] <= 0.2
+            or loads["hand"] > 0.2
+            or self.observer.incidents
+        ):
+            event["decision"] = "use_standard_square"
+            return False
+        event["decision"] = "side_press_then_short_square"
+        turn = float(np.radians(-60))
+        side = LateralContact.push_laterally(
+            self,
+            direction=-1,
+            distance_m=shift,
+            near_front_corner=True,
+            stage_for_squaring=True,
+            base_turn_rad=turn,
+            settings=LateralPushConfig(
+                speed_m_s=0.004,
+                force_target_N=2.5,
+                timeout_s=35,
+                distance_limit_m=0.01,
+                position_tolerance_m=0.0005,
+                height_m=0.025,
+            ),
+        )
+        event["side_staging_verified"] = side["lateral_staging_verified"]
+        self._square_after_side_press(turn)
+        event["front_square_verified"] = True
+        return True
+
     def _insert_from_front(
         self,
         *,
@@ -1162,13 +1325,14 @@ class SelectedFingerInsertion:
         square_in_place=False,
         staged_preshape=False,
         use_lateral_reference=False,
-        precontact_standoff_m=0.02,
+        precontact_standoff_m=None,
     ):
         from abstract_stack.interactions import InteractionFailure
 
-        if not np.isfinite(precontact_standoff_m) or not 0.02 <= precontact_standoff_m <= 0.045:
+        if precontact_standoff_m is not None and not 0.02 <= precontact_standoff_m <= 0.045:
             raise ValueError("Pusher precontact standoff must stay within 20 to 45 mm")
         env, config, product = self.env, self.config, self.product
+        after_front_square = self.phase == "front_squaring_complete"
         body = env.data.body(product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
         square_row_edge = None
@@ -1202,18 +1366,36 @@ class SelectedFingerInsertion:
                                 occupied.xpos[0] + occupied_extent[0] + extent[0] + square_clearance
                             )
                         )
-                if stops and body.xpos[0] - max(stops) > 0.015:
-                    self._stage("front_square_plan")
-                    self.events[-1].update(
-                        stop_object_x_m=max(stops),
-                        measured_yaw_deg=float(np.degrees(yaw)),
-                        decision="square_before_overlap_with_occupied_row",
-                        fresh_task_credit=0,
+                if stops:
+                    recovered = (
+                        config.side_square_recovery
+                        and self._recover_front_square_clearance(
+                            max(stops) - extent[0] - square_clearance, extent
+                        )
                     )
-                    self._insert_from_front(partial_stop_x=max(stops), front_squaring=True)
-                    body = env.data.body(product.name)
-                    extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
+                    standard_square = not recovered and body.xpos[0] - max(stops) > 0.015
+                    if standard_square:
+                        self._stage("front_square_plan")
+                        self.events[-1].update(
+                            stop_object_x_m=max(stops),
+                            measured_yaw_deg=float(np.degrees(yaw)),
+                            decision="square_before_overlap_with_occupied_row",
+                            fresh_task_credit=0,
+                        )
+                        self._insert_from_front(
+                            partial_stop_x=max(stops),
+                            front_squaring=True,
+                            precontact_standoff_m=precontact_standoff_m,
+                        )
+                    if recovered or standard_square:
+                        after_front_square = True
+                        if precontact_standoff_m is None:
+                            precontact_standoff_m = config.post_square_pusher_standoff_m
+                        body = env.data.body(product.name)
+                        extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
         height = env.config.levels[product.level] + 0.028
+        if precontact_standoff_m is None:
+            precontact_standoff_m = 0.02
         precontact = np.array(
             [body.xpos[0] + extent[0] + precontact_standoff_m, body.xpos[1], height]
         )
@@ -1251,7 +1433,22 @@ class SelectedFingerInsertion:
             # The live loop below still checks every corrected reference.
             screen_end[0] = max(end[0], float(body.xpos[0] + extent[0] - 0.012))
             screen_end[1] = float(body.xpos[1])
-        settings, waypoints = self._plan_pusher(precontact, screen_end)
+        screen_servo = config.screen_pusher_approach and after_front_square
+        standoffs = (precontact_standoff_m,)
+        if screen_servo and precontact_standoff_m < 0.045:
+            standoffs += (0.045,)
+        for standoff in standoffs:
+            approach = precontact + [standoff - precontact_standoff_m, 0, 0]
+            settings, waypoints = self._plan_pusher(approach, screen_end)
+            if not screen_servo:
+                break
+            reports = self._screen_pusher_waypoints(settings, waypoints)
+            self.events[-1].update(servo_approach_screen=reports, precontact_standoff_m=standoff)
+            if all(report["admitted"] for report in reports):
+                break
+        else:
+            raise InteractionFailure("pusher_plan: no approach passed the unloaded servo screen")
+        precontact_standoff_m = standoff
         self._change_hand(self._pusher_class(), **settings)
         hand = self.controller
         if self.config.ungrasped_insertion:
@@ -1322,6 +1519,8 @@ class SelectedFingerInsertion:
                 partial_speed_limit_m_s=0.005,
                 partial_dwell_seconds=config.contact_dwell,
             )
+        if square_in_place:
+            event["unload_yaw_goal_deg"] = self.IN_PLACE_SQUARE_UNLOAD_GOAL_DEG
         event.update(
             ik_prediction=prediction.report(),
             push_origin_m=origin.tolist(),
@@ -1332,7 +1531,8 @@ class SelectedFingerInsertion:
             maximum_combined_control_seconds=(
                 49.5 if getattr(self, "contact_recovery", False) else 45.0
             ),
-            nominal_push_speed_m_s=0.04,
+            nominal_push_speed_m_s=config.insertion_advance_speed_m_s,
+            precontact_standoff_m=precontact_standoff_m,
             contact_mode="ungrasped, supported by shelf front then occupied row",
             assumption="object slides along the row; no rigid hand/object attachment",
             feedback_checks=0,
@@ -1513,7 +1713,7 @@ class SelectedFingerInsertion:
                     -1,
                     1,
                 )
-                speed = 0.04
+                speed = config.insertion_advance_speed_m_s
             if getattr(self, "contact_recovery", False) and scale > 0:
                 # The measured wrench is ON the carton. Downward finger load
                 # raises board friction and can pivot a tall carton before it
@@ -1742,6 +1942,11 @@ class SelectedFingerInsertion:
             if partial_stop_x is not None:
                 partial_state = self._partial_push_state(partial_stop_x)
                 if front_squaring:
+                    body = env.data.body(product.name)
+                    # Reserve yaw margin before releasing loaded fingertips.
+                    # The released carton still has the existing strict gate.
+                    if square_in_place:
+                        yaw = float(np.arctan2(body.xmat[3], body.xmat[0]))
                     partial_state["yaw_deg"] = float(np.degrees(yaw))
                     partial_state["accepted"] = bool(
                         partial_state["accepted"]
@@ -1750,7 +1955,11 @@ class SelectedFingerInsertion:
                         and rotation[2, 2] >= np.cos(np.radians(config.payload_upright_degrees))
                     )
                 event["partial_state"] = partial_state
-                held = held + env.dt if partial_state["accepted"] else 0.0
+                ready = partial_state["accepted"] and (
+                    not square_in_place
+                    or abs(partial_state["yaw_deg"]) <= self.IN_PLACE_SQUARE_UNLOAD_GOAL_DEG
+                )
+                held = held + env.dt if ready else 0.0
                 if held >= config.contact_dwell:
                     event["verified_partial_push"] = True
                     break

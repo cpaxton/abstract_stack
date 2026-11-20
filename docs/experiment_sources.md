@@ -102,3 +102,31 @@ Historical checkpoints with `source_snapshot/` trees remain readable. Existing
 outputs and their manifests are left untouched; this is a forward migration,
 not cleanup that rewrites measured evidence. Some older launchers still copy
 trees until migrated. New runners should use the shared API above.
+
+## Output organization
+
+Use `outputs/runs/<campaign>/<run-id>/` for new campaigns. Keep reports, native
+traces, failed cases and replay recipes under the run that owns them. Keep the
+existing source store and cache roots. A generated `outputs/index/` catalog
+can link to legacy runs in place and list source IDs, scene seeds, measured
+stages, failures, reset type and replay verification.
+
+The November 19 local audit found about 92 GiB of outputs. Compiled checkpoint
+models accounted for about 68 GiB and repeated checkpoint contexts for about
+11 GiB. MP4s used about 250 MiB. The audit found 28 model digests across 292
+unique model inodes. A byte-verified dry run can quantify savings from sharing
+immutable equal models through same-filesystem hard links. Retain every
+checkpoint path and verify the existing manifest before and after a migration.
+
+For future captures, store the event history once per episode and have each
+checkpoint reference its hashed boundary. Older checkpoint readers can use
+embedded event history to recover tool parameters. Preserve those payloads,
+absolute replay references, environment paths and registered Git worktrees
+during cleanup.
+
+New skill checkpoints retain a phase and event index while the episode owns the
+full event log. Resume parameters stay in `controller.json`, and the reader
+still accepts older embedded histories. New captures can hard-link byte-equal
+read-only MJBs through `outputs/cache/checkpoint_models/`. Every checkpoint
+retains a complete `model.mjb` at its original path, including after a cache
+link is removed. The shared filename is a hash of the compiled bytes.

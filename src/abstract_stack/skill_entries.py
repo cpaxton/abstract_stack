@@ -2,11 +2,13 @@
 
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 import mujoco
 import numpy as np
 
 from abstract_stack.checkpoints import save_checkpoint
+from abstract_stack.source_store import default_source_store
 
 SKILL_PHASES = {
     "motion_failure": "motion_failure",
@@ -15,6 +17,7 @@ SKILL_PHASES = {
     "carry_clear": "transfer",
     "place": "shelf_place",
     "push": "contact_finish",
+    "recovery_release": "release_reapproach",
     "finger_push": "contact_finish",
     "release": "release_retreat",
     "stage_align": "front_release",
@@ -33,6 +36,10 @@ SKILL_PHASES = {
 }
 
 SKILL_CONTRACTS = {
+    "release_reapproach": {
+        "entry": "A retained grasp on a carton seated at the shelf front",
+        "success": "Release on measured shelf support and approach for a separate push",
+    },
     "row_press_entry": {
         "entry": "Two stocked cartons have verified retreats and the hand is unloaded",
         "success": "Close the seam through measured pair contact and retain it after unloading",
@@ -208,6 +215,34 @@ def record_skill_entry(script, phase, *, case=None):
         if observer is not None
         else None
     )
+    tool_parameters = dict(getattr(script.controller, "tool_parameters", {}))
+    if not tool_parameters and type(script.controller).__name__ != "CartesianHand":
+        tool_parameters = next(
+            (
+                dict(event["selected"])
+                for event in reversed(script.events)
+                if event["phase"] == "pusher_plan"
+                and event.get("selected")
+                and event["product"] == script.product.name
+            ),
+            {},
+        )
+    source_root = Path(__file__).resolve().parents[2]
+    journal = getattr(script, "execution_history", None)
+    checkpoint_path, agent_sequence = None, None
+    if journal is not None:
+        checkpoint_path = (
+            (directory / "checkpoint")
+            .resolve()
+            .relative_to(journal.path.parent.resolve())
+            .as_posix()
+        )
+        agent_sequence = script._record_agent_event(
+            "checkpoint_capture_started",
+            checkpoint=checkpoint_path,
+            phase=script.phase,
+            entry_skill=skill,
+        )
     save_checkpoint(
         directory / "checkpoint",
         env.model,
@@ -216,7 +251,7 @@ def record_skill_entry(script, phase, *, case=None):
         controller=dict(
             kind="stocking_skill_entry",
             tool_class=type(script.controller).__name__,
-            tool_parameters=dict(getattr(script.controller, "tool_parameters", {})),
+            tool_parameters=tool_parameters,
             finger_compensation_applied={
                 k: v["previous"]
                 for k, v in getattr(
@@ -265,13 +300,19 @@ def record_skill_entry(script, phase, *, case=None):
         context=dict(
             skill_entry=entry,
             observer_history=history,
-            prior_events=script.events if phase == "motion_failure" else script.events[:-1],
+            event_boundary=dict(
+                event_index=len(script.events) - 1,
+                phase=script.phase,
+                sim_time_s=float(env.data.time),
+                agent_sequence=agent_sequence,
+            ),
             task_memory=dict(stable_time=env._stable_time.tolist(), stocked=env._stocked.tolist()),
             fresh_task_credit=0,
             resume_scope="Exact native state; arbitrary skill-controller resume is not automatic",
         ),
         validation_controls=np.tile(env.data.ctrl, (10, 1)),
         portable_source=False,
+        shared_model_cache=default_source_store(source_root).parent / "cache/checkpoint_models",
         shared_model_checkpoint=(script.directory / script.skill_entries[0]["entry_file"]).parent
         / "checkpoint"
         if script.skill_entries
@@ -280,11 +321,20 @@ def record_skill_entry(script, phase, *, case=None):
     (directory / "checkpoint/model.mjb").chmod(0o444)
     (directory / "entry.json").write_text(json.dumps(entry, indent=2, allow_nan=False) + "\n")
     script.skill_entries.append(entry)
-    event = script.events[-1]
-    if phase == script.phase:
-        event["skill_entry"] = entry["entry_file"]
-    else:
-        event.setdefault("recovery_skill_entries", {})[skill] = entry["entry_file"]
+    if checkpoint_path is not None:
+        script._record_agent_event(
+            "checkpoint_saved",
+            checkpoint=checkpoint_path,
+            phase=script.phase,
+            entry_skill=skill,
+            capture_sequence=agent_sequence,
+        )
+    if script.events:
+        event = script.events[-1]
+        if phase == script.phase:
+            event["skill_entry"] = entry["entry_file"]
+        else:
+            event.setdefault("recovery_skill_entries", {})[skill] = entry["entry_file"]
     (script.directory / "skill-entries/index.json").write_text(
         json.dumps(
             dict(
