@@ -214,13 +214,18 @@ neutral episode's N+1 snapshots; the LeRobot rows contain N pre-action frames.
 read-only. Its MolmoBot exporter identifies itself as `emet-molmobot-jsonl`;
 that is not a real LeRobot v3 writer. No upstream source was copied or modified.
 
+The [compliant lookahead tests](reports/compliant_lookahead_development.md)
+cover bounded feedback, contact wrench signs and exact forecast duration. The
+four tests passed alongside the 26 demonstration and sensor tests in the
+recorded development run with native MABEL assets.
+
 ## Next learning milestones
 
 The focused suite currently has 17 LfD tests, including causal clocks, action
 contracts, privilege separation, interrupted outcomes, payload tampering and
-float32 overflow rejection. Nine sensor tests and four admittance/clock tests
-cover native measurement conventions, bounded feedback signs and exact forecast
-duration admission. All 30 passed
+float32 overflow rejection. Nine sensor tests cover native measurement
+conventions. These 26 tests passed as part of the 30-test combined development
+suite alongside the separately proposed compliant-lookahead checks
 together with native MABEL assets available. The official SDK roundtrip is
 separate retained process evidence; it is not replaced by an adapter mock.
 
