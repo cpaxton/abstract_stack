@@ -121,3 +121,56 @@ success or learned controller is claimed.
 Next work is a guarded mobile-base admission contract, joint-headroom objectives,
 contact-mode-specific force/torque feedback and native loaded-physics evaluation
 before considering stocking integration.
+
+## Guarded task adapter and corrective deltas
+
+`WholeBodyTaskAdapter` exposes the stationary coordinator to a phase executor.
+Build it with the current environment and a task guard that runs at every native
+physics step. Pass an uncorrected absolute world goal for each active palm.
+A teacher, policy, or teleoperator can produce a `PalmDelta` directly. Optional
+`WristCompliance` adds a proportional offset from measured reaction-wrench
+error along selected world axes. The two offsets are summed and capped together
+before the shared-lift solver runs. Reuse the original uncorrected goal on each
+call so the offsets do not accumulate. The controller still checks native rate
+limits, coupled finger geometry and final compensated targets.
+
+```python
+from abstract_stack.whole_body_task import PalmDelta, WholeBodyTaskAdapter, WristCompliance
+
+# phase_guard checks task-specific contacts and all products each physics step.
+adapter = WholeBodyTaskAdapter(env, guard=phase_guard)
+result = adapter.advance(
+    {"left": left_world_goal},
+    deltas={"left": PalmDelta(translation_m=[0, 0, 0.001])},
+    compliance={
+        "left": WristCompliance(
+            translation_m_per_N=[0.0003, 0, 0],
+            rotation_rad_per_Nm=[0, 0, 0],
+        )
+    },
+    finger_targets={"Left Index MCP": 0.2},
+)
+```
+
+Translation uses metres. Rotation vectors use radians around world axes and
+compose on the left of the uncorrected palm orientation. The sensor input is
+the net contact-only wrench ON the distal robot subtree at the wrist anchor,
+in world axes with force before torque. Gains are metres per newton and radians
+per newton-metre. Positive reaction error moves the attractor along the
+reaction, reducing penetration along a constrained axis. Desired wrench is
+zero by default. This is a bounded proportional offset, without integration
+or a direct torque command.
+
+`advanced=False` means the scratch preview failed and no physics step ran.
+A successful interval reports measured tracking separately from the preview.
+Guard failures propagate immediately and may leave the interval partially
+executed. The phase executor must use its own measured support, grasp,
+contact, and retreat gates. Recreate the adapter at an environment reset
+or after any other owner has run the actuator interface. Stage the base through
+the existing navigation/settling path before construction.
+
+This API supports free-space repositioning and corrections that pass the
+coordinator's existing collision admission. Dense insertion and loaded
+manipulation retain their existing task-specific path and contact guards.
+A guard can detect failures, while the adapter's collision checks still
+reject newly penetrating intentional contact.

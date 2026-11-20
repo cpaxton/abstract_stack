@@ -5,6 +5,7 @@ modify the caller's live world. MJB embeds compiled meshes/textures and avoids
 recompiling MJCF on restore; original MJCF and scene metadata remain auditable.
 """
 
+import errno
 import hashlib
 import json
 import os
@@ -195,6 +196,36 @@ def replay_witness(model, data, controls):
     )
 
 
+def _share_compiled_model(path, cache):
+    """Share exact MJB bytes while keeping a complete file at the checkpoint path."""
+    digest = _sha(path)
+    cache = Path(cache)
+    cache.mkdir(parents=True, exist_ok=True)
+    canonical = cache / f"{digest}.mjb"
+    path.chmod(0o444)
+    pending = path.with_suffix(".pending")
+    try:
+        try:
+            os.link(path, canonical)
+        except FileExistsError:
+            if (
+                canonical.is_symlink()
+                or canonical.stat().st_mode & 0o222
+                or _sha(canonical) != digest
+            ):
+                raise ValueError(
+                    "Shared compiled model cache entry failed byte verification"
+                ) from None
+            os.link(canonical, pending)
+            pending.replace(path)
+    except OSError as error:
+        if error.errno not in (errno.EXDEV, errno.EOPNOTSUPP, errno.EPERM, errno.EMLINK):
+            raise
+        # A standalone checkpoint remains complete on filesystems without sharing.
+    finally:
+        pending.unlink(missing_ok=True)
+
+
 def save_checkpoint(
     directory,
     model,
@@ -208,6 +239,7 @@ def save_checkpoint(
     generator_states=None,
     portable_source=True,
     shared_model_checkpoint=None,
+    shared_model_cache=None,
 ):
     """Capture a paused control boundary and a short scratch-only replay witness.
 
@@ -249,6 +281,8 @@ def save_checkpoint(
     _write(directory / "manifest.json", dict(schema_version=SCHEMA, status="incomplete"))
     if shared_model is None:
         mujoco.mj_saveModel(model, str(directory / "model.mjb"), None)
+        if shared_model_cache is not None:
+            _share_compiled_model(directory / "model.mjb", shared_model_cache)
     else:
         # The complete verified MJB remains present at each checkpoint path.
         # Link only on the same filesystem; never silently substitute a model.

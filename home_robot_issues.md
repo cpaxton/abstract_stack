@@ -168,6 +168,14 @@ project names, task descriptions, repository links, or private context.
   printed test label in the latter process does not identify the corrupting
   operation. Exact source fingerprints and process logs remain local. Nothing
   has been sent upstream.
+- **Fresh headless rollout, 2026-11-19:** the retained-wrapper process exited
+  with signal 11 during a physics observer's read of the contact geometry
+  column. It stopped before a terminal summary. The frozen source, initial
+  state and faulthandler log are retained locally at
+  `outputs/runs/agent-harness/ten-cartons-servo-screen-v1/screened-retry/`.
+  A fresh restart later stopped with signal 11 at the hand-contact force
+  observer during base motion. The Python frames identify the accesses at
+  the time of failure. A native cause is still open.
 - **Later recording process:** a frozen two-view development run exited with
   signal 11 after 548.93 s wall time. Its Python frame was in IK during a pusher
   planning call; that frame is not a native corruption diagnosis. There is no

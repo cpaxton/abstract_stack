@@ -164,6 +164,13 @@ the campaign. Compare settled integration-state hashes as well as scene/model
 inputs before claiming a matched experiment. Historical reports must name their
 historical checkout; the current benchmark command follows current defaults.
 
+For a long single-scene development run, `scripts/run_stocking_case.py`
+accepts an optional `--idle-seconds` budget alongside `--wall-seconds`.
+The worker writes `physics-progress.json` on phase changes and once per
+simulated second of native motion. An idle stop records the last heartbeat
+and earns zero terminal stage credit. Choose an idle budget that allows
+the planned search and recording work for the scene.
+
 `--force-profile selected` uses the current default grasp/push force setpoints
 (4.5 N / 1.875 N). `--force-profile legacy` selects 6 N / 2 N without changing
 contact-control or hand mode flags. Explicit `--control-config` values override

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,6 +41,8 @@ class ScriptConfig:
     max_joint_speed: float = 1.0
     tracking_tolerance: float = 0.035
     push_speed: float = 0.025
+    insertion_advance_speed_m_s: float = 0.04
+    post_square_pusher_standoff_m: float = 0.02
     push_distance: float = 0.16
     contact_threshold: float = 0.4
     contact_dwell: float = 0.12
@@ -87,6 +90,7 @@ class ScriptConfig:
     insertion_lateral_position_gain: float = 0.2
     insertion_tangent_admittance: float = 0.004
     base_reposition: bool = False
+    base_speed_m_s: float = 0.025
     ungrasped_insertion: bool = False
     adjacent_release_clearance_m: float = 0.006
     continuous_finger_opening: bool = True
@@ -101,6 +105,8 @@ class ScriptConfig:
     live_guarded_withdrawal: bool = False
     plan_driven: bool = False
     guided_wall_entry: bool = False
+    screen_pusher_approach: bool = False
+    side_square_recovery: bool = False
 
     def __post_init__(self):
         values = asdict(self)
@@ -124,6 +130,8 @@ class ScriptConfig:
         values.pop("live_guarded_withdrawal")
         values.pop("plan_driven")
         values.pop("guided_wall_entry")
+        values.pop("screen_pusher_approach")
+        values.pop("side_square_recovery")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
@@ -138,6 +146,12 @@ class ScriptConfig:
             raise ValueError("Front alignment gains must stay inside the bounded development range")
         if not 0.025 <= self.minimum_lift_reference_m <= 0.1:
             raise ValueError("Minimum lift reference must reserve 25–100 mm extension")
+        if not 0.02 <= self.insertion_advance_speed_m_s <= 0.065:
+            raise ValueError("Insertion advance speed must be within 20–65 mm/s")
+        if not 0.02 <= self.post_square_pusher_standoff_m <= 0.045:
+            raise ValueError("Post-square pusher standoff must be within 20–45 mm")
+        if not 0.015 <= self.base_speed_m_s <= 0.05:
+            raise ValueError("Stocking base speed must be within 15–50 mm/s")
         if (
             max(
                 self.grasp_force_target,
@@ -179,6 +193,19 @@ class ScriptConfig:
             raise ValueError("Guided wall entry requires wall packing and live guarded withdrawal")
         if self.paired_finger_insertion and not self.ungrasped_insertion:
             raise ValueError("Paired fingertips require the released insertion mode")
+        if type(self.screen_pusher_approach) is not bool or (
+            self.screen_pusher_approach and not self.ungrasped_insertion
+        ):
+            raise ValueError("The pusher servo screen requires released insertion")
+        if type(self.side_square_recovery) is not bool or (
+            self.side_square_recovery
+            and not (
+                self.guided_wall_entry and self.base_reposition and self.paired_finger_insertion
+            )
+        ):
+            raise ValueError(
+                "Side-square recovery requires guided entry, paired fingers and base motion"
+            )
         if not isinstance(self.gravity_compensation, bool):
             raise ValueError("gravity_compensation must be true or false")
         if not isinstance(self.adaptive_grasps, bool):
@@ -678,6 +705,12 @@ class StockingScript(SelectedFingerInsertion):
         self.left_arm_bodies = _descendants(env.model, "l_shoulder_1")
         self.arm_bodies = self.left_arm_bodies | _descendants(env.model, "r_shoulder_1")
         self.rows, self.events, self.controls = [], [], []
+        self.execution_history = None
+        self._last_progress_heartbeat = float("-inf")
+        self._agent_carton_step = None
+        self._agent_skill = None
+        self._agent_branch = None
+        self._agent_artifacts = "."
         self.terminal = False
         self.product = env.products[0]
         self.product_bodies = {env.model.body(p.name).id for p in env.products}
@@ -840,6 +873,30 @@ class StockingScript(SelectedFingerInsertion):
         if self._base_guard is not None:
             self._base_guard.step(env)
         self._sample_carton_pairs(env)
+        now = self.rows[-1][0]
+        if now - self._last_progress_heartbeat >= 1.0:
+            self._last_progress_heartbeat = now
+            self._write_physics_progress(
+                dict(
+                    phase=self.phase,
+                    product=self.product.name,
+                    sim_time=now,
+                    completed_products=sorted(self.observer.completed) if self.observer else [],
+                    active_product_xyz_m=position.tolist(),
+                    hand_reference_error_m=error,
+                    contact_normal_N={
+                        name: forces[name]
+                        for name in (
+                            "hand",
+                            "table",
+                            "shelf",
+                            "back",
+                            "robot_product",
+                            "arm_fixture",
+                        )
+                    },
+                )
+            )
 
     def _tick(self, target, grip):
         if self.phase == "push" and self.payload_rotation_goal is not None:
@@ -1043,14 +1100,34 @@ class StockingScript(SelectedFingerInsertion):
         self.terminal = terminated
         return terminated
 
+    def _record_agent_event(self, event, **details):
+        history = getattr(self, "execution_history", None)
+        if history is not None:
+            fields = dict(
+                product=self.product.name,
+                sim_time_s=float(self.env.data.time),
+                carton_step=self._agent_carton_step,
+                branch=self._agent_branch,
+                artifacts=self._agent_artifacts,
+                event_index=len(self.events) - 1,
+            )
+            return history.record(event, **{**fields, **details})
+        return None
+
+    def _write_physics_progress(self, progress):
+        temporary = self.directory / "physics-progress.tmp"
+        temporary.write_text(json.dumps(progress, indent=2) + "\n")
+        temporary.replace(self.directory / "physics-progress.json")
+
     def _stage(self, name):
         self.phase = name
         self.events.append(
             {"phase": name, "product": self.product.name, "sim_time": float(self.env.data.time)}
         )
-        (self.directory / "physics-progress.json").write_text(
-            json.dumps(self.events[-1], indent=2) + "\n"
-        )
+        self._write_physics_progress(self.events[-1])
+        if getattr(self, "execution_history", None) is not None:
+            skill = self._agent_skill or self._agent_phase_map.get(name)
+            self._record_agent_event("phase_started", phase=name, skill=skill)
         if self.config.record_skill_starts:
             from abstract_stack.skill_entries import record_skill_entry
 
@@ -1406,6 +1483,7 @@ class StockingScript(SelectedFingerInsertion):
         env = self.env
         displacement = np.asarray(displacement, dtype=float)
         settings = BaseMotionConfig(
+            max_speed_m_s=self.config.base_speed_m_s,
             fixture_force_limit_N=min(25.0, self.config.max_force),
             motion_timeout_s=30.0 if reason == "inventory_grasp_workspace" else 20.0,
         )
@@ -1504,6 +1582,54 @@ class StockingScript(SelectedFingerInsertion):
             event.update(end_time=float(env.data.time), guard=guard.report())
             self._base_guard = None
 
+    def _turn_base(self, turn_rad):
+        """Execute a screened unloaded heading change at the current workspace."""
+        from abstract_stack.base_motion import (
+            BaseContactGuard,
+            BaseMotionConfig,
+            NativeSwerve,
+            screen_base_translation,
+        )
+
+        if self.active_grip is not None or self.carry_reference is not None:
+            raise InteractionFailure("base_turn: empty-hand workspace required")
+        self._stow_right_arm()
+        env = self.env
+        body = env.model.body("mabel_chassis").id
+        start = env.data.xpos[body, :2].copy()
+        rotation = env.data.xmat[body].reshape(3, 3)
+        heading = float(np.arctan2(rotation[1, 0], rotation[0, 0]))
+        settings = BaseMotionConfig(
+            max_speed_m_s=self.config.base_speed_m_s,
+            fixture_force_limit_N=self.config.max_force,
+            path_margin_m=0.016,
+            motion_timeout_s=40,
+        )
+        self._stage("base_turn_plan")
+        screened = screen_base_translation(env, [0, 0], config=settings, turn_rad=turn_rad)
+        self.events[-1].update(requested_turn_rad=turn_rad, geometry=screened)
+        if not screened["accepted"]:
+            raise InteractionFailure("base_turn: yaw sweep rejected before actuation")
+        guard = BaseContactGuard(
+            env,
+            settings,
+            reference_yaw=heading,
+            turn_rad=turn_rad,
+            max_base_displacement_m=0.008,
+            max_product_displacement_m=0.002,
+        )
+        swerve = NativeSwerve(env.model, env.data, settings)
+        self._stage("base_turn")
+        event = self.events[-1]
+        event.update(requested_turn_rad=turn_rad, goal_yaw_rad=heading + turn_rad)
+        self._base_guard = guard
+        try:
+            self._drive_base_to(start, body, swerve, settings, heading + turn_rad)
+            self.controller.last_target = self.controller.position().copy()
+        finally:
+            event.update(guard=guard.report(), end_time=float(env.data.time))
+            self._base_guard = None
+
     def _ensure_grasp_reachable(self, grasp_target, grasp_rotation):
         """Reposition (empty-hand) when the pregrasp approach is unreachable.
 
@@ -1564,7 +1690,7 @@ class StockingScript(SelectedFingerInsertion):
             ):
                 raise InteractionFailure("grasp_workspace: no checked base/pregrasp combination")
 
-    def _ensure_loaded_reachable(self, grasp_grip):
+    def _ensure_loaded_reachable(self, grasp_grip, placement):
         """Reposition (possibly loaded) when the loaded shelf route is unreachable.
 
         Called after the actual grasp/lift, so the measured carried offset and
@@ -1576,9 +1702,8 @@ class StockingScript(SelectedFingerInsertion):
         if not self.config.base_reposition:
             return False
         from abstract_stack.grasp_skill import loaded_staging_reachable
+        from abstract_stack.navigation import plan_base_path
 
-        placement = np.array(self.product.target)
-        placement[1] = self._front_reference_y()
         if loaded_staging_reachable(
             self.env,
             self.controller,
@@ -1590,34 +1715,51 @@ class StockingScript(SelectedFingerInsertion):
         ):
             return True
         self._stage("base_reposition_search")
+        event = self.events[-1]
         candidates = []
-        for dy in (0.03, 0.06, 0.09, 0.12, 0.15):
-            for dx in (0.0, 0.03, -0.03):
-                reachable = loaded_staging_reachable(
+        event.update(base_search_candidates=candidates, placement_world_m=placement.tolist())
+        base = self.env.data.body("mabel_chassis").xpos[:2].copy()
+        preferred_dy = float(placement[1] + 0.12 - base[1])
+        lateral_offsets = (
+            preferred_dy,
+            preferred_dy - 0.04,
+            preferred_dy + 0.04,
+            0.06,
+            -0.06,
+            0.12,
+            -0.12,
+        )
+        started = time.monotonic()
+        for dy in dict.fromkeys(round(value, 4) for value in lateral_offsets):
+            if abs(dy) > 0.6:
+                continue
+            for dx in (0.0, 0.03, -0.03, 0.06, -0.06):
+                if time.monotonic() - started > 20:
+                    event["decision"] = "loaded_workspace_search_budget_exhausted"
+                    return False
+                shift = np.array([dx, dy])
+                navigable = plan_base_path(self.env, base, base + shift) is not None
+                reachable = navigable and loaded_staging_reachable(
                     self.env,
                     self.controller,
                     self.config,
                     self.product,
-                    base_xy=(dx, dy),
+                    base_xy=shift,
                     placement=placement,
                     grip=grasp_grip,
                     front_center=self._front_center_x,
                 )
-                candidates.append(dict(displacement_xy_m=[dx, dy], reachable=reachable))
+                candidates.append(
+                    dict(displacement_xy_m=shift.tolist(), navigable=navigable, reachable=reachable)
+                )
                 if reachable:
-                    self.events[-1].update(
+                    event.update(
                         decision="reposition_base_for_loaded_route",
-                        base_search_candidates=candidates,
-                        selected_displacement_xy_m=[dx, dy],
+                        selected_displacement_xy_m=shift.tolist(),
                     )
-                    self._move_base(
-                        [dx, dy], reason="loaded_shelf_route_reachability", carrying=True
-                    )
+                    self._move_base(shift, reason="loaded_shelf_route_reachability", carrying=True)
                     return True
-        self.events[-1].update(
-            decision="no_reachable_base_candidate",
-            base_search_candidates=candidates,
-        )
+        event["decision"] = "no_reachable_base_candidate"
         return False
 
     def _select_grasp(self, pending):
@@ -1683,6 +1825,15 @@ class StockingScript(SelectedFingerInsertion):
 
     def _one_box(self, selected=None):
         use_finger, neighbors = self._use_finger_contact()
+        self._record_agent_event(
+            "carton_plan",
+            protocol="released_finger" if use_finger else "grasped_supported_slide",
+            steps=["pick", "place", "insert", "push_to_contact", "retreat"]
+            if use_finger
+            else ["pick", "place", "push_to_contact", "retreat"],
+            adjacent_products=[neighbor["product"] for neighbor in neighbors],
+            plan_driven=bool(use_finger and self.config.plan_driven),
+        )
         if self.config.ungrasped_insertion:
             self._stage("insertion_mode")
             self.events[-1].update(
@@ -1972,13 +2123,14 @@ class StockingScript(SelectedFingerInsertion):
             # the native arm cannot supply. Search outward shelf approaches
             # from the same measured grasp instead of accepting a poor IK fit.
             self._stage("loaded_stage_plan")
+            route_event = self.events[-1]
             body = env.data.body(product.name)
             self.controller.active_rotation = (
                 self.payload_rotation_goal
                 @ body.xmat.reshape(3, 3).T
                 @ env.data.xmat[self.controller.palm].reshape(3, 3)
             )
-            for _ in range(2):
+            for attempt in range(2):
                 # A native loaded base relocation changes the measured grasp.
                 # Refresh the orientation used by admission as execution does.
                 body = env.data.body(product.name)
@@ -2020,8 +2172,8 @@ class StockingScript(SelectedFingerInsertion):
                 else:
                     # No checked candidate. Reposition the base once (retaining
                     # the carried load) and retry the bounded staging search.
-                    if not self._ensure_loaded_reachable(grasp_grip):
-                        self.events[-1].update(candidates=attempts, decision="hold_for_replan")
+                    if attempt or not self._ensure_loaded_reachable(grasp_grip, placement):
+                        route_event.update(candidates=attempts, decision="hold_for_replan")
                         raise InteractionFailure(
                             "loaded_stage: no checked shelf approach candidate"
                         )
@@ -2031,7 +2183,7 @@ class StockingScript(SelectedFingerInsertion):
                     staging[2] = max(staging[2], self.controller.position()[2])
                     continue
                 break
-            self.events[-1].update(
+            route_event.update(
                 candidates=attempts,
                 decision="execute_checked_shelf_approach",
                 selected_position_world_m=staging.tolist(),
@@ -2068,7 +2220,7 @@ class StockingScript(SelectedFingerInsertion):
         self.events[-1][f"verified_{self.FRONT_SUPPORT}_support"] = True
         return grasp_grip
 
-    def _push_grasped(self, grasp_grip):
+    def _push_grasped(self, grasp_grip, *, retreat=True):
         env, config, product = self.env, self.config, self.product
         # Contact mode changes here: a shelf-supported load may slide within
         # the fingers. Monitor support/contact instead of enforcing a rigid
@@ -2184,11 +2336,22 @@ class StockingScript(SelectedFingerInsertion):
             raise InteractionFailure("push: shelf-back contact was not established")
         self.supported_slide = False
         self.fixture_unloading = False
-        self.observer.begin_retreat(self.product.name)
+        if retreat:
+            self._retreat_grasped()
+
+    def _retreat_grasped(self):
+        """Release and withdraw after measured grasped backstop contact."""
+        if self.observer.retreat is None:
+            self.observer.begin_retreat(self.product.name)
         self._release_grasp()
         self.payload_rotation_goal = None
         self._move("clear", self.controller.position() + [0.04, 0, 0.02])
         self.observer.end_retreat(self.product.name)
+
+    def _release_for_finger_push(self):
+        """Leave a shelf-supported carton for a separate fingertip approach."""
+        self._release_grasp("recovery_release")
+        self.payload_rotation_goal = None
 
     def _release_grasp(self, name="release", *, support="shelf"):
         """Check opening fingers and retreat together, then execute via servos."""
@@ -2332,9 +2495,21 @@ class StockingScript(SelectedFingerInsertion):
         while pending:
             ordered = self.config.wall_packing or self.config.center_last
             choices = pending[:1] if ordered else pending
+            self._agent_carton_step = len(result["completed_products"]) + 1
+            self._record_agent_event(
+                "carton_selection_started",
+                product=None,
+                pending=[p.name for p in pending],
+                choices=[p.name for p in choices],
+            )
             selected = self._select_grasp(choices) if self.config.adaptive_grasps else None
             if selected is None:
                 self.product = pending[0]
+            self._record_agent_event(
+                "carton_selected",
+                target_world_m=list(self.product.target),
+                selection="checked_grasp" if selected is not None else "order",
+            )
             if ordered:
                 self._stage("wall_packing_plan")
                 self.events[-1].update(
@@ -2358,6 +2533,14 @@ class StockingScript(SelectedFingerInsertion):
                         {"product": self.product.name, **outcome.describe()}
                     )
             result["completed_products"].append(self.product.name)
+            if getattr(self, "execution_history", None) is not None:
+                stages = self.observer.report(self.events)["products"][self.product.name]
+                gates = {key: stages[key] for key in ("pick", "place", "final_position", "retreat")}
+                self._record_agent_event(
+                    "carton_finished",
+                    gates=gates,
+                    outcome="verified" if all(gates.values()) else "gate_open",
+                )
             pending.remove(self.product)
             if (
                 self.config.record_skill_starts
@@ -2396,6 +2579,31 @@ class StockingScript(SelectedFingerInsertion):
         return MabelController(self.env.model, self.env.data, self._tracking_config())
 
     def run(self) -> dict:
+        from abstract_stack.agent_history import AgentHistory
+        from abstract_stack.skill_library import (
+            annotate_events,
+            build_stocking_plan,
+            describe_stocking_skills,
+        )
+
+        plan = build_stocking_plan()
+        self._agent_phase_map = {
+            **plan.phase_map(),
+            "push": "push_to_contact",
+            "recovery_release": "insert",
+        }
+        self._agent_phase_map.pop("insertion_mode", None)
+        target = getattr(self, "target_product", None)
+        self.execution_history = AgentHistory(
+            self.directory,
+            run_kind=self.TASK_SCOPE,
+            seed=self.env._seed,
+            scheduled_products=[target.name]
+            if target is not None
+            else [p.name for p in self.env.products if not p.initially_stocked],
+            prefilled_products=[p.name for p in self.env.products if p.initially_stocked],
+            initial_scene="initial-scene/manifest.json",
+        )
         self._prepare_episode()
         self.observer = self._new_observer()
         self.observer.completed.update(
@@ -2437,6 +2645,7 @@ class StockingScript(SelectedFingerInsertion):
                 p.name for p in self.env.products if not p.initially_stocked
             ],
             "controller": asdict(self.config),
+            "skill_catalog": describe_stocking_skills(plan),
             "force_profile": self.force_profile,
             "assistance": "none",
             "state_access": "privileged_mujoco_world_state",
@@ -2455,6 +2664,9 @@ class StockingScript(SelectedFingerInsertion):
             if result["failure"]:
                 from abstract_stack.skill_entries import record_motion_failure
 
+                self._record_agent_event(
+                    "execution_failed", phase=self.phase, failure=result["failure"]
+                )
                 result["failure_checkpoint_error"] = record_motion_failure(self, result["failure"])
             terminal_state = np.empty(mujoco.mj_stateSize(self.env.model, state_spec))
             mujoco.mj_getState(self.env.model, self.env.data, terminal_state, state_spec)
@@ -2551,9 +2763,6 @@ class StockingScript(SelectedFingerInsertion):
             result["manipulation_evaluation"] = manipulation_evaluation(result)
             result["task_success"] = result["manipulation_evaluation"]["clean_success"]
             result["controller_evidence"] = self.episode_evidence()
-            from abstract_stack.skill_library import annotate_events, build_stocking_plan
-
-            plan = build_stocking_plan()
             result["task_plan"] = plan.describe()
             if getattr(self, "plan_outcome", None) is not None:
                 result["plan_steps"] = self.plan_outcome.describe()
@@ -2571,5 +2780,23 @@ class StockingScript(SelectedFingerInsertion):
                     result["video"] = self.recorder.finish(result)
                 except (OSError, RuntimeError) as error:
                     result["video_error"] = str(error)
+            result["agent_history"] = self.execution_history.path.name
             (self.directory / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
+            agent_success = result["task_success"] or (
+                result["controller_evidence"].get("grasp_skill_verified", False)
+                and result["failure"] is None
+            )
+            self._record_agent_event(
+                "run_finished",
+                phase=self.phase,
+                outcome="verified" if agent_success else "failed",
+                failure=result["failure"],
+                summary="summary.json",
+                gates={
+                    name: {
+                        key: values[key] for key in ("pick", "place", "final_position", "retreat")
+                    }
+                    for name, values in result["stage_evaluation"]["products"].items()
+                },
+            )
         return result

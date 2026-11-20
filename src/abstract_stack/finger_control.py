@@ -91,3 +91,13 @@ class FingerLoadCompensation:
     def acknowledge(self, targets):
         for state in self.joints.values():
             state["previous"] = float(targets[state["actuator"]])
+
+    def gravity_preshape(self, data):
+        """Project an unloaded, settled finger servo reference at a scratch pose."""
+        targets = self.hand.finger_targets(0)
+        for name, state in self.joints.items():
+            dof = int(self.hand.model.jnt_dofadr[state["joint"]])
+            effort = np.clip(data.qfrc_bias[dof], -0.15, 0.15)
+            offset = np.clip(effort / state["kp"], -0.15, 0.15)
+            targets[name] = float(np.clip(targets[name] + offset, state["lower"], state["upper"]))
+        return targets

@@ -18,6 +18,7 @@ unreached, failed and unknown cases in their scheduled denominators.
 | Transfer | Outputs of verified grasps: actual object-to-hand transform, payload yaw/tilt, arm/lift posture, inventory and shelf clearance | Retain the load through the checked shelf-approach route |
 | Place at staging pose | Outputs of transfer: measured rotated extents, carried pose/velocity, shelf height and grasp offset | Native shelf support within the bounded seating range, with residual pose error allowed |
 | Release and register | Supported front placement, measured hand load and open space | Unloaded hand and supported carton inside the insertion approach corridor |
+| Side press for alignment | Released carton with a reachable exposed face, yaw error, or insufficient corner clearance to square | Retained lateral shift after unloading. If squaring is needed, verify its separate released yaw and clearance gates |
 | Insert | Released supported carton ahead of its neighbors, with measured lateral and yaw error | Verified intermediate depth and square after the pusher unloads |
 | Forward push to contact | Supported carton in the insertion corridor, measured depth/lateral/yaw error and contact wrench | Existing backstop force, support, and strict square dwell |
 | Lateral row compaction | Supported partially filled row, known wall and neighbors, measured deficit in the remaining opening | Recover the opening after unloading, including a reserve for measured overlap, while keeping the row supported |
@@ -136,6 +137,223 @@ checkpoint to `scripts/probe_front_release.py` with
 `--next-cartons 1 --interleave-row-press --record-skill-starts`. The probe
 retains the original observer history and earns zero fresh episode credit.
 
+Add `--post-press-release-reapproach` to the fresh run to test a second
+contact sequence after a verified row press. It seats the last carton with the
+same grasp and carry, opens the hand while checking shelf support, and approaches
+again with paired fingertips for the push and withdrawal. The
+`release_reapproach` skill entry captures the retained grasp immediately before
+opening, and `contact_finish` captures the subsequent fingertip push start.
+
+With the scene above and seed 0, this sequence verified all four gates for all
+three cartons after a 30.1 mm reduction in the measured seam. The earlier
+sequence verified two withdrawals and failed during the third push's feedback
+path check. The actuator traces match through the third carton seating at
+213.76 simulated seconds. The fresh run and failed predecessor are recorded in
+`outputs/runs/agent-harness/three-cartons-post-press-v1/` and
+`outputs/runs/agent-harness/three-cartons-v1/`.
+
+The same seed with the 50 mm/s development preset also passed all gates and
+finished 2.07 simulated seconds sooner. A baseline-controller repeat on seed 1
+passed all three picks and placements, then exhausted the bounded contact
+refinement search on the third carton. Its terminal checkpoint is retained in
+`outputs/runs/agent-harness/three-cartons-post-press-seed1-v1/`.
+The wider contact search recovered sustained squared contact from that stop.
+The withdrawal forecasts then rejected the release because squareness did not
+survive unloading. These recovery attempts are recorded in
+`outputs/runs/curriculum/post-press-seed1-recovery-v1/`.
+
+## Gymnasium skill curriculum
+
+`StockingCurriculumEnv` presents one guarded primitive per decision. It uses
+the [Gymnasium environment API](https://gymnasium.farama.org/api/env/) with a
+discrete action space and fixed-size, privileged observations. Observations
+include carton poses, velocities, sizes, masses and targets, presence and
+active-carton masks, measured contact normals, and actuator lengths, velocities
+and targets. Each decision returns reward 1 for the measured skill gate and 0
+otherwise. The episode terminates at the skill result or truncates at the
+simulator time limit.
+
+| Primitive | Success evidence | Reset sources |
+| --- | --- | --- |
+| Pick | Measured lift and 0.5 s hold with opposing contact and table clearance | Procedural or captured |
+| Place | Retained load transferred and seated at the shelf front with measured shelf support | Captured loaded handoff |
+| Insert | Supported opening and front registration with the hand unloaded | Captured or recovery |
+| Push | Native back contact and upright dwell, with the hand retained for retreat | Procedural, captured or recovery |
+| Slide | Lateral contact and a measured opening after unloading, with neighboring cartons supported | Procedural or captured |
+| Retreat | Verified withdrawal with the required cartons still stocked | Captured or recovery |
+
+The [development corpus](../configs/curricula/development.json) pins the
+checkpoint manifest hashes and groups related states by episode lineage. The
+corpus records historical recovery evidence where available. A success on an
+older controller stays separate from a success on the current action. Captured
+resets preserve native physics state, recorded nominal and applied controls,
+and the all-product observer. A released legacy push can explicitly initialize
+a new tool reference from its recorded nominal joints. The reset records this
+choice before any physics steps. Isolated episodes earn only skill credit.
+Without an explicit `case_id`, the Gymnasium reset samples a lineage uniformly,
+then one of its matching checkpoint references. Adding several boundaries from
+one episode gives that lineage the same sampling weight as a single-boundary
+episode. Keep lineages intact when selecting development and validation cases.
+
+```bash
+GIT_LFS_SKIP_SMUDGE=1 uv sync --locked --inexact --extra curriculum
+.venv/bin/python scripts/evaluate_skill_curriculum.py --gym --seed 9 --seed 18 \
+  --output outputs/runs/curriculum/procedural-01
+.venv/bin/python scripts/evaluate_skill_curriculum.py --gym \
+  --manifest configs/curricula/development.json --artifact-root outputs \
+  --output outputs/runs/curriculum/captured-01
+```
+
+Use `--case` to select one or more corpus entries. The supervisor freezes the
+controller once per campaign and records every scheduled result, including
+reset rejections, timeouts and unknown process outcomes. An archive checkout
+needs the referenced checkpoint files under its artifact root. Captured cases
+with different physical handoffs can have different legal action masks.
+
+```python
+from abstract_stack.skill_curriculum import StockingCurriculumEnv, load_curriculum
+
+cases = load_curriculum("configs/curricula/development.json", artifact_root="outputs")
+env = StockingCurriculumEnv("retreat", "outputs/runs/curriculum/local-retreat", cases=cases)
+try:
+    observation, info = env.reset(seed=9, options={"source": "recovery"})
+    action = env.action_space.sample(mask=info["action_mask"])
+    observation, reward, terminated, truncated, info = env.step(action)
+finally:
+    env.close()
+```
+
+The next evaluation should hold out whole episode lineages and procedural
+geometry seeds, then check each primitive together with its preceding and
+following handoffs. A single-action primitive can already serve as a reset,
+benchmark and scripted teacher. Learning continuous corrections requires a
+control-rate action contract with the same force and motion bounds.
+
+### Agent retries and mid-motion starts
+
+`--agent-attempts` gives the agent a bounded number of distinct admissible
+options. Each retry restores the same native state and checks its digest.
+The zero-credit ledger retains each failure and its artifacts. `--rewind`
+allows one declared earlier checkpoint from the same skill and episode lineage
+after the original options are exhausted or a loaded checkpoint fails measured
+entry admission. The report preserves both outcomes. For example, the close
+stop beside the shelf panel still carries hand contact. The agent records that
+boundary as rejected and retries from the earlier empty-hand grasp checkpoint.
+
+```bash
+.venv/bin/python scripts/evaluate_skill_curriculum.py --gym --agent-attempts 4 \
+  --rewind --manifest configs/curricula/development.json \
+  --case lift-body-push-stop --output outputs/runs/curriculum/my-recovery
+```
+
+The original lift/body stop rejects both tested actions. Its pre-push rewind
+can release the retained grasp, use the checked finger approach, and verify the
+backstop gate. The fourth-carton case reaches contact refinement with the
+single-finger option and still exhausts the refinement budget.
+
+Use `replay_skill_cut.py --attempt <attempt-directory> --physics-step <n>
+--output <checkpoint>` to materialize only the state you need. Step zero is the
+original reset. Every physics step through the end is addressable for a
+retained pick, place, push, slide or retreat. The command checks the clock and
+terminal state before saving. `replay_skill_cut.py --resume <checkpoint>`
+loads the cut and verifies the original suffix again. Arbitrary cuts preserve
+native physics. A new closed-loop decision at an interior cut requires an
+explicit controller initialization and measured skill preconditions.
+
+Agent attempts save `decision.npz` before selecting actuator references and
+`outcome.npz` after the skill. `scripts/build_skill_option_dataset.py` combines
+completed transitions from one or more `--run` directories and keeps unfinished
+decisions in the manifest. These data support a small policy that selects
+primitive options from privileged observations and action masks. Use the
+lineage field for splits so retries on one state stay together.
+
+### Tuning a captured skill
+
+Run the same case and action for each candidate, and pin the checkpoint hash,
+initial native state digest and candidate controller configuration. The
+`--control-config` option accepts the bounded settings in
+`abstract_stack.tuning.CONTROL_BOUNDS`. It keeps the native model, exit gate,
+abort limits and collision policy fixed. For a push, start with the normal
+preload target, yaw correction gain or approach motion. Change one coordinate
+at a time so the observed effect is attributable.
+
+```bash
+.venv/bin/python scripts/evaluate_skill_curriculum.py --gym --agent-attempts 1 \
+  --manifest configs/curricula/development.json --skill push \
+  --case fourth-carton-stall --action single --verify-retreat \
+  --control-config configs/controllers/fingertip_advance_development.json \
+  --output outputs/runs/curriculum/push-candidate
+```
+
+Retain every attempt and rank verified, incident-free completion first. Use
+contact dwell, clearance, pose error and force history to diagnose failed
+attempts and choose the next search direction. Compare time and peak loads
+among successful candidates. Test a selected candidate on held-out lineages,
+including the handoff into retreat, before promoting its settings.
+
+Add `--verify-retreat` to a captured push to execute withdrawal from the live
+push terminal state with the native gates. The attempt lists the skills that
+verified, including a successful push followed by a failed retreat. The
+controller overrides `insertion_advance_speed_m_s` and `base_speed_m_s` change
+the motion references within the existing force feedback and motion guards.
+Compare candidates across the whole handoff before choosing a speed based on
+push duration.
+
+On the two released-carton development starts, the 50 mm/s preset finished
+push and retreat in 43.78 and 33.95 simulated seconds. The earlier 40 mm/s
+preset with a yaw lever gain of 0.24 took 46.53 and 34.91 seconds on the same
+starts. Raising advance to 60 mm/s failed the squaring gate on the tight-three
+start. The presets remain opt-in pending a larger suite with varied carton
+properties. See `outputs/runs/curriculum/push-finalists-v1/` for the frozen
+candidate comparisons.
+
+The 50 mm/s preset also passed a captured release-and-reapproach in 32.22
+seconds versus 35.65 seconds with its recorded controller. On a ten-slot shelf,
+paired fingertips completed the push and retreat of one carton beside an
+already-stocked neighbor. The single-finger option failed its posture search
+on that start. The paired trial earns only saved-skill credit.
+
+For recovery search, `--rewind-action release-reapproach` changes the first
+admissible action only on a declared earlier boundary. Keep `--action recorded`
+for the first branch to test a healthy grasped slide without spending time on a
+tool change. Both branches retain their attempts, failures and simulated time.
+
+For an option selector, collect repeated alternatives from the same reset with
+measured outcomes and legal-action masks. For control-rate learning, record
+pre-action relative poses and velocities, contact forces and torques,
+tracking residuals, joint and actuator limits, and the nominal commands before
+compensation. Vary mass, friction, clearances, and observation error across
+episodes. Keep domain parameters that would be unavailable to the deployed
+robot in the teacher context.
+
+## Inspecting the scripted agent
+
+Full stocking runs and Gymnasium runs with `--agent-attempts` write an
+append-only `agent-history.jsonl`. The journal records the scheduled cartons,
+selection candidates, chosen carton and protocol, skill and native phase,
+measured gate outcomes, and checkpoint paths. Explicit task plans also record
+their entry checks and exit gates. Fused controllers identify skill progress
+from their native phases and use the existing per-carton measurements for
+success. Large force and IK traces stay in their existing artifacts.
+
+```bash
+.venv/bin/python scripts/inspect_stocking_agent.py outputs/runs/agent-harness/three-cartons-v1
+.venv/bin/python scripts/inspect_stocking_agent.py \
+  outputs/runs/agent-harness/saved-push-recovery-v1/lift-body-push-stop --json
+```
+
+Use `--events` for all journal records in their original order. The inspector
+can read a rollout while it runs. A stopped process retains its last complete
+record and the supervisor's exit status. A rewind starts a distinct branch
+with its own checkpoint, attempted actions, and outcome. Every new stocking
+checkpoint references the corresponding journal sequence through its event
+boundary.
+
+The scripted recovery runner checks the current action mask, retains each
+attempt, and tries a distinct admissible action before taking a declared
+rewind. Its history records the available and previously tried actions so a
+later policy can make the same decision from the same evidence.
+
 ## Composable skill library and per-carton task plan
 
 [`skill_library.py`](../src/abstract_stack/skill_library.py) makes those
@@ -158,6 +376,12 @@ through `run_plan`; the grasped supported-slide protocol keeps its existing
 fused path. The plan is always recorded in `summary.json` under `task_plan`,
 with each phase event annotated with its `skill`. Success criteria, force
 guards and tolerances are unchanged.
+
+The [selection guide](#decide-the-next-motion-from-measured-preconditions)
+also covers the callable recovery and between-carton skills. The active-carton
+side press is available through the checkpoint probe. The row press has a
+separate between-carton entry point and appears as `slide` in the Gymnasium
+curriculum. General automatic recovery selection for both presses is open.
 
 ## Why reset poses are insufficient
 
@@ -337,24 +561,33 @@ snapshot as a cleared milestone. All continuations earn zero fresh credit.
 
 ### Decide the next motion from measured preconditions
 
-| Observed state | Candidate next motion | Required postcondition |
-|---|---|---|
-| Held load and a checked free landing | Carry, seat, open, and clear | Upright supported carton and unloaded hand |
-| Released carton with a clear projected forward path | Preshape and advance | Measured depth progress under force and support guards |
-| Projected footprint conflicts with a stocked neighbor | Square in front or choose a lateral route | Upright support and a newly checked approach and exit |
-| Push force is present without object motion | Bounded preload increase, then unload and recontact if needed | Renewed advance without disturbing stocked objects |
-| Hand contact is lost before reaching the target | Recontact from a checked pose | Measured safe contact and renewed advance |
-| Hand contact is lost at the intended final pose | Check an unloaded clear path | Stable support, final pose, and verified retreat |
-| Loaded at final pose and withdrawal clips a neighbor | Change hand posture or exit direction | Force, clearance, and stocked-neighbor stability pass |
-| No admitted motion or a guard trips | Stop and snapshot the state | Failure is retained with phase, reason, and selected inputs |
+| Skill | Use when | What to verify |
+| --- | --- | --- |
+| Base relocate or turn | The inventory, shelf or contact patch needs a different workspace | Admitted base route or swept turn, feasible next arm posture, and stable payload and shelf contents |
+| Pick and hold | The hand is empty and a checked approach reaches a supply carton | Opposing contact, actual lift and retained hold |
+| Transfer and seat | The robot has a verified grasp and a checked free landing | Retained load through transfer, then upright shelf support |
+| Supported release and registration | The carton is shelf-supported and the narrow pusher needs access | Stable landing and a cleared, unloaded grasp hand |
+| Side press | A released carton can be reached from the exposed side. Use the center to reduce off-axis torque or shift at the front patch to open room for a square | Signed displacement survives unload, with support and neighboring placements preserved |
+| Front square | The released carton needs less yaw for its projected footprint to fit | Depth, support, clearance and yaw pass after the pusher unloads |
+| Sidewall registration | A wall-adjacent slot affords a checked side approach and a wall reaction for alignment | Wall reaction and alignment, then clearance for the narrow forward tool |
+| Forward insert and push | The next depth segment fits. Use a supported grasp in a spacious route or a released single/paired fingertip in a tight slot. Guided entry is available beside a neighbor or wall | Signed depth progress, supported staging, and separate evidence of back contact when required |
+| Breakaway or recontact | Depth progress stalls under load, or a released carton loses finger contact before reaching its goal | Renewed advance under the same bounds. Recontact is available in the opt-in receding controller |
+| Contact refine | The supported carton is near its final depth and still needs yaw or lateral correction | Measured backstop contact and squared dwell where required, with a checked release |
+| Retreat or unloaded clear | The carton already satisfies the relevant placement gate | Check the hand posture and exit under native force guards. Verify support and preserve the row through the exit. An unloaded clear grants retreat credit only |
+| Row compaction (`slide`) | The partial row has internal gaps and too little usable opening for the remaining widths | Measured carton-pair contacts during press, usable opening after unloading, and stable supported cartons |
+| Strict row finish (`row-press`) | Compaction yielded the opening, and yaw or projected overlap still needs correction | Required alignment, envelope and contact gates, followed by unloaded stability |
+| Stop and snapshot | No candidate is admitted, a guard trips, or bounded recovery makes no progress | Retained failure with the phase, measured state and inputs for another attempt |
 
-The unloaded-clear branch now handles a failed refinement when the carton
-already satisfies placement and the robot is unloaded. It requires stationary
-square support, checks the full exit in a native forecast, and verifies
-support and retreat in the live scene. Its event does not award backstop
-contact credit. The recontact branch for a carton still short of its goal
-remains planner work. Different cartons can take different branches based on
-their measured state.
+Select row pressure from measured motion and contact. Increasing the target
+is a candidate when a checked path has room to advance, the intended contact
+chain is loaded, and signed measured force is near the current target while
+the row remains supported. First change the workspace, contact patch or
+approach if the hand cannot reach, the contact chain is incomplete, or the
+reference is saturated. Keep force aborts fixed, including the combined
+robot–product load and summed per-pair carton and wall normals. A force
+setpoint specifies the admittance controller's target. Verify actual force
+and usable opening after unloading. See the
+[side-press traces and whole-shelf outcomes](reports/whole_shelf_development.md#lateral-alignment-from-saved-release-states).
 
 With skill recording enabled, fresh runs and skill probes now add a
 `motion_failure` entry for a handled controller stop before the controls
@@ -449,6 +682,34 @@ checkpoint records a retained shift after the tool exits. Its resume
 path performs a bounded square ahead of the occupied row and checks
 yaw and clearance again before advancing. This is a distinct staging
 boundary with zero stocking credit.
+
+Use the exposed side of a supported, released carton for an alignment
+press. `--side-press centered` contacts the middle of the side face and
+`--side-press corner` uses the existing front patch. Select the signed
+distance from measured clearance. Both verify that the carton retained its
+shift after the hand unloaded.
+
+```bash
+.venv/bin/python scripts/probe_front_release.py \
+  --checkpoint "$released_entry" --output outputs/side-staging \
+  --insert-only --record-skill-starts --side-press centered \
+  --side-offset-m=0.003 --stop-after registration
+
+.venv/bin/python scripts/probe_front_release.py \
+  --checkpoint "$released_entry" --output outputs/side-and-square \
+  --insert-only --record-skill-starts --side-press corner \
+  --side-offset-m=-0.004 --interleave-side-square --base-turn-deg=-60 \
+  --guided-wall-entry --wall-seconds 235
+```
+
+The composed probe parks the fingers and checks the return base turn
+before squaring. In-place squaring holds a measured 0.10° yaw goal under
+load to allow for drift during unloading, then verifies the released
+carton at 0.15° before advancing. Use the saved `side_slide_unloaded`
+checkpoint with `--resume-side-square` to evaluate the front sequence
+from that handoff. Choose the press direction and base turn for the
+available side clearance. For a supported row, use the row-compaction
+environment and verify measured open span after unloading.
 
 The experimental `--center-last` order packs alternately from the two
 ends. It reserves measured space for unplaced widths and targets the

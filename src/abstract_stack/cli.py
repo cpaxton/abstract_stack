@@ -161,9 +161,24 @@ def _parser():
                 help="Compose the per-carton sequence through the task-plan skill library",
             )
             sub.add_argument(
+                "--screen-pusher-approach",
+                action="store_true",
+                help="Check a post-square approach with projected arm and finger servo targets",
+            )
+            sub.add_argument(
+                "--side-square-recovery",
+                action="store_true",
+                help="Try a measured side shift when a released carton lacks room to square",
+            )
+            sub.add_argument(
                 "--interleave-row-press",
                 action="store_true",
                 help="Experimental three-carton sequence with a measured press after two stocks",
+            )
+            sub.add_argument(
+                "--post-press-release-reapproach",
+                action="store_true",
+                help="Open the grasp and reapproach with fingertips on the post-press carton",
             )
             sub.add_argument(
                 "--payload-wrist-compensation",
@@ -328,6 +343,8 @@ def main(argv=None):
         return
     if args.command == "solve":
         args.command = "script"
+    if getattr(args, "post_press_release_reapproach", False) and not args.interleave_row_press:
+        parser.error("Post-press release/reapproach requires --interleave-row-press")
     if args.command == "tune":
         from abstract_stack.tuning import hill_climb
 
@@ -449,10 +466,14 @@ def main(argv=None):
                 from abstract_stack.interactions import ScriptConfig, StockingScript
 
                 solver = StockingScript
+                solver_options = {}
                 if args.interleave_row_press:
                     from abstract_stack.interleaved_stocking import PressInterleavedStockingScript
 
                     solver = PressInterleavedStockingScript
+                    solver_options["post_press_release_reapproach"] = (
+                        args.post_press_release_reapproach
+                    )
                 elif config.row_free_space is not None and not args.ungrasped_insertion:
                     from abstract_stack.dense_interactions import DenseStockingScript
 
@@ -479,6 +500,8 @@ def main(argv=None):
                         live_guarded_withdrawal=args.live_guarded_withdrawal,
                         plan_driven=args.plan_driven,
                         guided_wall_entry=args.guided_wall_entry,
+                        screen_pusher_approach=args.screen_pusher_approach,
+                        side_square_recovery=args.side_square_recovery,
                         record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,
@@ -493,6 +516,7 @@ def main(argv=None):
                     video_height=args.video_height,
                     first_person=args.first_person_camera,
                     third_person=args.third_person_camera,
+                    **solver_options,
                 ).run()
                 print(json.dumps(result, indent=2))
                 if result.get("video_error"):

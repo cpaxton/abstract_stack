@@ -42,12 +42,17 @@ class Skill:
     precondition: Callable[[StockingScript, dict], None] | None = None
     verify: Callable[[StockingScript, dict], bool] | None = None
     phases: tuple[str, ...] = ()
+    description: str = ""
+    entry_point: str = ""
 
     def __post_init__(self):
         if not self.name or not self.name.replace("_", "").isalnum():
             raise ValueError(f"Skill name must be a nonempty identifier: {self.name!r}")
         if not self.label or not self.entry or not self.gate:
             raise ValueError("Skill label, entry and gate descriptions must be nonempty")
+        for attribute in ("label", "entry", "gate", "description", "entry_point"):
+            if not isinstance(getattr(self, attribute), str):
+                raise ValueError(f"Skill {attribute!r} must be a string")
         for attribute in ("requires", "phases"):
             value = getattr(self, attribute)
             if not isinstance(value, tuple):
@@ -61,8 +66,12 @@ class Skill:
         return {
             "name": self.name,
             "label": self.label,
+            "description": self.description or self.label,
+            "preconditions": self.entry,
+            "postconditions": self.gate,
             "entry_condition": self.entry,
             "exit_gate": self.gate,
+            "entry_point": self.entry_point or None,
             "requires": list(self.requires),
             "phases": list(self.phases),
             "callable": self.execute is not None,
@@ -176,34 +185,61 @@ def run_plan(script, plan: TaskPlan, context: dict | None = None) -> PlanOutcome
     outcome = PlanOutcome(plan=plan)
     script.task_plan = plan
     script.plan_outcome = outcome
-    for skill in plan:
-        script._stage(f"skill_{skill.name}")
-        try:
-            if skill.precondition is not None:
-                skill.precondition(script, context)
-        except (RuntimeError, ValueError, FloatingPointError) as failure:
-            outcome.steps.append(
-                SkillStep(skill.name, True, False, False, f"entry: {failure}", _time(script))
-            )
-            outcome.failure = f"{skill.name}: entry precondition failed"
-            raise
-        try:
-            if skill.execute is not None:
-                skill.execute(script, context)
-        except (RuntimeError, ValueError, FloatingPointError) as failure:
-            outcome.steps.append(
-                SkillStep(skill.name, True, True, False, f"execute: {failure}", _time(script))
-            )
-            outcome.failure = f"{skill.name}: execution failed"
-            raise
-        exit_ok = skill.verify(script, context) if skill.verify is not None else True
-        if not exit_ok:
-            outcome.steps.append(SkillStep(skill.name, True, True, False, None, _time(script)))
-            outcome.failure = f"{skill.name}: exit gate not satisfied"
-            raise InteractionFailure(outcome.failure)
-        outcome.steps.append(SkillStep(skill.name, True, True, True, None, _time(script)))
-        outcome.completed.append(skill.name)
+    journal = getattr(script, "_record_agent_event", None)
+    previous_skill = getattr(script, "_agent_skill", None)
+    if journal is not None:
+        journal("plan_started", plan=plan.describe())
+    try:
+        for index, skill in enumerate(plan, start=1):
+            if journal is not None:
+                script._agent_skill = skill.name
+                journal("skill_started", skill=skill.name, skill_step=index, plan_name=plan.name)
+            script._stage(f"skill_{skill.name}")
+            entry_ok, error = False, None
+            try:
+                if skill.precondition is not None:
+                    skill.precondition(script, context)
+                entry_ok = True
+                if skill.execute is not None:
+                    skill.execute(script, context)
+                exit_ok = skill.verify(script, context) if skill.verify is not None else True
+            except (RuntimeError, ValueError, FloatingPointError) as failure:
+                error = f"{'execute' if entry_ok else 'entry'}: {failure}"
+                outcome.failure = (
+                    f"{skill.name}: execution failed"
+                    if entry_ok
+                    else f"{skill.name}: entry precondition failed"
+                )
+                _record_step(script, outcome, skill, index, entry_ok, False, error, journal)
+                raise
+            _record_step(script, outcome, skill, index, entry_ok, exit_ok, error, journal)
+            if not exit_ok:
+                outcome.failure = f"{skill.name}: exit gate not satisfied"
+                raise InteractionFailure(outcome.failure)
+            outcome.completed.append(skill.name)
+    finally:
+        if journal is not None:
+            script._agent_skill = previous_skill
     return outcome
+
+
+def _record_step(script, outcome, skill, index, entry_ok, exit_ok, error, journal):
+    outcome.steps.append(SkillStep(skill.name, True, entry_ok, exit_ok, error, _time(script)))
+    if journal is not None:
+        status = "failed"
+        if not entry_ok:
+            status = "entry_rejected"
+        elif exit_ok:
+            status = "verified" if skill.verify is not None else "executed"
+        journal(
+            "skill_finished",
+            skill=skill.name,
+            skill_step=index,
+            entry_ok=entry_ok,
+            exit_ok=exit_ok,
+            outcome=status,
+            failure=error or ("exit gate not satisfied" if not exit_ok else None),
+        )
 
 
 def _time(script):
@@ -335,6 +371,7 @@ def build_stocking_plan() -> TaskPlan:
                     "lift",
                     "grasp_hold",
                 ),
+                description="Acquire the supply carton and hold it for a loaded transfer.",
             ),
             Skill(
                 "place",
@@ -355,6 +392,7 @@ def build_stocking_plan() -> TaskPlan:
                     "place",
                     "seat",
                 ),
+                description="Carry the carton along a checked route and seat it at a free landing.",
             ),
             Skill(
                 "insert",
@@ -376,6 +414,7 @@ def build_stocking_plan() -> TaskPlan:
                     "free_landing_rejected",
                     "front_registered",
                 ),
+                description="Open and clear the wrapping hand, then register the released carton.",
             ),
             Skill(
                 "push_to_contact",
@@ -396,6 +435,7 @@ def build_stocking_plan() -> TaskPlan:
                     "front_square_clear",
                     "front_squaring_complete",
                 ),
+                description="Advance with a checked fingertip posture and measured force feedback.",
             ),
             Skill(
                 "retreat",
@@ -414,9 +454,120 @@ def build_stocking_plan() -> TaskPlan:
                     "clear",
                     "partial_clear",
                 ),
+                description="Refine supported placement, unload, and clear the hand from the row.",
             ),
         ),
     )
+
+
+def describe_stocking_skills(plan: TaskPlan | None = None) -> dict:
+    """Return the physical skill contracts and entry points for an agent."""
+    plan = build_stocking_plan() if plan is None else plan
+    return {
+        "schema_version": 1,
+        "plan_order": [skill.name for skill in plan],
+        "skills": [skill.describe() for skill in (*plan.skills, *_ADDITIONAL_SKILLS)],
+    }
+
+
+_ADDITIONAL_SKILLS = (
+    Skill(
+        "base_reposition",
+        "Base relocation or turn",
+        "A new workspace is needed, with a checked route or swept turn and hand clearance.",
+        "The measured base pose permits a checked next arm action. The load and row stay stable.",
+        description="Move or turn the base to reach inventory, an exposed face, or a withdrawal.",
+        entry_point="Native workspace planner with --base-reposition",
+    ),
+    Skill(
+        "side_press",
+        "Active-carton side press",
+        "Released upright shelf-supported carton, unloaded arms, and a reachable exposed side.",
+        "Measured lateral shift survives hand clearance. Support and prior stocks are preserved.",
+        description="Press the side center to reduce yaw or the front patch to allow squaring.",
+        entry_point="probe_front_release.py --insert-only --side-press {centered,corner}",
+    ),
+    Skill(
+        "front_square",
+        "Front square",
+        "Released carton with residual yaw and sufficient free depth ahead of the row.",
+        "Support, measured lateral clearance and the released yaw gate pass before advancing.",
+        description="Use the front fingertips to square a supported carton ahead of its neighbors.",
+        entry_point="Guided insertion or probe_front_release.py --insert-only --resume-side-square",
+    ),
+    Skill(
+        "wall_registration",
+        "Sidewall registration",
+        "Supported released edge carton with a checked side approach and wall reaction.",
+        "Wall contact and registration pass, followed by clearance for the next tool.",
+        description="Use the sidewall as opposing contact before the forward advance.",
+        entry_point="Paired edge insertion or probe_front_release.py --insert-only --register-wall",
+    ),
+    Skill(
+        "grasped_slide",
+        "Grasped supported slide",
+        "A retained grasp and room for the wrapping hand along a supported advance and exit.",
+        "The carton reaches supported placement and the wrapping hand withdraws cleanly.",
+        description="Slide into a spacious slot with a retained grasp and measured load.",
+        entry_point="StockingScript grasped contact branch",
+    ),
+    Skill(
+        "contact_recovery",
+        "Breakaway or recontact",
+        "The supported carton is short of the goal and depth stalls or finger contact is lost.",
+        "Measured contact and signed progress resume under the configured motion and force guards.",
+        description="Attempt bounded breakaway or reacquire from the measured stop.",
+        entry_point="Guided insertion stall guard or RecedingStockingScript contact recovery",
+    ),
+    Skill(
+        "contact_refine",
+        "Supported contact refinement",
+        "Supported carton near final depth, with a checked narrow tool and residual pose error.",
+        "Required back contact, support and squared dwell are measured before release.",
+        description="Use measured pose and wrench to refine depth, yaw and lateral registration.",
+        entry_point="probe_front_release.py --withdrawal --stop-after=squared-contact",
+    ),
+    Skill(
+        "unloaded_clear",
+        "Unloaded clear",
+        "Carton already satisfies the placement gate with stable support and a clearable hand.",
+        "The hand clears the shelf and all required products retain their placement.",
+        description="Screen and execute a withdrawal from a supported, unloaded stop.",
+        entry_point="probe_front_release.py --unloaded-clear",
+    ),
+    Skill(
+        "row_compaction",
+        "Row compaction",
+        "The supported partial row has internal gaps and insufficient remaining usable span.",
+        "Pair contacts develop and the usable opening survives unloading under support guards.",
+        description="Press an exposed end to close gaps across the row.",
+        entry_point="StockingCurriculumEnv slide or the opt-in between-carton row press",
+    ),
+    Skill(
+        "row_finish",
+        "Strict row finish",
+        "A supported compacted row has the needed opening and residual yaw or overlap.",
+        "Measured contact, alignment, envelope and unloaded stability gates all pass.",
+        description="Refine a compacted row to the strict final geometry.",
+        entry_point="StockingSkillEnv row-press",
+    ),
+    Skill(
+        "bimanual_clear",
+        "Bimanual clearance",
+        "Both palms are unloaded and a native plan can clear them with a shared lift reference.",
+        "Both measured palm goals pass and the shelf contents are preserved.",
+        description="Move both unloaded palms through a coupled clearance motion.",
+        entry_point="probe_front_release.py --bimanual-clear",
+    ),
+    Skill(
+        "stop_and_snapshot",
+        "Stop and snapshot",
+        "A guard trips, the bounded recovery exhausts its budget, or no motion is admitted.",
+        "Record the phase, failure and last valid native state for practice or replanning.",
+        description="Retain a handled failure and its actual controller and physics state.",
+        entry_point="StockingScript with --record-skill-starts",
+    ),
+)
 
 
 def annotate_events(plan: TaskPlan, events: Iterable[dict]) -> None:

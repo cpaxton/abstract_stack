@@ -114,6 +114,75 @@ def test_contact_snapshot_and_replay_are_bit_equal_without_touching_live_world(t
     assert model_signature(model) == signature
 
 
+def test_compiled_model_cache_preserves_each_path_without_a_cache_dependency(tmp_path, world):
+    model, data = world
+    cache = tmp_path / "models"
+    checkpoints = [
+        save_checkpoint(
+            tmp_path / name,
+            model,
+            data,
+            scene={"seed": 3},
+            controller={"kind": "test"},
+            context={"kind": "continuation"},
+            shared_model_cache=cache,
+        )
+        for name in ("a", "b")
+    ]
+    (canonical,) = cache.glob("*.mjb")
+    assert all((p / "model.mjb").samefile(canonical) for p in checkpoints)
+    assert canonical.stat().st_mode & 0o222 == 0
+    canonical.unlink()
+    for directory in checkpoints:
+        loaded = load_checkpoint(directory)
+        np.testing.assert_array_equal(
+            native_state(loaded.model, loaded.data), native_state(model, data)
+        )
+
+
+def test_skill_trace_cut_replays_the_suffix_from_an_interior_physics_step(tmp_path, world):
+    from abstract_stack.checkpoint_manifest import sha256_file
+    from abstract_stack.skill_replay import capture_skill_cut, resume_skill_cut
+
+    model, data = world
+    checkpoint = capture(tmp_path / "start", model, data)
+    attempt = tmp_path / "attempt"
+    attempt.mkdir()
+    (attempt / "reset.json").write_text(
+        json.dumps(
+            dict(
+                checkpoint=str(checkpoint),
+                manifest_sha256=sha256_file(checkpoint / "manifest.json"),
+            )
+        )
+    )
+    (attempt / "result.json").write_text(
+        json.dumps(dict(events=[dict(phase="push", sim_time=data.time)]))
+    )
+    initial = native_state(model, data)
+    controls = np.array([[0.01], [0.02], [0.03]])
+    states = []
+    for control in controls:
+        data.ctrl[:] = control
+        mujoco.mj_step(model, data)
+        mujoco.mj_forward(model, data)
+        states.append(native_state(model, data))
+    np.savez_compressed(
+        attempt / "continuation.npz",
+        controls=controls,
+        samples=np.asarray(states)[:, :1],
+        initial_state=initial,
+        terminal_state=states[-1],
+    )
+    cut = tmp_path / "cut"
+    assert capture_skill_cut(attempt, 2, cut)["phase"] == "push"
+    loaded = load_checkpoint(cut)
+    np.testing.assert_array_equal(native_state(loaded.model, loaded.data), states[1])
+    assert resume_skill_cut(cut) == dict(
+        phase="push", remaining_steps=1, terminal_bit_equal=True, fresh_task_credit=0
+    )
+
+
 def test_relocated_binary_loads_without_original_external_texture_or_xml(tmp_path, world):
     from PIL import Image
 

@@ -161,6 +161,7 @@ class LateralContact:
         row_ready=None,
         front_contact_fraction=0.65,
         base_goal_xy=None,
+        base_turn_rad=0.0,
     ):
         settings = settings or LateralPushConfig()
         if stage_for_squaring and (not near_front_corner or brace_wall):
@@ -177,6 +178,15 @@ class LateralContact:
                 raise ValueError("Lateral workspace goal must be a finite XY pair")
             if not self.config.ungrasped_insertion or not self.config.base_reposition:
                 raise ValueError("An explicit lateral workspace goal requires base motion")
+        if (
+            not np.isfinite(base_turn_rad)
+            or abs(base_turn_rad) > np.pi / 2
+            or (
+                base_turn_rad
+                and not (self.config.ungrasped_insertion and self.config.base_reposition)
+            )
+        ):
+            raise ValueError("Side approach turns require base motion and at most 90 degrees")
         if type(brace_wall) is not bool:
             raise ValueError("Wall bracing must be explicit")
         if not yaw_candidates or any(
@@ -243,6 +253,11 @@ class LateralContact:
                 )
                 self._stage("lateral_plan")
                 self.events[-1]["candidates"] = candidates
+            if base_turn_rad:
+                self._turn_base(base_turn_rad)
+                self._stage("lateral_plan")
+                self.events[-1]["candidates"] = candidates
+                started = time.monotonic()
         wrists = (0.2, 0.0) if self.config.ungrasped_insertion else (0.2, 0.4, 0.0, 0.6)
         tilts = (0, 15, 30, 40) if near_front_corner else (20, 30, 40)
         raised_paths = ("joint",) if base_goal_xy is None else ("joint", "cartesian")
@@ -498,7 +513,13 @@ class LateralContact:
             raise InteractionFailure("lateral_push: displacement/support dwell timeout; replan")
         # Withdraw along the contact normal before lifting; success requires
         # the measured displacement to survive physical unloading and retreat.
-        unload_distance = 0.036 if row_ready is not None else 0.012 if near_front_corner else 0.03
+        unload_distance = (
+            0.036
+            if row_ready is not None
+            else 0.012
+            if near_front_corner and not brace_wall
+            else 0.03
+        )
         unload = [0, -direction * unload_distance, 0]
         self._cartesian_move("lateral_unload", target + unload, allowed_object=self.product.name)
         if near_front_corner:

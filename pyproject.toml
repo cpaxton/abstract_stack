@@ -22,6 +22,9 @@ abstract-stack = "abstract_stack.cli:main"
 [project.urls]
 Repository = "https://github.com/cpaxton/abstract_stack"
 
+[project.optional-dependencies]
+curriculum = ["gymnasium>=1.2,<2"]
+
 [dependency-groups]
 dev = ["pre-commit>=4,<5", "pytest>=8", "ruff==0.17.5"]
 rollout = ["mujoco==3.17.0", "mujoco-warp==3.17.0", "numpy==1.26.4"]
@@ -30,6 +33,7 @@ ci = [
     "mujoco>=3.4,<4",
     "numpy>=1.24,<2",
     "pillow>=10",
+    "gymnasium>=1.2,<2",
 ]
 
 [tool.pytest.ini_options]

@@ -1,6 +1,5 @@
 """Opt-in object-level replanning around the existing guarded dense controller."""
 
-import json
 import time
 from dataclasses import replace
 from types import SimpleNamespace
@@ -116,7 +115,6 @@ class RecedingStockingScript(DenseStockingScript):
             raise ValueError("Contact recovery requires bounded Cartesian feedback")
         self.PUSHER_CLASS = LoadAwareFingerPusher if finger_load_compensation else FingerPusher
         self._start_free_push()
-        self._last_progress_heartbeat = float("-inf")
         if base_reposition and not loaded_route:
             raise ValueError("Base repositioning requires the loaded-route executor")
         if table_front and not loaded_route:
@@ -220,28 +218,7 @@ class RecedingStockingScript(DenseStockingScript):
                 self.peak_finger_load_offset, compensation.peak_offset
             )
             action = applied
-        ended = super()._apply_tick(action)
-        now = float(self.env.data.time)
-        if now - self._last_progress_heartbeat >= 1.0:
-            self._last_progress_heartbeat = now
-            progress = {
-                "phase": self.phase,
-                "product": self.product.name,
-                "sim_time": now,
-                "completed_products": sorted(self.observer.completed) if self.observer else [],
-                "active_product_xyz_m": self.env.data.body(self.product.name).xpos.tolist(),
-                "hand_reference_error_m": float(
-                    np.linalg.norm(self.controller.position() - self.controller.last_target)
-                ),
-                "contact_normal_N": {
-                    name: self.last_forces.get(name, 0.0)
-                    for name in ("hand", "table", "shelf", "back", "robot_product", "arm_fixture")
-                },
-            }
-            temporary = self.directory / "physics-progress.tmp"
-            temporary.write_text(json.dumps(progress, indent=2) + "\n")
-            temporary.replace(self.directory / "physics-progress.json")
-        return ended
+        return super()._apply_tick(action)
 
     def _move(self, name, target, grip=0.0, seconds=None, **kwargs):
         if self.loaded_route_enabled and name == "staging_clear" and grip == 0:
@@ -612,7 +589,10 @@ class RecedingStockingScript(DenseStockingScript):
         if self.active_grip is not None or self.carry_reference is not None:
             raise InteractionFailure("base_reposition: loaded base motion is not admitted")
         env = self.env
-        settings = BaseMotionConfig(fixture_force_limit_N=min(25.0, self.config.max_force))
+        settings = BaseMotionConfig(
+            max_speed_m_s=self.config.base_speed_m_s,
+            fixture_force_limit_N=min(25.0, self.config.max_force),
+        )
         self._stage("base_reposition_plan")
         screen = screen_base_translation(env, displacement, config=settings)
         self.events[-1].update(reason=reason, path_screening=screen)

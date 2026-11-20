@@ -90,6 +90,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
     event["lateral_feedback_reference"] = (
         "paired tool midpoint" if paired else "single-finger center of pressure"
     )
+    search_stop = "bounded release-goal search exhausted"
     for cycle in range(20):
         expected = integration_state(model, data)
         reading = sensor.sample(data)
@@ -200,8 +201,11 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             )
         )
         selected = evaluated["selected_name"]
-        if selected is None or not np.array_equal(expected, integration_state(model, data)):
+        if not np.array_equal(expected, integration_state(model, data)):
             raise InteractionFailure("contact_refine: no fresh guarded candidate")
+        if selected is None:
+            search_stop = "no fresh guarded candidate"
+            break
         chosen = next(c for c in candidates if c["name"] == selected)
         event["decisions"][-1]["executed_candidate_metadata"] = chosen["metadata"]
         trace = chosen["metadata"].get("nominal_references")
@@ -258,6 +262,7 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
                 )
                 return
     event["native_dwell"] = dwell.report()
+    event["search_stop"] = search_stop
     if (
         dwell.verified
         and (
@@ -276,4 +281,4 @@ def refine_supported_contact(script, monitor, dwell, *, yaw_target_deg=0.0, norm
             fresh_task_credit=0,
         )
         return
-    raise InteractionFailure("contact_refine: bounded release-goal search exhausted")
+    raise InteractionFailure(f"contact_refine: {search_stop}")

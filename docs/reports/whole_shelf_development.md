@@ -1047,3 +1047,374 @@ yaw and lateral position left the alignment gate open.
 The repeated seed-0 prefix shows repeatability at one initial state. Broad
 ten-carton reliability still needs fresh runs on other reset seeds after
 the compensated approach and alignment gates are addressed.
+
+### Ten-carton failure curriculum and approach search
+
+`outputs/runs/agent-harness/ten-cartons-20mm-v2/` reproduces the fresh
+five picks, five placements, one strict final position and four retreats from
+zero prefills. The fifth carton stops during reapproach after passing front
+squaring. The reference predicts 2.06 mm of overlap between the active carton
+and ring finger. The full observer recorded zero tips or drops.
+
+In the restarted push from the saved front-square boundary, a 45 mm standoff
+completed the fifth retreat in 27.50 simulated seconds at 0.0015 degrees yaw.
+A 30-degree pusher tilt with the recorded 20 mm standoff also completed the
+retreat in 32.52 simulated seconds at -0.0831 degrees. The default approach and
+raised approach hit the applied geometry guard. A 35 mm standoff moved beyond
+approach but stopped at a joint limit during the push. The trials retain their
+controls, force traces and exact checkpoint hashes under
+`outputs/runs/curriculum/ten-carton-late-v1/`.
+
+The 45 mm standoff passed on the separate tight-three and eighth-carton
+starts. To try it in the composed sequence, merge
+`configs/controllers/post_square_standoff_development.json` with the run's
+control overrides. It applies to reapproach after verified front squaring. An
+isolated saved start can also use `--pusher-standoff-m 0.045` with
+`probe_front_release.py --insert-only`. The 20 mm preset still serves as the
+comparison condition. The composed trial from the fourth milestone passed
+carton five and stalled on carton six's front-square phase, so the profile
+remains opt-in.
+
+Continuing directly from the successful fifth-carton probe reached six and
+seven verified withdrawals. The eighth carton reached support before a
+coupled opening rejection. Two retries moved the release reference 3 or 4 mm
+toward the shelf front. Both then passed strict release and withdrawal from
+that saved entry. They left 110.74 mm and 107.92 mm of measured opening for
+the last two 50 mm cartons. The 4 mm branch also had zero projected envelope
+overlap at its eighth milestone. The chain through eight includes two
+strict final positions and earns zero fresh episode credit.
+
+From the existing eight-withdrawal checkpoint, the ninth carton again stalled
+during the guided sideways correction. Filling the outer slot first instead
+exposed a supply-table access constraint. The nearer carton intersects the
+planned grasp of the farther one. The inventory base screen now checks the open
+grasp endpoint as well as the hover. It ruled out 15 navigable poses before
+driving the base to a blocked grasp. Swapping the assignments of the two
+interchangeable pending cartons allowed the next pickup. For both the inner and
+outer destination, the loaded route screen exhausted its candidates before
+seating. It now uses the actual front landing target, checks base navigation,
+and considers lateral offsets in both directions. The unrelated spacious and
+tight placement controls passed.
+
+The [development corpus](../../configs/curricula/development.json) retains the
+earlier and terminal boundaries, including the blocked inventory grasp, loaded
+transfer, fifth approach, ninth front square, and seed-1 retreat failure. The
+roomier run also exposed a finger closing sweep against the side panel, and a
+forward-table variant failed the empty-hand route before pickup. The curriculum
+groups branches derived from the same settled start in the same lineage. It
+samples lineages uniformly before sampling a checkpoint, so successive stops
+from one episode have the same aggregate weight as a single checkpoint from
+another episode.
+
+### Nine withdrawals and the last wall slot
+
+From the newer eight-withdrawal milestones, the ninth carton passed pickup and
+seating. The direct alignment clipped the negative side panel. Native opening
+checks held obstructed digits at their last applied reference, rescreened any
+additional blocked digits, and verified departure with the same posture. A
+35 mm approach then completed the ninth contact and retreat at about -0.0002
+degrees yaw. The 45 mm branches also reached a ninth milestone.
+
+The tenth carton was picked, seated and released in the front band via a
+checked lead landing. Three strict final positions and nine withdrawals are
+verified in this chain. Several workspace translations kept the fixed-heading
+side approach outside its admissible geometry. A scratch orientation screen
+found 40 of 384 candidates with all three tested endpoints feasible. The native
+turn uses a swept geometry screen, the existing force and carton displacement
+guards, and a base drift bound. The -60 and -90 degree turns at the original
+workspace reached side contact and moved the tenth carton about 42 mm laterally.
+The front-offset pushes rotated the carton by about 33 degrees and exhausted the
+displacement/support dwell. Their terminal states retain the measured motion.
+
+- [Nine verified withdrawals and the tenth carton staged](../../outputs/runs/agent-harness/ten-cartons-20mm-v2/nine-and-tenth-staged.mp4)
+- [Bit-exact playback evidence](../../outputs/runs/agent-harness/ten-cartons-20mm-v2/nine-and-tenth-staged-evidence.json)
+- [Fresh runs, continuations and curriculum comparison](../../outputs/runs/curriculum/ten-carton-late-v1/summary-report.json)
+
+### Checkpoint-assisted ten-carton packed hold
+
+The successful tenth-carton route turns the base -60 degrees, makes a short
+front-corner shift, then pushes under the measured wall brace. The carton was
+0.11 mm from the wall registration target and 0.064 degrees off square when the
+hand clearance plan stopped. After an additional checked sideways unload,
+the hand cleared, reapproached with a 45 mm standoff, inserted the carton,
+and completed the tenth withdrawal. Its released yaw was 0.164 degrees, which
+earns development withdrawal credit. Six releases passed the strict yaw gate.
+Three cartons also produced the back-contact evidence required by the strict
+final-position stage metric.
+
+The final packed-row probe held the saved actuator references and stepped
+native MuJoCo for 0.70 s. All ten cartons stayed stocked, with no tips or drops.
+The row had 17.84 mm of projected free space and 0.0044 mm of summed envelope
+overlap. The packed dwell passed with the 20 mm nominal fixture. The chain
+starts from zero prefills and earns zero fresh episode credit. The fresh
+strict ten-carton run and the 10 mm fixture remain acceptance cases.
+
+- [Complete checkpoint-assisted replay](../../outputs/runs/agent-harness/ten-cartons-20mm-v2/ten-carton-verified.mp4)
+- [Packed-row hold and forces](../../outputs/runs/curriculum/ten-carton-late-v1/ten-hold-retained-controls-0/summary.json)
+- [Stage counts and exact branch paths](../../outputs/runs/curriculum/ten-carton-late-v1/completed-chain.json)
+
+Use `probe_front_release.py --verify-row` with the final `stocking_milestone`
+to repeat the dwell without issuing a Cartesian reposition. The turned-back
+ablation also saved a ten-carton checkpoint and passed a separate packed hold.
+Its live continuation failed while serializing its summary, so its original
+process and strict release outcome remain unverified.
+
+### Empty-shelf repeat and live approach retry
+
+Three supervised MABEL runs started with bit-identical MuJoCo states from
+seed 0 in the ten-carton fixture with 20 mm nominal whole-row free space.
+Each began with zero prefills. All three summaries report zero assistance
+and zero tips or drops. Skill-entry checkpoints were recorded as diagnostics.
+The stage counts cover all ten scheduled cartons, including unreached stages.
+
+| Policy | Pick | Shelf support | Strict final position | Verified retreat | First stop |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Current guarded controller | 5 | 5 | 1 | 4 | Carton five, compensated finger approach geometry |
+| 45 mm approach after front squaring | 4 | 4 | 2 | 3 | Carton four, front-squaring dwell timeout |
+| Guarded retry from the live approach stop | 5 | 5 | 1 | 4 | Carton five, retry finger preshape geometry |
+
+The baseline reproduced all 387,057 recorded actuator commands and physics
+samples from the earlier fresh 20 mm run, including its terminal integration
+state. The guard rejected a proposed ring-finger overlap of 2.06 mm before
+actuation. The live retry planned a new approach with 45 mm standoff from the
+measured stop. Its first preshape command predicted up to 3.03 mm of finger
+overlap. The guard rejected it before stepping, leaving the integration state
+identical to the baseline stop. The retry implementation is archived in the
+run's frozen source bundle.
+
+Applying the wider standoff routinely after front squaring passed carton
+three's strict final-position gate. Carton four's initial front-square push
+then reached the target depth within 0.013 mm and timed out at 2.63 degrees
+yaw against the 0.15 degree gate. Its released start and terminal failure
+are in the development curriculum under the same seed-0 lineage. These runs
+measure repeatability and policy differences for one reset condition.
+
+- [Fresh trial results, source revisions, controls and stage evidence](../../outputs/runs/agent-harness/ten-cartons-fresh-v3/report.json)
+- [Fourth-carton squaring failure](../../outputs/runs/agent-harness/ten-cartons-fresh-v3/postSquare/episode/summary.json)
+- [Fifth-carton live retry evidence](../../outputs/runs/agent-harness/ten-cartons-fresh-v3/liveRetry/episode/summary.json)
+
+### Carton-five approach geometry
+
+A scratch replay of the last 1,090 physics steps reproduced the earlier
+carton-five stop bit for bit. The nominal approach had 0.074 mm of IK position
+error and 0.011 degrees of orientation error at the goal. A 501-sample sweep
+of the nominal joint path found 19.69 mm minimum clearance for the affected
+ring-finger mesh. At the stop, the measured hand had zero carton contact
+force and the shelf carried 1.766 N.
+
+| Pose evaluated at the rejected tick | Ring-finger mesh distance to carton |
+| --- | ---: |
+| Measured configuration | +18.22 mm |
+| Nominal arm and fingers | +19.82 mm |
+| Compensated arm and proposed fingers | −2.057 mm |
+| Compensated arm with the previously applied fingers | −2.059 mm |
+| Compensated arm and fingers with nominal wrist | +12.49 mm |
+
+The planner used 20 degrees of pusher tilt for cartons two through four.
+At carton five, joint limits prevented the lower-tilt candidates from
+meeting the +3 degree yaw correction reserve. The selected 40 degree
+posture made the nominal approach 3.12 s, compared with 2 s for the
+earlier cartons.
+
+The controller planned with a nominal wrist reference of 0.200 rad and
+measured 0.211 rad. It generated a 0.361 rad servo target to compensate
+holding torque and damp wrist motion. The pre-actuation guard checked the
+arm and fingers at the combined servo target as a geometric pose. The
+wrist offset supplied the largest isolated contribution. The projected
+overlap exceeded the 2 mm limit even when the finger compensation update
+was held at its previous value.
+
+The opt-in `--screen-pusher-approach` previews settled gravity-compensated
+arm and finger targets on scratch data after front squaring. It checks the
+planned approach at multiple samples, then considers a wider standoff when
+the preview finds insufficient clearance. On the captured starts for cartons
+two through four, the original approaches retained more than 10 mm of
+projected carton clearance. For carton five, the gravity-only preview
+projected 1.44 mm of overlap at 20 mm standoff and 17.73 mm of clearance at
+45 mm with the same posture. The live controller checks every command with
+its measured-rate, load and collision guards during execution.
+
+- In the isolated native diagnostic, the 20 mm approach failed the new
+  preview. Replanning at 45 mm selected a 20 degree pusher posture with
+  27.29 mm projected clearance. The carton completed release and
+  withdrawal in 27.50 simulated seconds, with 0.0015 degrees final yaw
+  and zero tips or drops. Backstop contact occurred, but the strict squared
+  dwell remained open. The diagnostic started from the recorded
+  post-square state and earns zero fresh task credit.
+- The first fresh seed-0 process segfaulted during alignment for carton
+  three. A fresh restart reached carton five's loaded base move after
+  four logged withdrawals, then segfaulted during contact sampling.
+  Neither process produced a terminal episode score.
+- Seed 1 last logged the second carton's base move at 185.218 simulated
+  seconds. The outer process ended with status 143 near its 30-minute wall
+  budget, leaving its raw process record scheduled and its outcome unknown.
+
+- [Scratch geometry audit and reproduced guard result](../../outputs/runs/agent-harness/ten-cartons-fresh-v3/carton-five-geometry-audit.json)
+- [Isolated native approach and withdrawal diagnostic](../../outputs/runs/agent-harness/ten-cartons-servo-screen-v1/carton-five-local-screen/summary.json)
+- [Fresh trials, frozen source and process outcomes](../../outputs/runs/agent-harness/ten-cartons-servo-screen-v1/report.json)
+
+### Fresh runtime comparison with the approach screen
+
+The runtime comparison uses the same 20 mm nominal row budget, no
+prefilled products, the existing force and placement gates, and the
+opt-in servo approach screen. The seed-0 development trials compare
+MuJoCo 3.17 with the system allocator and a cached MuJoCo 3.16 build with
+the default allocator. The older build runs in a separate temporary
+environment with the other dependencies shared by path. These runtime
+trials probe process robustness and can produce different grasp or
+contact trajectories.
+
+The seed-1 trial adds an atomic phase and physics heartbeat with
+`--idle-seconds 120`. The heartbeat captures the current simulation time,
+product, phase, measured tracking error and contact loads once per
+simulated second. An idle termination records the last observed phase
+and elapsed time. Completed episode summaries still govern all stage
+scores.
+
+| Fresh trial | Pick | Shelf support | Strict final position | Verified retreat | First stop |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Seed 0, MuJoCo 3.17 and system allocator | 8 | 8 | 1 | 7 | Carton eight, front-square dwell timeout |
+| Seed 0, MuJoCo 3.16 | 2 | 2 | 1 | 1 | Carton two, front-square dwell timeout |
+| Seed 1, MuJoCo 3.17 and system allocator | 2 | 2 | 1 | 1 | Carton two, front-square dwell timeout |
+
+All three completed trials had zero tips or drops. The MuJoCo 3.17 seed-0
+run began from the same native reset state as the preceding fresh baseline
+and matched the first 386,017 issued commands exactly. After front
+squaring carton five, it rejected the 20 mm approach and selected a 45 mm
+approach with a 20 degree pusher tilt and 27.29 mm of projected clearance.
+Five through seven then completed guarded withdrawal. The initial run in
+the 3.16 environment stopped at a missing dependency. The recorded retry
+loaded the dependency through the project environment and compiled a
+distinct settled state.
+
+Carton eight reached within 0.54 mm of staging depth, stayed supported,
+and ended at 2.94 degrees yaw. A 3.05 mm lateral shortfall kept the
+paired-pad controller in its open-side guidance and prevented the
+strict square dwell. The two shorter trials reached the same control
+mode with 2.60 and 2.46 degrees of remaining yaw. In all three stops,
+the commanded pusher offset reached its 6 mm lateral limit and the
+carton moved less than 0.02 mm laterally in the final second. In the
+eighth-carton stop, the measured lateral force averaged +0.091 N while
+the desired shift was toward negative Y. The two second-carton stops
+averaged −0.255 N and −0.214 N.
+
+The development curriculum retains the fresh seed-0 eighth-carton and
+seed-1 second-carton entries and terminal states. The 3.16 checkpoint
+remains with the corresponding runtime artifacts.
+
+The four isolated yaw-first retries did not verify front squaring.
+The existing side-push-then-square routine exhausted its exposed-side
+approach search on two saved starts. A checked 60-degree clockwise
+base turn enabled an 8th-carton side shift of 6.08 mm before unloading.
+The subsequent squaring plan exhausted its posture search. A separate
+turn-back attempt stopped at the hand clearance check before turning.
+The isolated runs earn zero fresh task credit. The two primitive allocator probes both completed
+100,000 iterations. A successful seed-0 process under the system allocator
+adds a completed development episode, and the intermittent native crash
+remains open.
+
+- [Dual-camera fresh replay at 32×](../../outputs/runs/agent-harness/ten-cartons-runtime-v1/fresh-video/stocking-timeline.mp4)
+- [Bit-exact replay of all 635,757 physics steps](../../outputs/runs/agent-harness/ten-cartons-runtime-v1/fresh-video/result.json)
+- [Exact reset, policy, runtime and stage report](../../outputs/runs/agent-harness/ten-cartons-runtime-v1/report.json)
+- [Seed-0 fresh terminal summary](../../outputs/runs/agent-harness/ten-cartons-runtime-v1/mujoco317-malloc/episode/summary.json)
+
+### Matched seed study with supply position jitter
+
+The eight fresh runs use the same ten-carton fixture, MuJoCo 3.17,
+system allocator, frozen source, controller settings, and servo approach
+screen. Seeds 0 and 1 repeat the earlier development cases. Seeds 2–7
+extend the comparison. Each starts with an empty shelf and no restores.
+
+The reset samples each supply carton's X and Y independently within 2 mm
+of its nominal location. Start yaw, carton dimensions, mass, friction,
+target poses, shelf, and robot start are fixed. The largest observed
+planar shift of the same carton between two seeds is 5.08 mm. The row
+budget is still 20 mm across both walls and nine inter-carton gaps, or
+1.82 mm per nominal gap.
+
+| Seeds | Runs | Picks per run | Shelf placements per run | Strict final positions per run | Verified withdrawals per run |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0 | 1 | 8 | 8 | 1 | 7 |
+| 1–7 | 7 | 2 | 2 | 1 | 1 |
+
+All eight processes produced terminal outcomes. The suite recorded zero
+completed rows and zero tips or drops. Seed 0 reached the earlier
+eighth-carton stop, reproducing all 635,757 samples and actuator
+commands and its terminal integration state bit for bit.
+
+Seeds 1–7 each placed carton two and stopped at its front-square dwell.
+They reached within 0.11 mm of staging depth and ended 1.17–2.20 mm short
+of lateral corner clearance, with 2.46–2.63 degrees of yaw. The paired
+fingertips continued to command the 3-degree open-side steering posture.
+The lateral movement in the final second was at most 0.055 mm. Seed 1
+reproduced all 170,509 samples and actuator commands from its earlier
+run bit for bit.
+
+The difference emerges during unloading and opening. On all eight seeds,
+carton two aligned within 0.07 degrees before unloading. It landed on
+seed 0 at 1.70 degrees and Y = 53.66 mm. On seeds 1–7 it landed at
+4.90–5.08 degrees and Y = 57.36–57.67 mm, closer to the occupied side.
+That yaw range increases the planar Y footprint of the 50 mm carton by
+5.80–6.00 mm. The free-landing check verifies support, uprightness and
+hand clearance. The following squaring mode must recover the lateral
+and angular error left after release.
+
+This study tests a single geometry under supply position jitter. The
+policy plans from measured state and uses contact feedback during
+execution. The release and front-squaring sequence remains sensitive
+to the resulting landing pose.
+
+- [Measured second-carton yaw through release and squaring](../../outputs/runs/agent-harness/ten-cartons-seed-study-v1/carton-two-yaw.png)
+- [Seed comparison, provenance and per-carton stage evidence](../../outputs/runs/agent-harness/ten-cartons-seed-study-v1/report.json)
+
+### Lateral alignment from saved release states
+
+Contacting the exposed side gives the front pusher room to turn the
+carton. At the second-carton stops on seeds 1 and 4, a 3 mm centered
+side press reduced yaw from about 5° to 1.65° and 1.26° after unloading.
+A corner press in the opposite direction created about 4 mm of extra
+clearance for a front square. The square now holds a 0.10° loaded
+control goal before testing the existing 0.15° released yaw gate.
+
+| Saved second-carton start | Loaded side displacement | Yaw after square attempt | Verified front square |
+| --- | ---: | ---: | --- |
+| Seed 1 | 4.12 mm | 0.080° | Yes |
+| Seed 4 | 4.09 mm | 0.196° | Dwell timed out |
+| Seed 6 | 3.84 mm | 0.099° | Yes |
+
+The already stocked carton moved at most 0.022 mm in these three
+diagnostics. Seed 1 stopped during final release-goal search on the
+forward continuation. Seed 6 reached a two-carton stocking milestone,
+with verified release and 0.39° final yaw. Its strict final release yaw
+gate remained open. Repeating seed 6 with the unloaded-entry guard
+reproduced all 72,040 physics samples and actuator commands and the
+terminal integration state bit for bit. On the late seed-0 eighth-carton
+start, the side shift held after unloading and the swept geometry
+rejected the return base turn. A single-finger front-corner nudge timed
+out on all three starts where it was tried.
+
+Whole-row pressing was exercised separately. The four centered-side
+trials on three- and four-carton fixtures did not verify compaction.
+Two stopped before side contact. One reached the compensated-geometry
+guard and one could not sustain the measured open-span and support
+dwell. In the latter case, yaw left 3.92 mm of projected overlap in
+the row. The side-to-wall variant also timed out on the two four-carton
+starts where it was tried. The two-carton centered control reproduced
+the 1.45 mm open-span reserve after unloading. Its strict alignment
+and contact gate remained open.
+
+The centered row controller requested 12 N and the side-to-wall
+variant requested 16 N. The attempts on larger rows that reached
+contact averaged 3.16–3.42 N along the push direction over their last
+simulated second, with repeated reference saturation. The four-carton
+seed 6 recorded force at only two of three seams in both variants.
+The side-to-wall variant also requires wall contact and changes the
+travel budget, so these traces are evidence about the contact chain
+and motion limits. A paired force comparison would use the same motion
+variant and held reset state.
+
+These are isolated development probes with zero fresh stocking credit.
+The side-and-square sequence is opt-in through the checkpoint probe.
+
+- [Per-trial stage results and frozen source links](../../outputs/runs/agent-harness/side-compression-v1/report.json)
+- [Seed-6 forward continuation](../../outputs/runs/agent-harness/side-compression-v1/official-side-square-6/summary.json)

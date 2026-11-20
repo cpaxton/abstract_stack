@@ -157,3 +157,42 @@ def test_short_native_bimanual_tracking_retains_zero_external_forces(clear_robot
     assert np.all(env.data.xfrc_applied == 0)
     assert env.data.time > 2
     assert not np.any(env.data.warning.number)
+
+
+@pytest.mark.mabel
+def test_corrective_task_adapter_steps_natively_and_bounds_combined_offsets(clear_robot):
+    from abstract_stack.whole_body_task import (
+        CorrectionLimits,
+        PalmDelta,
+        WholeBodyTaskAdapter,
+        WristCompliance,
+    )
+
+    env = clear_robot
+    calls = []
+
+    def guard(guard_env):
+        assert guard_env is env
+        calls.append(float(env.data.time))
+
+    limits = CorrectionLimits(translation_m=0.001, rotation_rad=0.002)
+    adapter = WholeBodyTaskAdapter(env, guard=guard, limits=limits)
+    position, rotation = adapter.controller.nominal_poses()["left"]
+    goals = {"left": PalmGoal(position, rotation)}
+    delta = PalmDelta([0, 0, 0.1], [0, 0, 0.1])
+    compliance = WristCompliance([0, 0, 0.001], [0, 0, 0.01])
+    np.testing.assert_allclose(
+        compliance.correction([0, 0, -2, 0, 0, -0.1]).translation_m, [0, 0, -0.002]
+    )
+    previous_time = env.data.time
+    with pytest.raises(ValueError, match="targeted"):
+        adapter.advance(goals, deltas={"right": delta})
+    assert env.data.time == previous_time
+    result = adapter.advance(goals, deltas={"left": delta}, compliance={"left": compliance})
+    assert result["advanced"], result
+    assert len(calls) == env.config.frame_skip
+    assert result["elapsed_s"] == pytest.approx(env.dt)
+    assert "left" in result["measured_tracking"]
+    assert len(result["contact_wrenches_world"]["left"]) == 6
+    assert np.linalg.norm(result["corrections"]["left"]["translation_m"]) == pytest.approx(0.001)
+    assert np.linalg.norm(result["corrections"]["left"]["rotation_rad"]) == pytest.approx(0.002)

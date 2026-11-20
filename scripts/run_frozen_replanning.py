@@ -52,7 +52,39 @@ def freeze_sources(root, snapshot, arguments):
     return frozen, hashes
 
 
-def supervise(command, *, cwd, environment, log, wall_seconds):
+def wait_for_worker(process, started, wall_seconds, progress_path, idle_seconds):
+    if progress_path is None:
+        try:
+            process.wait(timeout=wall_seconds)
+        except subprocess.TimeoutExpired:
+            return "wall"
+        return None
+
+    last_update, previous_stamp = started, None
+    while process.poll() is None:
+        now = time.monotonic()
+        try:
+            stamp = progress_path.stat().st_mtime_ns
+        except FileNotFoundError:
+            stamp = None
+        if stamp is not None and stamp != previous_stamp:
+            last_update, previous_stamp = now, stamp
+        wall_left = wall_seconds - (now - started)
+        idle_left = idle_seconds - (now - last_update)
+        if wall_left <= 0:
+            return "wall"
+        if idle_left <= 0:
+            return "progress_idle"
+        try:
+            process.wait(timeout=min(wall_left, idle_left, 0.25))
+        except subprocess.TimeoutExpired:
+            continue
+    return None
+
+
+def supervise(
+    command, *, cwd, environment, log, wall_seconds, progress_path=None, idle_seconds=None
+):
     started = time.monotonic()
     with log.open("w") as stream:
         process = subprocess.Popen(
@@ -64,12 +96,13 @@ def supervise(command, *, cwd, environment, log, wall_seconds):
             start_new_session=True,
         )
         try:
-            process.wait(timeout=wall_seconds)
-            timed_out = False
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            timed_out = True
+            reason = wait_for_worker(process, started, wall_seconds, progress_path, idle_seconds)
+            if reason is not None:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
         except BaseException:
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL)
@@ -77,7 +110,8 @@ def supervise(command, *, cwd, environment, log, wall_seconds):
             raise
     return dict(
         returncode=process.returncode,
-        timeout=timed_out,
+        timeout=reason is not None,
+        timeout_reason=reason,
         wall_seconds=time.monotonic() - started,
         wall_budget_seconds=wall_seconds,
     )
