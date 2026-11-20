@@ -1,3 +1,4 @@
+import { Rolling } from "./latency";
 import type { StateFrame } from "./protocol";
 
 /**
@@ -8,7 +9,14 @@ import type { StateFrame } from "./protocol";
  * jitter only delays playback rather than making it stutter. Playback runs
  * `delayMs` behind that estimate and interpolates between the two bracketing frames
  * (lerp positions, nlerp quaternions — adequate at 20 ms spacing).
+ *
+ * With `adaptive`, `delayMs` tracks one frame period plus the 95th-percentile
+ * arrival lateness over the last ~2 s (plus a small margin): the least delay that
+ * still has a newer frame to interpolate toward. It rises quickly when jitter
+ * grows and eases down slowly, so playback speed never visibly changes.
  */
+const ADAPT_MARGIN_MS = 4;
+
 export class PoseBuffer {
   private frames: { frame: StateFrame; arrival: number }[] = [];
   private offset = Number.POSITIVE_INFINITY;
@@ -19,15 +27,23 @@ export class PoseBuffer {
   xpos = new Float32Array(0);
   xquat = new Float32Array(0);
   lastArrival = 0;
+  /** Host clock (s) of the pose last produced by `sample`, interpolated like the pose. */
+  sampledHostTime = Number.NaN;
 
-  constructor(delayMs = 40, capacity = 16) {
+  readonly adaptive: boolean;
+  private lateness = new Rolling(100);
+  private periodMs = 20;
+
+  constructor(delayMs = 40, capacity = 16, adaptive = false) {
     this.delayMs = delayMs;
     this.capacity = capacity;
+    this.adaptive = adaptive;
   }
 
   clear(): void {
     this.frames = [];
     this.offset = Number.POSITIVE_INFINITY;
+    this.lateness.clear();
   }
 
   push(frame: StateFrame, arrival: number = performance.now()): void {
@@ -46,6 +62,12 @@ export class PoseBuffer {
       this.offsetAge = arrival;
       if (!Number.isFinite(this.offset)) this.offset = candidate;
     }
+    if (last) {
+      const spacing = (frame.simTime - last.frame.simTime) * 1000;
+      if (spacing > 0 && spacing < 200) this.periodMs += 0.1 * (spacing - this.periodMs);
+    }
+    this.lateness.push(candidate - this.offset);
+    if (this.adaptive) this.adapt();
     this.frames.push({ frame, arrival });
     if (this.frames.length > this.capacity) this.frames.shift();
     this.lastArrival = arrival;
@@ -53,6 +75,15 @@ export class PoseBuffer {
       this.xpos = new Float32Array(frame.xpos.length);
       this.xquat = new Float32Array(frame.xquat.length);
     }
+  }
+
+  private adapt(): void {
+    const late = this.lateness.quantile(0.95) ?? 0;
+    const target = Math.min(120, this.periodMs + late + ADAPT_MARGIN_MS);
+    this.delayMs =
+      target > this.delayMs
+        ? Math.min(target, this.delayMs + 2) // ≤ 2 ms per frame: catch a jitter burst fast
+        : Math.max(target, this.delayMs - 0.25); // ≤ 12.5 ms/s: imperceptible slow-down
   }
 
   get latest(): StateFrame | undefined {
@@ -77,6 +108,7 @@ export class PoseBuffer {
     const t = span > 0 ? Math.min(1, Math.max(0, (simMs - a.simTime * 1000) / span)) : 1;
     // If playback is past the newest frame, hold it (no extrapolation of contacts).
     const alpha = simMs >= b.simTime * 1000 && i === n - 1 ? 1 : t;
+    this.sampledHostTime = a.hostTime + (b.hostTime - a.hostTime) * alpha;
     for (let k = 0; k < this.xpos.length; k++) {
       this.xpos[k] = a.xpos[k]! + (b.xpos[k]! - a.xpos[k]!) * alpha;
     }

@@ -187,15 +187,63 @@ Browser (web/)                                  Host (src/abstract_stack/web_tel
   eyes. Each pair goes out as one `QTP1` message, the Quest contract's stereo
   framing: `"QTP1"`, three big-endian uint32 lengths, JSON metadata, left JPEG,
   right JPEG. Rendering runs only while a client is subscribed, and the client
-  unsubscribes when no camera view is visible. Measured on an Apple-silicon
-  Mac: 20 pairs/s at 640×480 per eye, about 37 KB per pair (6 Mbit/s),
-  physics real-time factor 1.0. The client decodes off the main thread
-  (`createImageBitmap`), keeps only the newest pair, swaps both eyes together,
-  and flags video older than 300 ms as stale.
-- **Client performance.** 50 Hz poses go into a jitter buffer that plays back
-  about 40 ms behind the fastest observed arrival and interpolates at display
-  rate. High-rate data never touches React state; panels re-render at most
-  10 Hz.
+  unsubscribes when no camera view is visible. Head-camera rendering is
+  triangle-bound, so the render thread uses its own copy of the model in which
+  meshes used only by the base (swerve modules, wheels, chassis, lift mount)
+  and the head shell are simplified to about 8k faces each. The arms, hands
+  and torso stay at full resolution. The copy is pixel-identical at Ready with
+  the head fully down, and physics never sees it. Measured on an
+  Apple-silicon Mac: render 31 ms per pair instead of 43 ms, 20 pairs/s at
+  640×480 per eye, about 37 KB per pair (6 Mbit/s), physics real-time factor
+  1.0. The client decodes off the main thread (`createImageBitmap`), keeps
+  only the newest pair, swaps both eyes together, and draws each pair as soon
+  as it decodes instead of waiting for the next animation frame.
+- **Client performance.** 50 Hz poses go into an adaptive jitter buffer. It
+  plays back one frame period plus the 95th-percentile arrival lateness
+  (+4 ms) behind the fastest observed arrival, and interpolates at display
+  rate. That is about 28 ms on a LAN, and it grows on its own with jitter.
+  Commands go out once per display frame, just after that frame's input
+  handling (at most 125/s, with a 60 Hz timer fallback). High-rate data never
+  touches React state; panels re-render at most 10 Hz.
+
+### Latency
+
+The client syncs its clock to the host's `time.monotonic()` (NTP-style, using
+the lowest round trip of the last 16 pings: a burst of 5 at connect, then 1/s).
+It then measures each stage on one clock:
+
+| Stage | What it covers | Localhost before | Localhost now |
+|---|---|---|---|
+| Input → send | intent update to command on the wire | 17 ms (30 Hz timer, mean) | 0.3 ms |
+| Send → applied | network + wait for the next 50 Hz physics tick | 11 ms | 5–16 ms |
+| 3D view | host physics to pose drawn (network + jitter buffer) | 38 ms | 28 ms |
+| Camera | capture to frame drawn (render, encode, network, decode) | 49 ms | 35 ms |
+
+Values are medians on an Apple-silicon Mac with headless Chromium on GPU. "Drawn"
+means the canvas was updated; the display adds up to one refresh. Send → applied
+now depends on how the browser's frame timing happens to line up with the host's
+50 Hz tick (5 ms in one run, 16 ms in another; 0–20 ms is the possible range).
+Input → applied fell in every run (p95 about 35 → 18 ms or less). To reproduce
+against a running host:
+
+```bash
+cd web && node scripts/measure-latency.mjs "http://127.0.0.1:8080/?token=<token>" 20
+```
+
+The connection chip shows the latency of the view you steer by ("3D 28 ms" or
+"Video 35 ms"). Its tooltip and the Diagnostics card break it down by stage.
+
+**Stale views pause.** Commands keep flowing when only the picture freezes, so
+the host's input timeout would never fire. The client therefore watches the
+view you steer by: poses for the 3D view (stale after 250 ms), or video for the
+camera view (stale after 300 ms). Engage is refused while that view is stale,
+and an engaged session pauses itself, naming the reason ("Paused: camera video
+is 420 ms old"). Staleness has to persist for 150 ms, and the page's own stalls
+(a long frame on a slow device) are discounted, so a slow phone does not pause
+spuriously.
+
+WebSocket compression (permessage-deflate) is off by default, since frames are
+JPEG and float32 and gain little. Pass `--ws-deflate` to turn it on.
 
 ## Protocol (`web_teleop_v1`)
 
@@ -227,7 +275,11 @@ Implementations: `src/abstract_stack/web_teleop/protocol.py` and
    message self-contained, so a lost message never accumulates drift.
 5. `control {event_id, calibration_generation, action}` with actions
    `engage | pause | reset | ready` → `control_ack`.
-6. `ping {t0}` → `pong {t0, t1}` for round-trip display.
+6. `ping {t0}` → `pong {t0, t1}`: round trip, and clock sync (`t1` is the
+   host's `time.monotonic()`).
+7. `status` (10 Hz) includes `command_timing {sequence, sent_ms,
+   received_host_s, applied_host_s}` for the newest applied command, so the
+   client can measure send → applied.
 
 **Target epoch.** Whenever the host moves arm references on its own (engage,
 ready, reset), it increments `target_epoch` and publishes `arm_targets`. The
@@ -236,7 +288,7 @@ older epoch. That way a stale ghost can never yank the robot back.
 
 **State machine.** Disconnected → Ready (operator connected) → Engaged
 (deliberate engage) ⇄ Paused (operator pause, tab hidden, input older than
-`--input-timeout`, episode time limit). Fault covers non-finite physics or an
+`--input-timeout`, the view being steered by going stale, episode time limit). Fault covers non-finite physics or an
 invalid command and needs an explicit reset. There is no automatic resume.
 Pause is honoured even with an obsolete generation. Reset increments the
 generation and drops commands from older generations. While paused or
@@ -292,6 +344,11 @@ On macOS the tests use the GPU. `E2E_GPU=0` forces CPU rendering, and
 
 ## Limitations
 
+- **Latency is measured to the canvas, not the eye.** Every stage is on one
+  synced clock (accurate to ± half the best round trip), but the display's
+  scan-out, up to one refresh, is not included. Stale-view pausing is enforced
+  by the client; the host cannot check what the operator actually sees, and
+  relies on its own input timeout.
 - **Video is JPEG over WebSocket.** That is simple and low-latency on a LAN,
   but uses about 6 Mbit/s. For internet use, H.264 over WebRTC with
   congestion control is the planned upgrade. Wrist cameras are not streamed

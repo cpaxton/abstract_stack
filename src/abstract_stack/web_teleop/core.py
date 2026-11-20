@@ -71,6 +71,7 @@ class TeleopCore:
         self._spectators: set[str] = set()
         self._command: dict | None = None
         self._command_rx = 0.0
+        self._command_timing: dict | None = None
         self._accepted_sequence: int | None = None
         self._acks: OrderedDict[tuple[str, int], dict] = OrderedDict()
         self._episode_over = False
@@ -281,6 +282,7 @@ class TeleopCore:
         with self._lock:
             state = self._state
             command = self._command
+            received = self._command_rx
             if state is State.ENGAGED and (
                 command is None or now - self._command_rx > self.config.input_timeout_s
             ):
@@ -295,6 +297,17 @@ class TeleopCore:
         try:
             if state is State.ENGAGED and command is not None:
                 self.retargeter.apply_intent(command, dt)
+                if self._command_timing is None or (
+                    self._command_timing["sequence"] != command["sequence"]
+                ):
+                    # First tick that applies this command: browser-side uplink latency
+                    # is this host time (clock-synced) minus the echoed send time.
+                    self._command_timing = {
+                        "sequence": command["sequence"],
+                        "sent_ms": command["sent_monotonic_s"] * 1e3,
+                        "received_host_s": received,
+                        "applied_host_s": time.monotonic(),
+                    }
             # Velocity intents only count while engaged with fresh input; otherwise
             # the base brakes on its deceleration ramp (pause, timeout, disconnect).
             engaged_base = command["base"] if state is State.ENGAGED and command else None
@@ -340,6 +353,7 @@ class TeleopCore:
                 "tick": self._tick,
                 "sim_time_s": float(self.env.data.time),
                 "host_monotonic_s": time.monotonic(),
+                "command_timing": self._command_timing,
                 "real_time_factor": round(self._rtf, 3),
                 "step_ms": round(self._step_ms, 2),
                 "overruns": self._overruns,
@@ -370,6 +384,7 @@ class TeleopCore:
             "render_ms": round(video.stats["render_ms"], 1),
             "encode_ms": round(video.stats["encode_ms"], 1),
             "pair_bytes": video.stats["bytes"],
+            "simplified_meshes": video.stats["simplified_meshes"],
         }
 
     def _run(self) -> None:

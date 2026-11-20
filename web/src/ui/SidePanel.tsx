@@ -1,3 +1,4 @@
+import type { LatencySummary } from "../net/latency";
 import { SIDES, type Side } from "../net/protocol";
 import { clampChannels, intent, takeManualHead } from "../state/intent";
 import { syncMirror } from "../state/mirror";
@@ -182,8 +183,12 @@ function TaskCard() {
   );
 }
 
+const fmt = (summary: LatencySummary | null) =>
+  summary ? `${Math.round(summary.p50)} ms · p95 ${Math.round(summary.p95)}` : "—";
+
 function Diagnostics() {
   const status = useUi((s) => s.status);
+  const latency = useUi((s) => s.latency);
   if (!status) return null;
   const limited = [...new Set([...status.limits.rate_limited, ...status.limits.target_limited])];
   return (
@@ -200,6 +205,27 @@ function Diagnostics() {
         <dd className="mono">{status.calibration_generation}</dd>
         <dt>Spectators</dt>
         <dd className="mono">{status.spectators}</dd>
+        {latency && (
+          <>
+            <dt>Command → robot</dt>
+            <dd className="mono">{fmt(latency.uplink)}</dd>
+            <dt>3D view latency</dt>
+            <dd className="mono">
+              {fmt(latency.poseShown)} · buffer {Math.round(latency.bufferMs)} ms
+            </dd>
+            <dt>Camera latency</dt>
+            <dd className="mono">{fmt(latency.videoShown)}</dd>
+            <dt>Camera render</dt>
+            <dd className="mono">
+              {status.video ? `${status.video.render_ms} + ${status.video.encode_ms} ms` : "—"}
+            </dd>
+            <dt>Round trip</dt>
+            <dd className="mono">
+              {latency.rttMs === null ? "—" : `${latency.rttMs.toFixed(1)} ms`}
+              {latency.clockErrorMs === null ? "" : ` · clock ±${latency.clockErrorMs.toFixed(1)}`}
+            </dd>
+          </>
+        )}
         <dt>Limited joints</dt>
         <dd className="mono small">{limited.length ? limited.join(", ") : "none"}</dd>
       </dl>

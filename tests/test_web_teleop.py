@@ -742,3 +742,92 @@ def test_collision_guard_treats_products_as_manipulable(clear_env):
         assert env.model.body("shelf").id not in retargeter._movable
     finally:
         env.close()
+
+
+# -- latency -------------------------------------------------------------------------
+
+
+def test_status_echoes_when_each_command_was_applied(clear_env):
+    core, operator = _engaged_from_ready(clear_env)
+    command = _arm_command(core, 1, np.zeros(3)) | {"session_id": operator}
+    command["sent_monotonic_s"] = 1234.5  # browser clock, echoed back in ms
+    core.submit_command(operator, command)
+    before = time.monotonic()
+    core._tick_once(clear_env.dt)
+    timing = core._publish_status()["command_timing"]
+    assert timing["sequence"] == 1
+    assert timing["sent_ms"] == pytest.approx(1234500.0)
+    assert timing["received_host_s"] <= before <= timing["applied_host_s"] <= time.monotonic()
+    # The echo names the first tick that applied a command, not later re-applications.
+    core._tick_once(clear_env.dt)
+    assert core._publish_status()["command_timing"] == timing
+
+
+def test_video_render_model_simplifies_only_peripheral_meshes(clear_env):
+    from abstract_stack.web_teleop.video import PERIPHERAL_FACE_BUDGET, render_model
+
+    pytest.importorskip("fast_simplification")
+    model = clear_env.model
+    original = model.mesh_facenum.copy()
+    copy, simplified = render_model(model, PERIPHERAL_FACE_BUDGET)
+    assert simplified > 0 and copy is not model
+    assert np.array_equal(model.mesh_facenum, original)  # the live model is untouched
+    changed = {m for m in range(model.nmesh) if copy.mesh_facenum[m] != original[m]}
+    assert len(changed) == simplified
+    # The simplifier targets the budget but cannot always reach it on every mesh.
+    assert all(copy.mesh_facenum[m] < original[m] for m in changed)
+    keep = ("l_elbow", "r_forearm", "left_palm", "torso", "l_shoulder_1")
+    for geom in range(model.ngeom):
+        body = model.body(model.geom_bodyid[geom]).name
+        if body in keep and model.geom_type[geom] == mujoco.mjtGeom.mjGEOM_MESH:
+            assert int(model.geom_dataid[geom]) not in changed, body
+    # Faces actually drawn: shared meshes (three swerve modules) count per geom.
+    drawn = [
+        int(model.geom_dataid[g])
+        for g in range(model.ngeom)
+        if model.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH and model.geom_group[g] == 2
+    ]
+    assert copy.mesh_facenum[drawn].sum() < 0.75 * original[drawn].sum()  # ~0.70
+    assert (copy.nq, copy.nbody, copy.ngeom) == (model.nq, model.nbody, model.ngeom)
+
+
+def test_simplified_head_camera_render_matches_full_detail(clear_env):
+    from abstract_stack.web_teleop.retarget import READY_POSTURE
+    from abstract_stack.web_teleop.video import PERIPHERAL_FACE_BUDGET, render_model
+
+    pytest.importorskip("fast_simplification")
+    model = clear_env.model
+    simplified, _ = render_model(model, PERIPHERAL_FACE_BUDGET)
+    # Worst case for the base: arms at Ready, head fully down and turned.
+    pose = {**READY_POSTURE, "Neck Pitch": 0.785, "Neck Yaw": 0.9}
+    images = []
+    for render in (model, simplified):
+        data = mujoco.MjData(render)
+        data.qpos[:] = clear_env.data.qpos
+        for name, value in pose.items():
+            data.qpos[render.joint(name).qposadr[0]] = value
+        mujoco.mj_kinematics(render, data)
+        mujoco.mj_camlight(render, data)  # as the render thread does
+        with mujoco.Renderer(render, height=240, width=320) as renderer:
+            renderer.update_scene(data, camera="zed_left")
+            images.append(renderer.render().astype(int))
+    differing = (np.abs(images[0] - images[1]).max(axis=2) > 16).mean()
+    assert differing < 0.002, f"{differing:.2%} of pixels differ"
+
+
+def test_websocket_compression_is_opt_in(monkeypatch, clear_env, tmp_path):
+    pytest.importorskip("uvicorn")
+    import uvicorn
+
+    from abstract_stack.web_teleop import server as server_module
+    from abstract_stack.web_teleop.core import TeleopCore
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: calls.append(kwargs))
+    core = TeleopCore(clear_env)
+    for deflate in (False, True):
+        server_module.serve(
+            core, host="127.0.0.1", port=0, token=None, static_dir=None, ws_deflate=deflate
+        )
+    assert [call["ws_per_message_deflate"] for call in calls] == [False, True]

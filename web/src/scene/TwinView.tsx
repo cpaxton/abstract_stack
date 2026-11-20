@@ -74,7 +74,11 @@ function RobotTwin({
   const chassis = model.bodyIndex("mabel_chassis");
   const palms = { left: model.bodyIndex("left_palm"), right: model.bodyIndex("right_palm") };
   useFrame(() => {
-    if (!client.poses.sample()) return;
+    const now = performance.now();
+    if (!client.poses.sample(now)) return;
+    if (client.clock.synced) {
+      client.latency.poseShown.push(now - client.clock.toLocalMs(client.poses.sampledHostTime));
+    }
     applyPoses(model, client.poses.xpos, client.poses.xquat);
     const c = model.bodies[chassis];
     if (c) {
