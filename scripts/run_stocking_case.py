@@ -20,6 +20,9 @@ def main():
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--policy-source-ref", type=Path, help="Reuse an authenticated frozen controller source"
+    )
     parser.add_argument("--wall-seconds", type=float, default=300)
     parser.add_argument(
         "--idle-seconds",
@@ -39,17 +42,23 @@ def main():
     configuration = json.loads(content)
     write(args.output / "scene.json", configuration)
     root = Path(__file__).resolve().parents[1]
-    from abstract_stack.source_store import freeze_source
+    from abstract_stack.source_store import freeze_source, resolve_source_reference
 
-    frozen = freeze_source(
-        root,
-        paths=[
-            "src/abstract_stack",
-            "scripts/run_stocking_case.py",
-            "scripts/run_frozen_replanning.py",
-            "pyproject.toml",
-            "uv.lock",
-        ],
+    frozen = (
+        resolve_source_reference(
+            args.policy_source_ref, cache=root / "outputs/cache/source_runtime"
+        )
+        if args.policy_source_ref
+        else freeze_source(
+            root,
+            paths=[
+                "src/abstract_stack",
+                "scripts/run_stocking_case.py",
+                "scripts/run_frozen_replanning.py",
+                "pyproject.toml",
+                "uv.lock",
+            ],
+        )
     )
     frozen.write_reference(args.output / "source_ref.json")
     extra = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
@@ -142,6 +151,7 @@ def main():
         result.update(
             outcome="completed_episode",
             task_success=summary["task_success"],
+            success_criterion=summary.get("success_criterion", "clean_success"),
             failure=summary["failure"],
             stages=summary["stage_evaluation"],
         )

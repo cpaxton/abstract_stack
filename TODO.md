@@ -23,8 +23,20 @@ requires rewinding to an earlier boundary.
 
 - [x] Finish ten checkpoint-assisted withdrawals and verify the packed hold in
   the 20 mm development row with zero prefills and zero tip/drop incidents.
-- [ ] Reproduce ten strict final positions from reset, then verify the 10 mm
-  benchmark across independent scene starts.
+- [x] Complete the 20 mm packed-first row from reset on seed 5. All ten
+  withdrawals and the packed dwell passed at 1799.11 simulated seconds in
+  the original 1800 s budget.
+- [ ] Reproduce a packed row from reset on both 20 mm development seeds
+  (5 and 7), including all ten picks, placements and withdrawals. Report
+  strict positioning at the end of each run and after any later alignment
+  pass. Then freeze the controller for three untouched starts at 10 mm
+  before 5 mm.
+- [x] Run the successful frozen policy on a three-case public pose suite with
+  the same ten-carton geometry and 20 mm budget. Retain all grasp and side-push
+  failures and leave the paired held-out split sealed.
+- [ ] Validate recovery from the seed 7 shallow landing through final retreat.
+  Exercise the same re-registration and turn recovery on independent pose
+  variants before sweeping object size, shelf height/depth or materials.
 
 - [x] Share the existing dense selected-finger skill with ordinary stocking;
   opt in with `--ungrasped-insertion`. Recheck the pusher after native base moves.
@@ -36,8 +48,13 @@ requires rewinding to an earlier boundary.
 - [x] Complete the fresh tight three-carton sequence: all stages 3/3, zero
   prefills/incidents, 208.198 simulated seconds (`tight-three-14`). This has
   spacious walls and 3 mm target inter-carton gaps; it is not the whole-row test.
-- [x] Verify four retreats without restarting between objects in the 20 mm
-  development row. Track strict final positions separately.
+- [x] Verify nine retreats without restarting between objects in the 20 mm
+  development row. Seed 5 completed ten picks, ten shelf-supported
+  placements, five strict final positions and nine retreats. See the
+  [fresh results](docs/reports/whole_shelf_development.md#dense-recovery-from-an-empty-shelf).
+- [x] Finish the tenth retreat from seed 5's saved unloaded stop using a
+  screened chassis move. Verify the complete packed hold and retain the
+  exact arm-corridor failure in the retreat curriculum.
 - [x] Recover the ten-carton edge-slot transfer from a saved native state:
   interior front handoff, measured sidewall bracing, outer-finger insertion,
   backstop contact and full shelf exit. Final yaw -0.07586 degrees; zero

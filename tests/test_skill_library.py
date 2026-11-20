@@ -171,13 +171,13 @@ def test_annotate_events_marks_known_phases_and_ignores_unknown():
 
 
 def test_release_front_can_stop_before_the_push_when_composed():
-    from abstract_stack.interactions import StockingScript
+    from abstract_stack.interactions import ScriptConfig, StockingScript
 
     script = object.__new__(StockingScript)
     calls = []
     script.carry_reference = None
     script.payload_rotation_goal = None
-    script.config = SimpleNamespace(ungrasped_insertion=False)
+    script.config = ScriptConfig()
     script.product = SimpleNamespace(target=(-0.72, -0.12, 0.92))
     script.controller = SimpleNamespace(last_target=[-0.5, -0.12, 0.9])
     script._precision_release = lambda grip: calls.append("precision_release")

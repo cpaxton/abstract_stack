@@ -5,6 +5,20 @@ from __future__ import annotations
 import numpy as np
 
 
+def strict_final_position(events):
+    """Use the latest verified release and the measured back-contact witness."""
+    release = next((event for event in reversed(events) if event.get("verified_release")), {})
+    terminal = next(
+        (event for event in reversed(events) if event["phase"] == "dense_final_pose_recheck"), {}
+    )
+    return (
+        bool(release.get("placement_conditions", False))
+        and release.get("strict_release_yaw_verified", True)
+        and any(event.get("back_contact_verified", False) for event in events)
+        and terminal.get("verified", True)
+    )
+
+
 class StageObserver:
     def __init__(self, env):
         self.env = env
@@ -88,16 +102,13 @@ class StageObserver:
         products = {}
         for p in self.env.products:
             own = [e for e in events if e["product"] == p.name]
-            final = next((e for e in reversed(own) if e.get("verified_release")), {})
             retreat = self.retreat_results.get(p.name, {})
             products[p.name] = {
                 "initially_stocked": p.initially_stocked,
                 "attempted": any(e["phase"] == "grasp_precheck" for e in own),
                 "pick": any(e.get("verified_lift", False) for e in own),
                 "place": any(e.get("verified_shelf_support", False) for e in own),
-                "final_position": bool(final.get("placement_conditions", False))
-                and final.get("strict_release_yaw_verified", True)
-                and any(e.get("back_contact_verified", False) for e in own),
+                "final_position": strict_final_position(own),
                 "retreat": bool(retreat.get("verified", False)),
                 "retreat_evidence": retreat or None,
             }
@@ -120,15 +131,22 @@ def manipulation_evaluation(result):
         stage: sum(bool(products[name][stage]) for name in names)
         for stage in ("pick", "place", "final_position", "retreat")
     }
+    packed = (
+        bool(names)
+        and result["physical_success"]
+        and result["stage_evaluation"]["no_knockovers"]
+        and all(counts[stage] == len(names) for stage in ("pick", "place", "retreat"))
+    )
     return {
         "scheduled_manipulations": len(names),
         "scheduled_product_names": names,
         "prefilled_product_names": result["initially_stocked_products"],
         "stages": counts,
-        "clean_success": bool(names)
-        and result["physical_success"]
-        and result["stage_evaluation"]["no_knockovers"]
-        and all(count == len(names) for count in counts.values()),
+        "packed_success": packed,
+        "clean_success": packed and counts["final_position"] == len(names),
+        "remaining_alignment_products": [
+            name for name in names if not products[name]["final_position"]
+        ],
     }
 
 

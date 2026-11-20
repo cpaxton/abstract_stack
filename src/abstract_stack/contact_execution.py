@@ -32,6 +32,40 @@ def hand_clears_shelf(env, hand_bodies):
     )
 
 
+def finish_unloaded_exit_with_base(script, push_event):
+    """Use the checked chassis route once the unloaded hand is outside the shelf."""
+    from abstract_stack.base_motion import screen_base_translation
+    from abstract_stack.interactions import InteractionFailure
+
+    env, hand = script.env, script.controller
+    start = hand.position().copy()
+    distance = shelf_exit_distance(env, hand)
+    if script.observer.retreat is None:
+        script.observer.begin_retreat(script.product.name)
+    script._stage("unloaded_base_clear")
+    event = script.events[-1]
+    path = screen_base_translation(env, [distance, 0])
+    event["base_sweep"] = path
+    if not path["accepted"]:
+        raise InteractionFailure("unloaded_clear: base sweep rejected before actuation")
+    script._move_base([distance, 0], reason="unloaded_shelf_exit")
+    displacement = hand.position() - start
+    event["measured_tool_displacement_m"] = displacement.tolist()
+    if displacement[0] < distance - 0.005 or not hand_clears_shelf(env, script.hand_bodies):
+        raise InteractionFailure("unloaded_clear: base move did not verify shelf clearance")
+    monitor, _ = make_backstop_monitor(script)
+    try:
+        monitor.begin_unloaded_withdrawal(env.data)
+    except ValueError as error:
+        raise InteractionFailure("unloaded_clear: base move did not preserve support") from error
+    script.observer.end_retreat(script.product.name)
+    if not script.observer.retreat_results[script.product.name]["verified"]:
+        raise InteractionFailure("unloaded_clear: base move did not preserve the row")
+    push_event["unloaded_placement_clear"] = True
+    script.wrist_load = 0.0
+    event.update(verified_release=True, support_surface="shelf", fresh_task_credit=0)
+
+
 def sync_tracking_state(script):
     """Acknowledge executed references without relabeling compensated controls."""
     hand, tracker = script.controller, script.tracker
@@ -66,7 +100,7 @@ def make_backstop_monitor(script):
     return monitor, dwell
 
 
-def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
+def squared_contact_retreat(script, push_event, *, unloaded_entry=False, strict_finish=False):
     """Verify a fresh 2 ms dwell, then reuse the tested native withdrawal skill."""
     from abstract_stack.interactions import InteractionFailure
 
@@ -89,7 +123,7 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
         try:
             refine_supported_contact(script, monitor, dwell)
         except InteractionFailure as failure:
-            if str(failure) not in (
+            if strict_finish or str(failure) not in (
                 "contact_refine: no fresh guarded candidate",
                 "contact_refine: bounded release-goal search exhausted",
             ):
@@ -126,17 +160,24 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
             monitor.begin_unloaded_withdrawal(env.data)
         except ValueError:
             raise error from None
+        if (
+            unloaded_entry
+            and not strict_finish
+            and config.defer_final_alignment
+            and config.base_reposition
+            and hand_clears_shelf(env, script.hand_bodies)
+        ):
+            return finish_unloaded_exit_with_base(script, push_event)
         script._stage("unloaded_clear_forecast")
         forecast_event = script.events[-1]
         state = integration_state(env.model, env.data)
         attempts = []
         nominal_exit = shelf_exit_distance(env, hand)
         shorter_exit = max(0.04, nominal_exit - 0.035)
-        for straight_first, clear_distance in (
-            (True, nominal_exit),
-            (False, nominal_exit),
-            (False, shorter_exit),
-        ):
+        clearances = [(True, nominal_exit), (False, nominal_exit)]
+        if shorter_exit < nominal_exit:
+            clearances.append((False, shorter_exit))
+        for straight_first, clear_distance in clearances:
             forecast = ReleaseForecast(script)
             guarded = ContactMonitor(forecast.env.model, forecast.env.data, scene)
             guarded.begin_unloaded_withdrawal(forecast.env.data)
@@ -193,7 +234,7 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
             straight_retreat_first=straight_first,
             clear_distance_m=clear_distance,
         )
-    elif config.live_guarded_withdrawal:
+    elif config.live_guarded_withdrawal and not strict_finish:
         release_plan = dict(yaw_reference_deg=0.0, normal_target_N=None, mode="live_guards")
     else:
         release_plan = choose_release_reference(script, monitor, dwell)
@@ -215,15 +256,24 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
         if config.wall_packing and not unloaded
         else ()
     )
-    release_yaw_limit = 1.0 if config.live_guarded_withdrawal and not unloaded else 0.15
+    release_yaw_limit = (
+        1.0 if config.live_guarded_withdrawal and not unloaded and not strict_finish else 0.15
+    )
     exit_distance = release_plan.get("clear_distance_m", shelf_exit_distance(env, hand))
     feedback = WithdrawalFeedbackConfig(
         yaw_feedback=True,
         yaw_reference_deg=release_plan["yaw_reference_deg"],
         straight_retreat_first=release_plan.get("straight_retreat_first", True),
-        paired_plane_feedback=bool(getattr(hand, "fingers", ())),
+        paired_plane_feedback=release_plan.get(
+            "paired_plane_feedback", bool(getattr(hand, "fingers", ()))
+        ),
     )
-    if config.screen_supported_unload and neighbors and feedback.paired_plane_feedback:
+    if (
+        config.screen_supported_unload
+        and neighbors
+        and feedback.paired_plane_feedback
+        and not (config.dense_recovery and strict_finish)
+    ):
         feedback = choose_unload_feedback(
             script,
             monitor,
@@ -234,7 +284,8 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
             release_yaw_limit_deg=release_yaw_limit,
             coarse_loaded_entry=coarse_loaded,
         )
-    script.observer.begin_retreat(script.product.name)
+    if script.observer.retreat is None:
+        script.observer.begin_retreat(script.product.name)
     script._stage("release")
     release_event = script.events[-1]
     release_event["forecast_selected_reference"] = release_plan
@@ -263,7 +314,31 @@ def squared_contact_retreat(script, push_event, *, unloaded_entry=False):
     sync_tracking_state(script)
     release_event["supported_withdrawal"] = report
     if not report["release_retreat_verified"]:
+        held_unloaded_clearance = report["failure"] == "withdrawal_measured_tool_left_corridor" or (
+            report["applied_motion_bound_only"] and hand_clears_shelf(env, script.hand_bodies)
+        )
+        if (
+            config.defer_final_alignment
+            and not strict_finish
+            and not unloaded
+            and held_unloaded_clearance
+            and report["release_held_seconds"] >= 0.12
+            and script.last_forces["robot_product"] <= 0.2
+            and script.last_forces["shelf"] > 0.2
+            and not script.observer.incidents
+        ):
+            from abstract_stack.skill_entries import record_motion_failure
+
+            release_event["replan_from_measured_unloaded_state"] = True
+            release_event["recovery_capture_error"] = record_motion_failure(
+                script, f"release: {report['failure']}"
+            )
+            return squared_contact_retreat(
+                script, push_event, unloaded_entry=True, strict_finish=strict_finish
+            )
         raise InteractionFailure(f"release: {report['failure']}")
+    if strict_finish and not report["strict_release_yaw_verified"]:
+        raise InteractionFailure("release: strict yaw did not survive withdrawal")
     script.wrist_load = 0.0
     index = next(i for i, p in enumerate(env.products) if p.name == script.product.name)
     release_event.update(

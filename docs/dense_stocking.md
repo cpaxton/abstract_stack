@@ -80,13 +80,15 @@ the subsequent backstop-scope refinement is recorded separately. All failures
 remain in the report. The table spans several controller variants and must not
 be combined into an overall frozen-policy rate.
 
-The all-ten-from-table trial failed its first transfer IK filter, after one
-verified pick. Full stocking and robustness across fresh scenes remain open.
+The early all-ten-from-table trial failed its first transfer IK filter, after one
+verified pick. Later empty-shelf development reached eight verified withdrawals
+with the 20 mm fixture. Full strict stocking and robustness across fresh scenes
+remain open.
 The separate spacious-shelf 40/40 result does not establish dense success.
 Further tests stage on the shelf
 front to shorten the ungrasped push and replan wrist posture when a corrected
 target fails the unchanged IK filter. Initial base placement is explicit scene
-configuration; this script does not drive the base during an episode.
+configuration. The recovery profile below uses guarded native base motion.
 
 ![Native MABEL releasing a carton in the dense row](images/dense_insertion.png)
 
@@ -107,6 +109,115 @@ replace the failed process or explain its cause.
 Full traces, rejected plans, source fingerprints and failed outcomes stay in
 ignored `outputs/`. Saved-state continuation probes are development diagnostics
 and cannot replace fresh episodes in a success-rate denominator.
+
+## Fresh ten-carton recovery profile
+
+The `--dense-recovery` profile uses ordered released insertion, guarded
+withdrawal and native base motion. A compensated geometry stop can trigger
+a checked unload and up to two reapproaches. The retry selects a new standoff
+or a folded single-finger posture locally. After a side press, the stance
+planner checks the native base sweep and prospective tool approach together.
+If the short square hands off a supported carton with residual yaw, the forward
+push uses measured lateral registration before the carton overlaps its
+neighbors. The post-square handoff applies both during uninterrupted execution
+and when resuming the saved motion.
+
+The pickup planner can move an empty robot to an aisle stance after a swept
+pregrasp failure. It checks the base sweep, approach and descent before moving.
+Loaded shelf approaches use the measured grasp transform to check candidate
+stances and the complete approach, transfer and seat. If the nominal route
+fails, the planner can use a landing shifted toward the center in the verified
+free front band, then reobserve the carton after opening and clearing the hand.
+A relocated empty pusher also checks supply-table clearance along its
+gravity-compensated approach.
+
+A provisional placement requires board support, a cleared and verified
+retreat, yaw within 1°, enough measured room for the remaining cartons, and
+screened approaches for finishing and for the next carton. If capacity
+is exhausted, the planner can press the exposed end of a supported group
+toward its wall and measure the opening again. Deferred placements are
+finished before the final row dwell. The strict stage still requires a
+measured back-contact witness and released yaw within 0.15°.
+
+```bash
+PYTHONMALLOC=malloc OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  .venv/bin/python scripts/run_stocking_case.py --seed 5 \
+  --config configs/scenes/tight_ten_cartons_20mm.json \
+  --output outputs/runs/agent-harness/my-dense-recovery \
+  --wall-seconds 1800 --idle-seconds 150 -- \
+  --grasp-skill --base-reposition --ungrasped-insertion --paired-finger-insertion \
+  --wall-packing --live-guarded-withdrawal --guided-wall-entry --plan-driven \
+  --record-skill-starts --screen-pusher-approach --side-square-recovery \
+  --release-pose-feedback --balance-contact-alignment --screen-supported-unload \
+  --dense-recovery --control-config configs/controllers/early_registration_development.json
+```
+
+For saved-state development, `scripts/probe_front_release.py --insert-only
+--dense-recovery --strict-finish` checks the complete insertion and strict
+withdrawal from an authenticated skill entry. The saved native states and
+their live fresh episodes have separate ledgers. Use `--withdrawal --strict-finish`
+with a saved withdrawal-planning entry to exercise only the guarded exit.
+Near the end of a long rollout, `--skill-sim-seconds` assigns a local
+simulation budget measured from the saved native clock. The continuation
+reports both budgets and zero fresh-task credit.
+
+Add `--defer-final-alignment` to stock the entire shelf before scheduling
+fine alignment. A packed-first run requires all scheduled picks, shelf
+support and withdrawals, the original measured envelope and packed dwell,
+and zero tip/drop incidents. Its summary reports `packed_success`, the strict
+grade and the names of cartons still needing alignment.
+
+When an arm withdrawal reaches its measured corridor limit after unloading,
+the packed-first controller can replan from that state. If the measured hand
+already clears the shelf, the robot screens a short chassis retreat and
+monitors product displacement, contact and support while moving. The shelf
+clearance and row support must still pass after the retreat. The controller
+can also use this recovery after the applied motion check rejects an arm
+reference on step size alone. The rejected reference is never applied.
+
+For the final wall slot the packed-first controller tries a checked shorter
+stow above the carton, then approaches diagonally from a screened base stance.
+It can combine the side withdrawal and lift when a single coupled Cartesian
+path passes. During the final-carton sequence the idle right arm can skip a
+repeated stow wait when it holds the current stow reference and its measured
+posture has settled.
+
+If the measured pose rejects a planned turn before rotation starts, the
+workspace planner can screen one more stance from the actual base pose. It
+reserves two extra millimetres of predictive clearance, then applies the
+original live turn and force guards. A force abort remains terminal.
+
+Use a separate recentering probe when a shallow, unloaded carton still misses
+its reserved slot after squaring. The carton must have at least 12 mm of
+free depth ahead of the occupied row. The measured footprint must fit after
+the side press, unloading and turn back toward the shelf.
+The `front_square_deferred` checkpoint records this measured handoff separately
+from the earlier grasp release, so it can be replayed directly.
+
+```bash
+.venv/bin/python scripts/probe_front_release.py \
+  --checkpoint "$DEFERRED_SQUARE_CHECKPOINT" --output outputs/my-front-recenter \
+  --insert-only --dense-recovery --recenter-front --stop-after registration \
+  --record-skill-starts
+```
+
+With skill checkpoints enabled, a completed packed dwell saves a
+`packed_row_ready` entry. Use it, or a previously saved complete-row stocking
+milestone, to run corrective passes and recheck the packed dwell and strict
+poses:
+
+```bash
+.venv/bin/python scripts/probe_front_release.py \
+  --checkpoint "$PACKED_ROW_CHECKPOINT" --output outputs/my-row-correction \
+  --dense-recovery --finish-row --record-skill-starts
+```
+
+Use `--align-product carton_0` to limit the correction to a named carton.
+Repeat the flag to select several cartons. The row still passes the full
+packed hold before reporting the outcome of the requested corrections.
+
+See the [empty-shelf results](reports/whole_shelf_development.md#dense-recovery-from-an-empty-shelf)
+for the 20 mm development trials and remaining gates.
 
 For cardboard deformation, see the separate [material investigation](cardboard_simulation.md).
 Its panel indentation probes do not establish deformable grasping or insertion.

@@ -50,6 +50,7 @@ CAPTURED_ENTRIES = {
         "contact_finish",
         "front_insertion",
         "front_squaring_complete",
+        "front_square_deferred",
         "side_slide_unloaded",
         "motion_failure",
         "release_reapproach",
@@ -81,6 +82,7 @@ class CurriculumCase:
     historical_recovery: str | None = None
     replan_released_tool: bool = False
     rewind_case_id: str | None = None
+    skill_sim_seconds: float | None = None
 
 
 def load_curriculum(path, *, artifact_root):
@@ -104,6 +106,13 @@ def load_curriculum(path, *, artifact_root):
         or not case.lineage
         or (case.replan_released_tool and case.skill != "push")
         or (case.role == "recovery" and not case.original_failure)
+        or (
+            case.skill_sim_seconds is not None
+            and (
+                type(case.skill_sim_seconds) not in (int, float)
+                or not 0 < case.skill_sim_seconds <= 240
+            )
+        )
         for case in cases
     ):
         raise ValueError("Invalid curriculum skill, role, lineage or recovery evidence")
@@ -147,6 +156,18 @@ def _loaded_route_stop(entry):
     return (
         _failed_phase(entry) == "base_reposition_search"
         and entry["case"].get("failure") == "loaded_stage: no checked shelf approach candidate"
+    )
+
+
+def _unloaded_retreat_stop(entry):
+    phase = _failed_phase(entry)
+    return phase == "unloaded_clear_forecast" or (
+        phase == "release"
+        and entry["case"].get("failure")
+        in {
+            "release: withdrawal_measured_tool_left_corridor",
+            "release: withdrawal_final_applied_geometry_or_motion",
+        }
     )
 
 
@@ -233,8 +254,9 @@ def _admit(script, entry, skill):
             if entry["skill"] == "motion_failure":
                 if not (supported and grip is None and carry is None):
                     return False
-                if failed_phase == "unloaded_clear_forecast":
-                    return forces["hand"] <= 0.2
+                if _unloaded_retreat_stop(entry):
+                    arm_contact = contact_forces(env, script.product.name, script.arm_bodies)
+                    return arm_contact["hand"] <= 0.2
                 return (
                     failed_phase == "contact_refine"
                     and entry["case"].get("failure")
@@ -298,7 +320,11 @@ def _run_captured(script, skill, action, entry):
                 balance_contact_alignment=paired and script.config.balance_contact_alignment,
                 screen_supported_unload=paired and script.config.screen_supported_unload,
             )
-        if entry["skill"] in {"front_squaring_complete", "side_slide_unloaded"}:
+        if entry["skill"] in {
+            "front_squaring_complete",
+            "front_square_deferred",
+            "side_slide_unloaded",
+        }:
             script._insert_from_front(
                 retreat=False, precontact_standoff_m=script.config.post_square_pusher_standoff_m
             )
@@ -310,7 +336,7 @@ def _run_captured(script, skill, action, entry):
     return _retreat_captured(
         script,
         live=action == "live",
-        unloaded_entry=_failed_phase(entry) == "unloaded_clear_forecast",
+        unloaded_entry=_unloaded_retreat_stop(entry),
     )
 
 
@@ -430,6 +456,11 @@ class StockingCurriculumEnv(gym.Env):
         checkpoint = load_checkpoint(case.checkpoint)
         self.env = env = CheckpointContinuationEnv(checkpoint)
         env.restore_task_memory(checkpoint.context["task_memory"])
+        local_timing = (
+            env.set_skill_time_budget(case.skill_sim_seconds)
+            if case.skill_sim_seconds is not None
+            else None
+        )
         directory = self.output / f"{case.role}-{self._episode:03d}"
         directory.mkdir(parents=True, exist_ok=False)
         self.directory = directory
@@ -472,6 +503,7 @@ class StockingCurriculumEnv(gym.Env):
                 controller_initialization=controller_initialization,
                 head_gaze_restored=self.script.gaze is not None,
                 controller_overrides=self.control_overrides,
+                continuation_timing=local_timing,
                 status="ready" if admitted else "reset_rejected",
                 admitted=admitted,
                 source=policy_provenance(),

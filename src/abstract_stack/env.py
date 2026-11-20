@@ -167,12 +167,13 @@ class ShelfStockingEnv:
         }
 
     def _placement_conditions(self) -> np.ndarray:
+        contacts = self.data.contact
+        near_pairs = contacts.geom[contacts.dist <= 0.002]
+        bodies = self.model.geom_bodyid
         supported = set()
-        for contact in self.data.contact:
-            if contact.dist > 0.002:
-                continue
-            for geom, other in ((contact.geom1, contact.geom2), (contact.geom2, contact.geom1)):
-                supported.add((int(self.model.geom_bodyid[geom]), int(other)))
+        for first, second in near_pairs:
+            supported.add((int(bodies[first]), int(second)))
+            supported.add((int(bodies[second]), int(first)))
         good = np.zeros(len(self.products), dtype=bool)
         for i, (product, bid, joint) in enumerate(
             zip(self.products, self._product_bodies, self._product_joints, strict=True)

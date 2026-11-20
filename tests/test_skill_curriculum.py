@@ -65,11 +65,16 @@ def test_curriculum_manifest_pins_cases_under_an_explicit_root(tmp_path):
         checkpoint="one/checkpoint",
         manifest_sha256="a" * 64,
         original_failure="no admitted path",
+        skill_sim_seconds=90,
     )
     path.write_text(json.dumps(dict(schema_version=1, cases=[case])))
-    assert (
-        load_curriculum(path, artifact_root=tmp_path)[0].checkpoint == tmp_path / case["checkpoint"]
-    )
+    loaded = load_curriculum(path, artifact_root=tmp_path)[0]
+    assert loaded.checkpoint == tmp_path / case["checkpoint"]
+    assert loaded.skill_sim_seconds == 90
+
+    path.write_text(json.dumps(dict(schema_version=1, cases=[dict(case, skill_sim_seconds=-1)])))
+    with pytest.raises(ValueError, match="Invalid curriculum"):
+        load_curriculum(path, artifact_root=tmp_path)
 
     case["checkpoint"] = "../checkpoint"
     path.write_text(json.dumps(dict(schema_version=1, cases=[case])))

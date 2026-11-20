@@ -28,12 +28,15 @@ class LateralPushConfig:
     position_tolerance_m: float = 0.001
     contact_dwell_s: float = 0.12
     height_m: float = 0.028
+    standoff_m: float = 0.015
 
     def __post_init__(self):
         if any(not np.isfinite(v) or v <= 0 for v in vars(self).values()):
             raise ValueError("Lateral push settings must be finite and positive")
         if self.distance_limit_m > 0.05 or self.force_target_N >= 25:
             raise ValueError("Lateral push exceeds prototype distance/force bounds")
+        if not 0.01 <= self.standoff_m <= 0.015:
+            raise ValueError("Side standoff must stay within 10–15 mm")
 
     def velocity(self, force_in_push_direction_N):
         """Admittance: advance unloaded, stop at setpoint, unload excessive force."""
@@ -157,8 +160,13 @@ class LateralContact:
         yaw_candidates=(45, 30, 60, 90),
         brace_wall=False,
         near_front_corner=False,
+        prefer_low_tilt=False,
         stage_for_squaring=False,
+        released_goal=None,
+        wall_unload_ready=None,
         row_ready=None,
+        wall_staging_y=None,
+        from_wall_staging=False,
         front_contact_fraction=0.65,
         base_goal_xy=None,
         base_turn_rad=0.0,
@@ -166,8 +174,25 @@ class LateralContact:
         settings = settings or LateralPushConfig()
         if stage_for_squaring and (not near_front_corner or brace_wall):
             raise ValueError("Side staging requires the front-corner tool and a separate square")
+        if released_goal is not None and (
+            not (stage_for_squaring or brace_wall) or not callable(released_goal)
+        ):
+            raise ValueError("A measured release goal requires a staged or wall-side push")
+        if wall_unload_ready is not None and (not brace_wall or not callable(wall_unload_ready)):
+            raise ValueError("A wall unload predicate requires a wall-side push")
         if row_ready is not None and (not callable(row_ready) or brace_wall or stage_for_squaring):
             raise ValueError("Row presses use their own measured stop before guarded unloading")
+        if wall_staging_y is not None and (
+            not np.isfinite(wall_staging_y) or brace_wall or row_ready is not None
+        ):
+            raise ValueError("Wall staging needs a finite destination and a separate wall brace")
+        if from_wall_staging and not (
+            isinstance(self.controller, SideFingerPusher)
+            and self.controller.direction == direction
+            and self.last_forces["hand"] <= 0.2
+            and self.last_forces["shelf"] > 0.2
+        ):
+            raise InteractionFailure("lateral_plan: staged hand or carton lost clearance")
         if not np.isfinite(front_contact_fraction) or not 0 <= front_contact_fraction <= 0.65:
             raise ValueError(
                 "Side contact must stay between face center and the checked front patch"
@@ -204,6 +229,10 @@ class LateralContact:
         env = self.env
         body = env.data.body(self.product.name)
         start_body = body.xpos.copy()
+        if wall_staging_y is not None and direction * (wall_staging_y - start_body[1]) <= (
+            settings.distance_limit_m
+        ):
+            raise ValueError("Wall staging requires a destination beyond one bounded push")
         start_rotation = body.xmat.reshape(3, 3).copy()
         extent = np.abs(start_rotation) @ np.asarray(self.product.half_size)
         height = env.config.levels[self.product.level] + settings.height_m
@@ -212,13 +241,19 @@ class LateralContact:
         contact_x = start_body[0] + (
             front_contact_fraction * self.product.half_size[0] if near_front_corner else 0
         )
-        precontact = np.array([contact_x, start_body[1] - direction * (extent[1] + 0.015), height])
+        precontact = np.array(
+            [contact_x, start_body[1] - direction * (extent[1] + settings.standoff_m), height]
+        )
         raised = precontact + ([0.09, 0, 0.10] if near_front_corner else [0, 0, 0.14])
         # Use the existing checked high-clearance staging motion before
         # changing palm orientation; a direct joint interpolation from the
         # parked hand can sweep through the table even with a reachable endpoint.
         staging = [-0.30, -0.20, 1.35]
-        if near_front_corner:
+        staged_arm_reference = None
+        if from_wall_staging:
+            self._stage("lateral_staging_handoff")
+            self.events[-1]["measured_tool_position_m"] = self.controller.position().tolist()
+        elif near_front_corner:
             tool = self.controller.position().copy()
             if tool[0] < env.config.front_x + 0.04:
                 tool[0] = env.config.front_x + 0.08
@@ -226,7 +261,30 @@ class LateralContact:
             self._restore_grasp_hand()
             base = env.data.body("mabel_chassis").xpos
             staging = [base[0] - 0.26, base[1] - 0.20, 1.35]
-        self._move("lateral_stage", staging, carrying=False)
+        if not from_wall_staging:
+            if (
+                self.config.defer_final_alignment
+                and near_front_corner
+                and len(self.observer.completed) == len(env.products) - 1
+                and (wall_staging_y is not None or wall_unload_ready is not None)
+            ):
+                # Keep an overhead reserve above the supported carton without
+                # requiring the full high stow. The base rotation still
+                # screens the full robot geometry before turning.
+                compact_staging = staging.copy()
+                carton_top = env.config.levels[self.product.level] + 2 * extent[2]
+                compact_staging[2] = min(staging[2], float(carton_top + 0.15))
+                prediction = self.controller.predict(compact_staging, carrying=False)
+                self._stage("lateral_stage_plan")
+                self.events[-1].update(
+                    candidate_m=compact_staging,
+                    prediction=prediction.report(),
+                    selected=bool(prediction.feasible),
+                )
+                if prediction.feasible:
+                    staging = compact_staging
+            self._move("lateral_stage", staging, carrying=False)
+            staged_arm_reference = self.controller.command.tolist()
         self._stage("lateral_plan")
         candidates = []
         self.events[-1]["candidates"] = candidates
@@ -254,44 +312,65 @@ class LateralContact:
                 self._stage("lateral_plan")
                 self.events[-1]["candidates"] = candidates
             if base_turn_rad:
-                self._turn_base(base_turn_rad)
+                if self.config.dense_recovery:
+                    self._turn_base_from_clear_workspace(base_turn_rad)
+                else:
+                    self._turn_base(base_turn_rad)
                 self._stage("lateral_plan")
                 self.events[-1]["candidates"] = candidates
                 started = time.monotonic()
         wrists = (0.2, 0.0) if self.config.ungrasped_insertion else (0.2, 0.4, 0.0, 0.6)
         tilts = (0, 15, 30, 40) if near_front_corner else (20, 30, 40)
         raised_paths = ("joint",) if base_goal_xy is None else ("joint", "cartesian")
-        for yaw, tilt, wrist, raised_path in product(yaw_candidates, tilts, wrists, raised_paths):
+        angles = (
+            [(yaw, tilt) for tilt, yaw in product(tilts, yaw_candidates)]
+            if prefer_low_tilt
+            else list(product(yaw_candidates, tilts))
+        )
+        approaches = [
+            (
+                path,
+                dict(
+                    direction=direction,
+                    yaw_degrees=yaw,
+                    finger="Middle",
+                    tilt_degrees=tilt,
+                    wrist_posture=wrist,
+                    folded_flexion=1.5 if self.config.ungrasped_insertion else 1.0,
+                ),
+            )
+            for (yaw, tilt), wrist, path in product(angles, wrists, raised_paths)
+        ]
+        retained_parameters = getattr(self.controller, "tool_parameters", {})
+        if self.config.dense_recovery and from_wall_staging and retained_parameters:
+            approaches.insert(0, (None, retained_parameters.copy()))
+        hand_config = (
+            replace(self.config, ik_position_tolerance=0.002)
+            if self.config.ungrasped_insertion
+            else self.config
+        )
+        for raised_path, kwargs in approaches:
             if time.monotonic() - started > 45:
                 break
-            kwargs = dict(
-                direction=direction,
-                yaw_degrees=yaw,
-                finger="Middle",
-                tilt_degrees=tilt,
-                wrist_posture=wrist,
-                folded_flexion=1.5 if self.config.ungrasped_insertion else 1.0,
-            )
-            hand_config = (
-                replace(self.config, ik_position_tolerance=0.002)
-                if self.config.ungrasped_insertion
-                else self.config
-            )
             hand = SideFingerPusher(env.clone_for_planning(), hand_config, **kwargs)
             hand.command = self.controller.command.copy()
             candidate = {
                 **kwargs,
-                "waypoints_m": [raised.tolist(), precontact.tolist()],
+                "waypoints_m": [precontact.tolist()],
                 "raised_path": raised_path,
             }
             candidates.append(candidate)
-            prediction = hand.predict(
-                raised, alternatives=False, carrying=False, path_mode=raised_path
-            )
-            candidate["raised_prediction"] = prediction.report()
-            if not prediction.feasible:
-                continue
-            self._planning_pose(hand, prediction)
+            if raised_path is None:
+                hand.active_rotation = self.controller.active_rotation.copy()
+            else:
+                candidate["waypoints_m"].insert(0, raised.tolist())
+                prediction = hand.predict(
+                    raised, alternatives=False, carrying=False, path_mode=raised_path
+                )
+                candidate["raised_prediction"] = prediction.report()
+                if not prediction.feasible:
+                    continue
+                self._planning_pose(hand, prediction)
             prediction = hand.predict(
                 precontact, alternatives=False, carrying=False, path_mode="cartesian"
             )
@@ -319,7 +398,9 @@ class LateralContact:
         if selected is None:
             raise InteractionFailure("lateral_plan: no checked exposed-side approach; replan")
         self.events[-1]["selected"] = selected
-        self._change_hand(SideFingerPusher, **selected)
+        self.events[-1]["retained_side_tool"] = raised_path is None
+        if raised_path is not None:
+            self._change_hand(SideFingerPusher, **selected)
         if self.config.ungrasped_insertion:
             self.controller.config = replace(self.config, ik_position_tolerance=0.002)
         self.events[-1]["controller_ik_position_tolerance_m"] = (
@@ -327,7 +408,7 @@ class LateralContact:
         )
         if raised_path == "cartesian":
             self._cartesian_move("lateral_orient_high", raised, speed_m_s=0.08)
-        else:
+        elif raised_path == "joint":
             self._move(
                 "lateral_orient_high",
                 raised,
@@ -341,6 +422,23 @@ class LateralContact:
         origin = target.copy()
         desired_y = start_body[1] + direction * distance_m
         half_height = self.product.half_size[2]
+        if wall_staging_y is not None:
+            # Reserve 5 mm for unloading and settling before the wall-braced move.
+            staging_margin = 0.005
+            staging_max_gap = settings.distance_limit_m - staging_margin
+
+            def wall_stage_ready():
+                supported_center_y = body.xpos[1] - half_height * body.xmat[5]
+                remaining_to_wall = direction * (wall_staging_y - supported_center_y)
+                yaw = abs(np.arctan2(body.xmat[3], body.xmat[0]))
+                return staging_margin <= remaining_to_wall <= staging_max_gap and yaw <= (
+                    np.radians(5.0)
+                )
+
+            event.update(
+                wall_staging_goal_world_y_m=float(wall_staging_y),
+                wall_staging_max_remaining_m=staging_max_gap,
+            )
         bottom_center_y = desired_y - half_height * start_rotation[1, 2]
         if near_front_corner:
             # The center can move several millimetres while a tall carton
@@ -355,6 +453,7 @@ class LateralContact:
             forecast="robot/finger kinematics only; no lateral object dynamics certificate",
             settings=vars(settings),
             row_capacity_stop=row_ready is not None,
+            staged_arm_reference=staged_arm_reference,
             samples=[],
             yaw_controller_goal_deg=0.15 if self.config.paired_finger_insertion else None,
             x_reference_bound_m=0.015,
@@ -394,7 +493,10 @@ class LateralContact:
                 event.setdefault("wall_moment_feedback_samples", []).append(
                     [float(env.data.time), wall_normal, moment, float(target[0])]
                 )
-            if self.config.paired_finger_insertion and not brace_wall:
+            tracking_open_side = not brace_wall or (
+                wall_unload_ready is not None and wall_normal < self.config.contact_threshold
+            )
+            if self.config.paired_finger_insertion and tracking_open_side:
                 matrix = body.xmat.reshape(3, 3)
                 yaw = float(np.arctan2(matrix[1, 0], matrix[0, 0]))
                 lever = float(
@@ -402,7 +504,13 @@ class LateralContact:
                 )
                 contact = self.last_forces.get("hand_contact_position_world_m")
                 measured_x = contact[0] if contact is not None else self.controller.position()[0]
-                center_x = body.xpos[0] + (contact_x - start_body[0])
+                # Near the wall, keep the contact patch anchored along shelf
+                # depth. Following the moving carton reinforces depth drift.
+                center_x = (
+                    contact_x
+                    if wall_unload_ready is not None
+                    else body.xpos[0] + (contact_x - start_body[0])
+                )
                 vx = (
                     2 * (center_x + lever - measured_x)
                     + (start_body[0] - body.xpos[0])
@@ -492,6 +600,13 @@ class LateralContact:
                 verified = verified and abs(np.arctan2(matrix[1, 0], matrix[0, 0])) <= np.radians(
                     yaw_limit
                 )
+            if wall_unload_ready is not None and wall_unload_ready():
+                verified = (
+                    had_push_contact
+                    and self.last_forces["shelf"] > 0.2
+                    and upright
+                    and abs(body.xpos[0] - start_body[0]) <= 0.005
+                )
             if row_ready is not None:
                 verified = (
                     had_push_contact
@@ -499,6 +614,14 @@ class LateralContact:
                     and upright
                     and abs(body.xpos[0] - start_body[0]) <= 0.005
                     and row_ready()
+                )
+            if wall_staging_y is not None:
+                verified = (
+                    had_push_contact
+                    and self.last_forces["shelf"] > 0.2
+                    and upright
+                    and abs(body.xpos[0] - start_body[0]) <= 0.005
+                    and wall_stage_ready()
                 )
             held = held + env.dt if verified else 0.0
             if held >= settings.contact_dwell_s:
@@ -522,20 +645,49 @@ class LateralContact:
         )
         unload = [0, -direction * unload_distance, 0]
         self._cartesian_move("lateral_unload", target + unload, allowed_object=self.product.name)
+        retain_wall_tool = self.config.dense_recovery and wall_staging_y is not None
+        direct_wall_exit = False
         if near_front_corner:
             event["unloaded_position_world_m"] = env.data.body(self.product.name).xpos.tolist()
             event["unloaded_hand_normal_N"] = self.last_forces["hand"]
             if self.last_forces["hand"] > 0.2:
                 raise InteractionFailure("lateral_unload: hand still loaded after side clearance")
-            self._cartesian_move("lateral_front_exit", self.controller.last_target + [0.06, 0, 0])
-        self._cartesian_move(
-            "lateral_clear",
-            self.controller.last_target + [0, 0, 0.04],
-        )
+            if self.config.dense_recovery and wall_unload_ready is not None:
+                exit_goal = self.controller.last_target + [0, 0, 0.04]
+                exit_goal[0] = max(exit_goal[0], env.config.front_x + 0.08)
+                exit_prediction = self.controller.predict(
+                    exit_goal, alternatives=False, carrying=False, path_mode="cartesian"
+                )
+                event["direct_wall_exit_prediction"] = exit_prediction.report()
+                if exit_prediction.feasible:
+                    self._cartesian_move("lateral_front_exit", exit_goal)
+                    direct_wall_exit = True
+            if not (retain_wall_tool or direct_wall_exit):
+                self._cartesian_move(
+                    "lateral_front_exit", self.controller.last_target + [0.06, 0, 0]
+                )
+        if not (retain_wall_tool or direct_wall_exit):
+            self._cartesian_move(
+                "lateral_clear",
+                self.controller.last_target + [0, 0, 0.04],
+            )
         final = env.data.body(self.product.name)
         error = abs(float(final.xpos[1] - desired_y))
+        position_verified = (
+            released_goal()
+            if released_goal is not None
+            else row_ready is not None
+            or (
+                wall_stage_ready()
+                if wall_staging_y is not None
+                else error <= settings.position_tolerance_m
+            )
+        )
+        event.update(
+            final_lateral_error_m=error, released_position_verified=bool(position_verified)
+        )
         if (
-            (row_ready is None and error > settings.position_tolerance_m)
+            not position_verified
             or self.last_forces["hand"] > 0.2
             or self.last_forces["shelf"] <= 0.2
             or abs(final.xpos[0] - start_body[0]) > 0.005
@@ -547,9 +699,13 @@ class LateralContact:
             raise InteractionFailure("lateral_retreat: product incident recorded")
         event.update(
             lateral_staging_verified=stage_for_squaring,
-            verified_lateral_displacement=not stage_for_squaring and row_ready is None,
-            retreat_verified=True,
-            final_lateral_error_m=error,
+            verified_lateral_displacement=(
+                not stage_for_squaring and row_ready is None and wall_staging_y is None
+            ),
+            wall_staging_verified=wall_staging_y is not None,
+            retained_wall_staging_tool=retain_wall_tool,
+            direct_wall_exit_verified=direct_wall_exit,
+            retreat_verified=not retain_wall_tool,
         )
         return event
 

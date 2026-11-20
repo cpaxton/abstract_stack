@@ -52,8 +52,8 @@ def freeze_sources(root, snapshot, arguments):
     return frozen, hashes
 
 
-def wait_for_worker(process, started, wall_seconds, progress_path, idle_seconds):
-    if progress_path is None:
+def wait_for_worker(process, started, wall_seconds, progress_path, idle_seconds, stop_event=None):
+    if progress_path is None and stop_event is None:
         try:
             process.wait(timeout=wall_seconds)
         except subprocess.TimeoutExpired:
@@ -63,27 +63,40 @@ def wait_for_worker(process, started, wall_seconds, progress_path, idle_seconds)
     last_update, previous_stamp = started, None
     while process.poll() is None:
         now = time.monotonic()
-        try:
-            stamp = progress_path.stat().st_mtime_ns
-        except FileNotFoundError:
-            stamp = None
-        if stamp is not None and stamp != previous_stamp:
-            last_update, previous_stamp = now, stamp
+        if stop_event is not None and stop_event.is_set():
+            return "interrupted"
         wall_left = wall_seconds - (now - started)
-        idle_left = idle_seconds - (now - last_update)
         if wall_left <= 0:
             return "wall"
-        if idle_left <= 0:
-            return "progress_idle"
+        interval = min(wall_left, 0.25)
+        if progress_path is not None:
+            try:
+                stamp = progress_path.stat().st_mtime_ns
+            except FileNotFoundError:
+                stamp = None
+            if stamp is not None and stamp != previous_stamp:
+                last_update, previous_stamp = now, stamp
+            idle_left = idle_seconds - (now - last_update)
+            if idle_left <= 0:
+                return "progress_idle"
+            interval = min(interval, idle_left)
         try:
-            process.wait(timeout=min(wall_left, idle_left, 0.25))
+            process.wait(timeout=interval)
         except subprocess.TimeoutExpired:
             continue
     return None
 
 
 def supervise(
-    command, *, cwd, environment, log, wall_seconds, progress_path=None, idle_seconds=None
+    command,
+    *,
+    cwd,
+    environment,
+    log,
+    wall_seconds,
+    progress_path=None,
+    idle_seconds=None,
+    stop_event=None,
 ):
     started = time.monotonic()
     with log.open("w") as stream:
@@ -96,7 +109,9 @@ def supervise(
             start_new_session=True,
         )
         try:
-            reason = wait_for_worker(process, started, wall_seconds, progress_path, idle_seconds)
+            reason = wait_for_worker(
+                process, started, wall_seconds, progress_path, idle_seconds, stop_event
+            )
             if reason is not None:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
@@ -110,8 +125,9 @@ def supervise(
             raise
     return dict(
         returncode=process.returncode,
-        timeout=reason is not None,
-        timeout_reason=reason,
+        timeout=reason in ("wall", "progress_idle"),
+        timeout_reason=reason if reason != "interrupted" else None,
+        **({"interrupted": True} if reason == "interrupted" else {}),
         wall_seconds=time.monotonic() - started,
         wall_budget_seconds=wall_seconds,
     )

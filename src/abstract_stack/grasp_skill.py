@@ -215,7 +215,9 @@ def select_grasp(script, pending):
     raise InteractionFailure("No checked object-aligned grasp candidate; no grasp motion commanded")
 
 
-def plan_pregrasp_route(script, target, rotation):
+def plan_pregrasp_route(
+    script, target, rotation, *, planning_hand=None, report=None, budget=12.0, descent_target=None
+):
     """Check empty-hand transit around the shelf roof on independent data.
 
     A reachable pregrasp endpoint does not certify the route from the raised
@@ -223,12 +225,14 @@ def plan_pregrasp_route(script, target, rotation):
     """
     from abstract_stack.interactions import CartesianHand
 
-    env, live = script.env, script.controller
+    env = script.env
+    live = script.controller if planning_hand is None else planning_hand
     target = np.asarray(target)
     start = live.position().copy()
-    script._stage("pregrasp_route")
-    event = script.events[-1]
-    event.update(candidates=[], wall_budget_seconds=12.0, empty_hand=True)
+    if report is None:
+        script._stage("pregrasp_route")
+        report = script.events[-1]
+    report.update(candidates=[], wall_budget_seconds=budget, empty_hand=True)
     routes = [[]]
     for clearance in (0.20, 0.26):
         front = env.config.front_x + clearance
@@ -249,15 +253,18 @@ def plan_pregrasp_route(script, target, rotation):
         )
     started = time.monotonic()
     for waypoints in routes:
-        if time.monotonic() - started > 12:
+        if time.monotonic() - started > budget:
             break
-        clone = CartesianHand(env.clone_for_planning(), script.config)
+        scratch = env.clone_for_planning()
+        if planning_hand is not None:
+            mujoco.mj_copyData(scratch.data, scratch.model, planning_hand.data)
+        clone = CartesianHand(scratch, script.config)
         clone.command = live.command.copy()
         clone.abduction_targets = dict(live.abduction_targets)
         clone.open_posture_overrides = dict(live.open_posture_overrides)
         clone.active_rotation = np.asarray(rotation).copy()
         row = dict(waypoints_m=[p.tolist() for p in waypoints], predictions=[])
-        event["candidates"].append(row)
+        report["candidates"].append(row)
         for point in [*waypoints, target]:
             prediction = clone.predict(
                 point, alternatives=False, grip=0, carrying=False, path_mode="cartesian"
@@ -267,14 +274,124 @@ def plan_pregrasp_route(script, target, rotation):
                 break
             script._planning_pose(clone, prediction)
         else:
-            event.update(
+            if descent_target is not None:
+                descent = clone.predict(
+                    descent_target,
+                    alternatives=False,
+                    grip=0,
+                    carrying=False,
+                    path_mode="cartesian",
+                )
+                row["descent_prediction"] = descent.report()
+                if not descent.feasible and script.config.dense_recovery:
+                    descent = clone.predict(
+                        descent_target,
+                        alternatives=False,
+                        grip=0,
+                        carrying=False,
+                        path_mode="joint",
+                    )
+                    row["joint_descent_prediction"] = descent.report()
+                if not descent.feasible:
+                    continue
+            report.update(
                 selected_waypoints_m=row["waypoints_m"],
                 wall_seconds=time.monotonic() - started,
                 decision="execute_rechecked_empty_cartesian_route",
             )
             return waypoints
-    event.update(wall_seconds=time.monotonic() - started, decision="hold_for_base_or_route_replan")
+    report.update(wall_seconds=time.monotonic() - started, decision="hold_for_base_or_route_replan")
     raise InteractionFailure("pregrasp_route: no checked empty-hand route around shelf fixtures")
+
+
+def replan_pregrasp_workspace(script, target, rotation, descent_target):
+    """Choose one bounded base stance that admits the full empty grasp route."""
+    from abstract_stack.base_motion import (
+        BaseMotionConfig,
+        rotate_planning_base,
+        screen_base_translation,
+    )
+    from abstract_stack.navigation import plan_base_path
+
+    env, live, config = script.env, script.controller, script.config
+    chassis = env.data.body("mabel_chassis")
+    base = chassis.xpos[:2].copy()
+    heading = float(np.arctan2(chassis.xmat[3], chassis.xmat[0]))
+    delta = env.config.robot_yaw - heading
+    nominal_turn = float(np.arctan2(np.sin(delta), np.cos(delta)))
+    script._stage("pregrasp_workspace_replan")
+    event = script.events[-1]
+    deadline = time.monotonic() + 28.0
+    event.update(candidates=[], wall_budget_seconds=28.0)
+    offsets = (
+        (0.04, 0),
+        (0, -0.05),
+        (0, 0.05),
+        (-0.04, 0),
+        (0.04, -0.05),
+        (0.04, 0.05),
+        (0.08, 0),
+        (0, -0.10),
+        (0, 0.10),
+        (0.08, -0.06),
+        (0.08, 0.06),
+        (0.12, -0.05),
+    )
+    moves = [(dx, dy, 0.0) for dx, dy in offsets]
+    if np.radians(10) <= abs(nominal_turn) <= np.pi / 2:
+        aisle_offsets = ((0.04, 0), (0.08, 0), (0.12, 0), (0.16, 0.05), (0.20, 0), (0.20, -0.05))
+        moves = [
+            (dx, dy, angle)
+            for angle in (nominal_turn, nominal_turn / 2)
+            for dx, dy in aisle_offsets
+        ] + moves
+    turn_settings = BaseMotionConfig(path_margin_m=0.016)
+    for dx, dy, angle in moves:
+        if time.monotonic() >= deadline:
+            break
+        shift = np.array([dx, dy])
+        row = dict(
+            displacement_xy_m=shift.tolist(),
+            turn_rad=angle,
+            navigable=bool(plan_base_path(env, base, base + shift)),
+        )
+        event["candidates"].append(row)
+        if not row["navigable"]:
+            continue
+        scratch = _scratch_empty_hand(env, live, config, shift)
+        if angle:
+            row["turn_geometry"] = screen_base_translation(
+                env, [0, 0], config=turn_settings, turn_rad=angle, planning=scratch
+            )
+            if not row["turn_geometry"]["accepted"]:
+                continue
+            rotate_planning_base(scratch, angle)
+        scratch.active_rotation = np.asarray(rotation).copy()
+        endpoint = scratch.predict(target, alternatives=False, check_path=False, carrying=False)
+        row["endpoint"] = endpoint.report()
+        if not endpoint.feasible:
+            continue
+        try:
+            plan_pregrasp_route(
+                script,
+                target,
+                rotation,
+                planning_hand=scratch,
+                report=row,
+                budget=min(3.0, max(0.0, deadline - time.monotonic())),
+                descent_target=descent_target,
+            )
+        except InteractionFailure:
+            continue
+        event["selected_displacement_xy_m"] = shift.tolist()
+        event["selected_turn_rad"] = angle
+        script._move_base(shift, reason="inventory_grasp_workspace")
+        if angle:
+            actual = env.data.body("mabel_chassis").xmat
+            change = heading + angle - float(np.arctan2(actual[3], actual[0]))
+            script._turn_base(float(np.arctan2(np.sin(change), np.cos(change))))
+        return True
+    return False
 
 
 def navigate_to_inventory(script, pending, *, pregrasp=None, rotation=None):

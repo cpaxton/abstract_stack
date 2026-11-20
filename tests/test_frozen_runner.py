@@ -7,6 +7,7 @@ import runpy
 import signal
 import sys
 from pathlib import Path
+from threading import Event, Timer
 
 import pytest
 
@@ -123,3 +124,25 @@ time.sleep(30)
     assert result["timeout_reason"] == "progress_idle"
     assert result["returncode"] == -signal.SIGKILL
     assert progress.read_text() == "5"
+
+
+def test_parallel_shutdown_interrupts_worker_without_labeling_it_a_timeout(tmp_path, runner):
+    stop = Event()
+    timer = Timer(0.2, stop.set)
+    timer.start()
+    try:
+        result = runner["supervise"](
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            cwd=tmp_path,
+            environment=os.environ.copy(),
+            log=tmp_path / "run.log",
+            wall_seconds=5,
+            stop_event=stop,
+        )
+    finally:
+        timer.cancel()
+        timer.join()
+    assert result["returncode"] == -signal.SIGKILL
+    assert result["interrupted"]
+    assert not result["timeout"]
+    assert result["timeout_reason"] is None

@@ -171,8 +171,10 @@ def worker(args):
     state = checkpoint.controller
     skill = checkpoint.context["skill_entry"]["skill"]
     expected = (
-        {"stocking_milestone"}
-        if args.bimanual_clear or args.verify_row
+        {"stocking_milestone", "packed_row_ready"}
+        if args.verify_row or args.finish_row
+        else {"stocking_milestone"}
+        if args.bimanual_clear
         else {"motion_failure"}
         if args.unloaded_clear
         else {"stocking_milestone", "grasp_lift"}
@@ -183,11 +185,23 @@ def worker(args):
         if args.resume_wall_clearance
         else {"free_landing"}
         if args.register_wall
+        else {"front_insertion", "front_squaring_complete", "front_square_deferred"}
+        if args.recenter_front
         else {"free_landing"}
         if args.stop_after == "registration" and not args.side_offset_m
-        else {"stocking_milestone", "front_insertion", "front_squaring_complete"}
+        else {
+            "stocking_milestone",
+            "front_insertion",
+            "front_squaring_complete",
+            "front_square_deferred",
+        }
         if args.stop_after == "registration" and args.side_offset_m
-        else {"front_insertion", "contact_finish", "front_squaring_complete"}
+        else {
+            "front_insertion",
+            "contact_finish",
+            "front_squaring_complete",
+            "front_square_deferred",
+        }
         if args.insert_only
         else {"release_retreat", "contact_refinement", "withdrawal_planning", "motion_failure"}
         if args.withdrawal
@@ -195,6 +209,24 @@ def worker(args):
         if args.transfer
         else {"front_release"}
     )
+    dense_stop = None
+    if args.dense_recovery and args.insert_only and skill == "motion_failure":
+        case = checkpoint.context["skill_entry"]["case"]
+        dense_stop = case.get("failed_phase")
+        allowed_stops = {
+            "finger_push": "payload_load: compensated arm/finger geometry rejected",
+            "base_turn_plan": "base_turn: yaw sweep rejected before actuation",
+            "front_square_clear": "front_square: yaw did not survive unloading",
+        }
+        if (
+            dense_stop not in allowed_stops
+            or case.get("failure") != allowed_stops[dense_stop]
+            or state["active_grip"] is not None
+            or state["carry_reference"] is not None
+            or checkpoint.context["observer_history"]["incidents"]
+        ):
+            raise ValueError("Dense recovery requires an incident-free insertion geometry stop")
+        expected = {"motion_failure"}
     if state["kind"] != "stocking_skill_entry" or skill not in expected:
         raise ValueError(f"Checkpoint skill {skill!r} does not match {sorted(expected)}")
     if args.transfer and args.lead_landing and skill != "motion_failure":
@@ -222,6 +254,11 @@ def worker(args):
     env = CheckpointContinuationEnv(checkpoint)
     env.restore_task_memory(checkpoint.context["task_memory"])
     scene = copy.deepcopy(checkpoint.scene)
+    local_timing = (
+        env.set_skill_time_budget(args.skill_sim_seconds)
+        if args.skill_sim_seconds is not None
+        else None
+    )
     if args.swap_pending_slots:
         pending = {p.name for p in env.products if not p.initially_stocked} - set(
             checkpoint.context["observer_history"]["completed"]
@@ -264,6 +301,10 @@ def worker(args):
         settings["balance_contact_alignment"] = True
     if args.screen_supported_unload:
         settings["screen_supported_unload"] = True
+    if args.dense_recovery:
+        settings["dense_recovery"] = True
+    if args.defer_final_alignment:
+        settings["defer_final_alignment"] = True
     if args.back_force_target is not None:
         settings["insertion_back_force_target"] = args.back_force_target
     if args.alignment_seconds is not None:
@@ -286,6 +327,9 @@ def worker(args):
 
         script_class = CheckpointRowPress
     script = script_class(env, args.output / "episode", ScriptConfig(**settings))
+    script._prior_strict_positions = tuple(checkpoint.context.get("strict_positions", ()))
+    if not (args.lead_landing or args.front_landing_x_offset_m or args.front_landing_y_offset_m):
+        script._planned_front_landing = state.get("planned_front_landing")
     if args.refinement_pad_angles:
         script.refinement_pad_angles = True
     if args.refinement_horizon:
@@ -318,10 +362,13 @@ def worker(args):
     script.product = next(
         p for p in env.products if p.name == checkpoint.context["skill_entry"]["active_product"]
     )
-    if skill == "front_squaring_complete":
-        script.phase = "front_squaring_complete"
+    entry_phase = checkpoint.context["skill_entry"].get("phase")
+    if entry_phase in ("front_squaring_complete", "front_square_deferred"):
+        script.phase = entry_phase
     if args.record_skill_starts:
         scene["continuation"] = dict(checkpoint=str(path), fresh_task_credit=0)
+        if local_timing is not None:
+            scene["continuation"]["timing"] = local_timing
         initial = script.directory / "initial-scene"
         initial.mkdir()
         write(initial / "manifest.json", scene)
@@ -334,7 +381,7 @@ def worker(args):
         args.withdrawal
         or args.unloaded_clear
         or (
-            (args.insert_only or args.next_cartons)
+            (args.insert_only or args.next_cartons or args.finish_row)
             and not replan_legacy_tool
             and state.get("tool_class") != "CartesianHand"
         )
@@ -461,16 +508,27 @@ def worker(args):
     try:
         if args.bimanual_clear:
             skill_boundary = clear_both_palms(script)
-        elif args.verify_row:
+        elif args.verify_row or args.finish_row:
             from abstract_stack.base_motion import BaseContactGuard, BaseMotionConfig
+            from abstract_stack.dense_recovery import record_packed_ready
 
+            scheduled = {p.name for p in env.products}
             if (
-                script.observer.completed != {p.name for p in env.products}
+                script.observer.completed != scheduled
                 or script.observer.incidents
                 or script.active_grip is not None
                 or script.carry_reference is not None
             ):
                 raise ValueError("A full-row hold requires all cartons stocked and the hand clear")
+            if args.finish_row:
+                from abstract_stack.dense_recovery import (
+                    finish_row,
+                    recheck_terminal_positions,
+                    strict_positioned_products,
+                )
+
+                targets = set(args.align_product) or scheduled
+                finish_row(script, scheduled, targets=targets)
             hold = env.data.ctrl.copy()
             script._stage("packed_row_hold")
             script._base_guard = BaseContactGuard(
@@ -492,9 +550,23 @@ def worker(args):
                 "verified": info["success"],
                 "task_info": info,
             }
+            if args.finish_row:
+                recheck_terminal_positions(script, scheduled)
+                aligned = strict_positioned_products(script, scheduled)
+                skill_boundary.update(
+                    skill="finish-row",
+                    verified=bool(info["success"] and targets <= aligned),
+                    requested_alignment_products=sorted(targets),
+                    strict_positioned_products=sorted(aligned),
+                    remaining_alignment_products=sorted(scheduled - aligned),
+                )
             if not info["success"]:
                 raise InteractionFailure("packed_row_hold: full-row dwell gate failed")
+            if args.finish_row and not skill_boundary["verified"]:
+                raise InteractionFailure("finish_row: strict alignment remains open")
             record_verified_milestone(script)
+            if script.config.dense_recovery:
+                record_packed_ready(script)
         elif args.next_cartons:
             if state["active_grip"] is not None or state["carry_reference"] is not None:
                 raise ValueError("Stocking milestone must have an unloaded hand")
@@ -508,6 +580,10 @@ def worker(args):
         elif args.insert_only:
             if state["active_grip"] is not None or state["carry_reference"] is not None:
                 raise ValueError("Insertion-only continuation requires a released carton")
+            if args.recenter_front:
+                script._register_short_square_with_side_push()
+                if args.stop_after == "registration":
+                    skill_boundary = {"skill": "front-registration-recovery", "verified": True}
             if args.resume_wall_clearance:
                 entry = checkpoint.context["skill_entry"]
                 if entry["case"].get("failed_phase") != "lateral_front_exit":
@@ -576,7 +652,11 @@ def worker(args):
                     base_turn_rad=float(np.radians(args.base_turn_deg)),
                     settings=LateralPushConfig(
                         speed_m_s=0.004 if side_press else 0.003 if front_workspace else 0.01,
-                        force_target_N=1.2 if args.side_front_corner else 2.5,
+                        force_target_N=(
+                            args.side_force_target
+                            if args.side_force_target is not None
+                            else (1.2 if args.side_front_corner else 2.5)
+                        ),
                         timeout_s=35 if side_press else 30 if front_workspace else 20,
                         distance_limit_m=0.025 if args.interleave_side_square else 0.01,
                         position_tolerance_m=0.0005,
@@ -591,7 +671,12 @@ def worker(args):
                         and side_event["retreat_verified"],
                     }
             if args.stop_after == "registration":
-                if not (args.side_offset_m or args.register_wall or args.resume_wall_clearance):
+                if not (
+                    args.side_offset_m
+                    or args.register_wall
+                    or args.resume_wall_clearance
+                    or args.recenter_front
+                ):
                     script._register_front_laterally()
                 if skill_boundary is None:
                     skill_boundary = {"skill": "side-registration", "verified": True}
@@ -615,14 +700,48 @@ def worker(args):
                 if script.config.record_skill_starts and skill_boundary["verified"]:
                     script._stage("contact_refine")
             else:
-                if args.interleave_side_square or args.resume_side_square:
+                if dense_stop == "base_turn_plan":
+                    turn = args.base_turn_deg or -60.0
+                    script._square_after_side_press(float(np.radians(turn)))
+                elif args.interleave_side_square or args.resume_side_square:
                     if not args.resume_side_square and not args.base_turn_deg:
                         script._stage("side_slide_unloaded")
                     script._square_after_side_press(float(np.radians(args.base_turn_deg)))
                 standoff = args.pusher_standoff_m
-                if standoff is None and skill == "front_squaring_complete":
+                if standoff is None and entry_phase in (
+                    "front_squaring_complete",
+                    "front_square_deferred",
+                ):
                     standoff = script.config.post_square_pusher_standoff_m
-                script._insert_from_front(precontact_standoff_m=standoff)
+                if dense_stop == "finger_push":
+                    script._unload_insertion_recovery()
+                    standoff = 0.035 if standoff is None else standoff
+                elif dense_stop == "front_square_clear":
+                    forces = contact_forces(env, script.product.name, script.arm_bodies)
+                    body = env.data.body(script.product.name)
+                    if (
+                        not script.config.defer_final_alignment
+                        or forces["shelf"] <= 0.2
+                        or forces["hand"] > 0.2
+                        or not script._front_square_handoff_fits(
+                            body, row_front_x=script._stocked_front_edge()
+                        )
+                    ):
+                        raise InteractionFailure(
+                            "front_square: saved unload misses the supported handoff gate"
+                        )
+                    script._stage("front_square_deferred")
+                    if standoff is None:
+                        standoff = script.config.post_square_pusher_standoff_m
+                script._insert_from_front(
+                    precontact_standoff_m=standoff,
+                    recovering=dense_stop == "finger_push",
+                    retreat=not args.strict_finish,
+                )
+                if args.strict_finish:
+                    from abstract_stack.contact_execution import squared_contact_retreat
+
+                    squared_contact_retreat(script, script._active_push_event, strict_finish=True)
                 record_verified_milestone(script)
             if args.continue_after_insert:
                 if (
@@ -672,7 +791,9 @@ def worker(args):
         elif args.withdrawal or args.unloaded_clear:
             from abstract_stack.contact_execution import squared_contact_retreat
 
-            squared_contact_retreat(script, {}, unloaded_entry=args.unloaded_clear)
+            squared_contact_retreat(
+                script, {}, unloaded_entry=args.unloaded_clear, strict_finish=args.strict_finish
+            )
             record_verified_milestone(script)
             if args.base_goal is not None:
                 script._restore_grasp_hand()
@@ -712,6 +833,7 @@ def worker(args):
             if args.transfer
             else "supported_front_release_continuation",
             fresh_task_credit=0,
+            continuation_timing=local_timing,
             base_navigation_goal_m=args.base_goal,
             task_success=False,
             failure=failure,
@@ -758,6 +880,9 @@ def main():
     parser.add_argument("--insert", action="store_true")
     parser.add_argument("--insert-only", action="store_true")
     parser.add_argument("--register-wall", choices=("center", "front-corner"))
+    parser.add_argument(
+        "--recenter-front", action="store_true", help="Recenter an unloaded shallow carton"
+    )
     parser.add_argument("--resume-wall-clearance", action="store_true")
     parser.add_argument("--wall-contact-fraction", type=float, default=0.65)
     parser.add_argument(
@@ -780,6 +905,7 @@ def main():
         choices=("centered", "corner"),
         help="Stage a released carton with a supported 2.5 N side press",
     )
+    parser.add_argument("--side-force-target", type=float, choices=(1.2, 2.5, 4.0, 6.0))
     parser.add_argument("--interleave-side-square", action="store_true")
     parser.add_argument("--resume-side-square", action="store_true")
     parser.add_argument("--side-base-dx", type=float, choices=(-0.14, -0.08, -0.04))
@@ -789,12 +915,16 @@ def main():
     parser.add_argument(
         "--side-offset-m",
         type=float,
-        choices=(-0.024, -0.0079, -0.006, -0.004, -0.003, 0.003, 0.004, 0.006, 0.0079),
+        choices=(-0.024, -0.012, -0.0079, -0.006, -0.004, -0.003, 0.003, 0.004, 0.006, 0.0079),
     )
     parser.add_argument("--next-cartons", type=int, choices=range(1, 11))
     parser.add_argument(
         "--verify-row", action="store_true", help="Measure packed dwell with retained controls"
     )
+    parser.add_argument(
+        "--finish-row", action="store_true", help="Apply strict alignment to a saved stocked row"
+    )
+    parser.add_argument("--align-product", action="append", default=[], help="Finish named cartons")
     parser.add_argument(
         "--center-last", action="store_true", help="Reorder pending stock outside in"
     )
@@ -808,6 +938,9 @@ def main():
     parser.add_argument("--side-square-recovery", action="store_true")
     parser.add_argument("--balance-contact-alignment", action="store_true")
     parser.add_argument("--screen-supported-unload", action="store_true")
+    parser.add_argument("--dense-recovery", action="store_true")
+    parser.add_argument("--defer-final-alignment", action="store_true")
+    parser.add_argument("--strict-finish", action="store_true")
     parser.add_argument("--unloaded-clear", action="store_true")
     parser.add_argument("--bimanual-clear", action="store_true")
     parser.add_argument("--transfer", action="store_true")
@@ -817,6 +950,11 @@ def main():
     parser.add_argument("--base-goal", type=float, nargs=2)
     parser.add_argument("--base-turn-deg", type=float, default=0.0)
     parser.add_argument("--wall-seconds", type=float, default=90)
+    parser.add_argument(
+        "--skill-sim-seconds",
+        type=float,
+        help="Optional local simulated-time budget starting at the saved native clock",
+    )
     parser.add_argument("--paired-fingers", action="store_true")
     parser.add_argument("--back-force-target", type=float)
     parser.add_argument("--refinement-pad-angles", action="store_true")
@@ -883,6 +1021,8 @@ def main():
         or not (args.interleave_side_square or args.stop_after == "registration")
     ):
         parser.error("--side-press needs a side offset and either a registration stop or squaring")
+    if args.side_force_target is not None and not args.side_press:
+        parser.error("--side-force-target requires a side press")
     if args.side_offset_m and abs(args.side_offset_m) > 0.01 and not args.interleave_side_square:
         parser.error("Larger lateral shifts require the separate square and clearance gates")
     if args.side_front_corner and (not args.side_offset_m or args.front_row_press):
@@ -895,6 +1035,14 @@ def main():
         not args.insert_only or args.side_offset_m or args.resume_side_square
     ):
         parser.error("Wall registration requires a released insertion without a separate side move")
+    if args.recenter_front and (
+        not (args.insert_only and args.dense_recovery)
+        or args.register_wall
+        or args.resume_wall_clearance
+        or args.side_offset_m
+        or args.resume_side_square
+    ):
+        parser.error("Front recentering requires a standalone dense insertion continuation")
     if args.resume_wall_clearance and (
         not args.insert_only or args.register_wall or args.side_offset_m or args.resume_side_square
     ):
@@ -909,6 +1057,16 @@ def main():
         parser.error("Pusher standoff overrides require --insert-only and 0.02 to 0.045 m")
     if args.continue_after_insert and not args.insert_only:
         parser.error("--continue-after-insert requires --insert-only")
+    if args.strict_finish and (not (args.insert_only or args.withdrawal) or args.stop_after):
+        parser.error("--strict-finish requires a complete released insertion or withdrawal")
+    if args.finish_row and not args.dense_recovery:
+        parser.error("--finish-row requires --dense-recovery")
+    if args.align_product and not args.finish_row:
+        parser.error("--align-product requires --finish-row")
+    if args.defer_final_alignment and not (
+        args.dense_recovery and (args.next_cartons or args.insert_only or args.insert)
+    ):
+        parser.error("--defer-final-alignment requires dense insertion or a stocking continuation")
     wall_limit = (
         900
         if args.next_cartons or args.continue_after_insert
@@ -918,6 +1076,8 @@ def main():
     )
     if not 0 < args.wall_seconds <= wall_limit:
         parser.error(f"Continuation wall budget must be positive and at most {wall_limit} seconds")
+    if args.skill_sim_seconds is not None and not 0 < args.skill_sim_seconds <= 240:
+        parser.error("Continuation simulation budget must be within (0, 240] seconds")
     if (
         sum(
             [
@@ -925,6 +1085,7 @@ def main():
                 args.unloaded_clear,
                 args.bimanual_clear,
                 args.verify_row,
+                args.finish_row,
                 args.insert,
                 args.transfer,
                 args.insert_only,
@@ -1023,6 +1184,8 @@ def main():
         command.append("--insert")
     if args.insert_only:
         command.append("--insert-only")
+    if args.recenter_front:
+        command.append("--recenter-front")
     if args.front_row_press:
         command.append("--front-row-press")
     if args.side_offset_m:
@@ -1031,6 +1194,8 @@ def main():
         command.append("--side-front-corner")
     if args.side_press:
         command += ["--side-press", args.side_press]
+    if args.side_force_target is not None:
+        command += ["--side-force-target", str(args.side_force_target)]
     if args.interleave_side_square:
         command.append("--interleave-side-square")
     if args.resume_side_square:
@@ -1051,6 +1216,10 @@ def main():
         command += ["--next-cartons", str(args.next_cartons)]
     if args.verify_row:
         command.append("--verify-row")
+    if args.finish_row:
+        command.append("--finish-row")
+    for product in args.align_product:
+        command += ["--align-product", product]
     if args.center_last:
         command.append("--center-last")
     if args.swap_pending_slots:
@@ -1071,6 +1240,14 @@ def main():
         command.append("--balance-contact-alignment")
     if args.screen_supported_unload:
         command.append("--screen-supported-unload")
+    if args.dense_recovery:
+        command.append("--dense-recovery")
+    if args.defer_final_alignment:
+        command.append("--defer-final-alignment")
+    if args.skill_sim_seconds is not None:
+        command += ["--skill-sim-seconds", str(args.skill_sim_seconds)]
+    if args.strict_finish:
+        command.append("--strict-finish")
     if args.withdrawal:
         command.append("--withdrawal")
     if args.live_guarded_withdrawal:

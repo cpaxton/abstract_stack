@@ -107,6 +107,19 @@ class CheckpointContinuationEnv(ShelfStockingEnv):
         self.continuation_started_s = float(self.data.time)
         self.prior_contact_history = checkpoint.context.get("contact_monitor")
 
+    def set_skill_time_budget(self, seconds):
+        """Set a skill-local deadline without changing the restored simulation clock."""
+        if type(seconds) not in (int, float) or not 0 < seconds <= 240:
+            raise ValueError("Skill-local simulation budget must be in (0, 240] seconds")
+        timing = dict(
+            original_time_limit_s=self.config.time_limit,
+            exact_start_time_s=float(self.data.time),
+            local_budget_s=seconds,
+            local_time_limit_s=float(self.data.time) + seconds,
+        )
+        self.config = replace(self.config, time_limit=timing["local_time_limit_s"])
+        return timing
+
     def reset(self, **kwargs):
         raise RuntimeError("A checkpoint continuation cannot reset; create a fresh environment")
 

@@ -28,6 +28,7 @@ def test_side_recovery_uses_measured_footprint_and_supported_workspace(
 ):
     moves = []
     script = SimpleNamespace(
+        config=SimpleNamespace(dense_recovery=True),
         env=SimpleNamespace(
             data=SimpleNamespace(
                 body=lambda name: SimpleNamespace(
@@ -47,7 +48,7 @@ def test_side_recovery_uses_measured_footprint_and_supported_workspace(
         arm_bodies=set(),
         observer=SimpleNamespace(incidents=[]),
         events=[],
-        _square_after_side_press=lambda turn: moves.append(("square", turn)),
+        _square_after_side_press=lambda turn, **kw: moves.append(("square", turn, kw)) or True,
     )
     script._stage = lambda phase: script.events.append({"phase": phase})
     monkeypatch.setattr(
@@ -68,7 +69,9 @@ def test_side_recovery_uses_measured_footprint_and_supported_workspace(
         assert kwargs["direction"] == -1
         assert kwargs["distance_m"] == pytest.approx(0.004)
         assert kwargs["front_contact_fraction"] == expected_fraction
-        assert moves[1] == ("square", kwargs["base_turn_rad"])
+        centered = expected_fraction == 0
+        assert kwargs["settings"].standoff_m == (0.01 if centered else 0.015)
+        assert moves[1] == ("square", kwargs["base_turn_rad"], {"prefer_coupled": centered})
     else:
         assert not moves
 

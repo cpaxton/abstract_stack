@@ -192,6 +192,16 @@ def _parser():
                 help="Forecast alternate guarded unloads beside stocked cartons",
             )
             sub.add_argument(
+                "--dense-recovery",
+                action="store_true",
+                help="Use bounded dense-row insertion and finishing recoveries",
+            )
+            sub.add_argument(
+                "--defer-final-alignment",
+                action="store_true",
+                help="Verify a packed shelf and report strict alignment separately",
+            )
+            sub.add_argument(
                 "--interleave-row-press",
                 action="store_true",
                 help="Experimental three-carton sequence with a measured press after two stocks",
@@ -525,6 +535,8 @@ def main(argv=None):
                         side_square_recovery=args.side_square_recovery,
                         balance_contact_alignment=args.balance_contact_alignment,
                         screen_supported_unload=args.screen_supported_unload,
+                        dense_recovery=args.dense_recovery,
+                        defer_final_alignment=args.defer_final_alignment,
                         release_pose_feedback=args.release_pose_feedback,
                         continuous_finger_opening=not args.legacy_opening,
                         record_skill_starts=args.record_skill_starts,

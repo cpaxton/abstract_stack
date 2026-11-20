@@ -45,6 +45,65 @@ no generated scene starts with successful stages or training eligibility.
 The current suite is `outputs/domain-randomization-v1/`: 8 development cases and
 12 private held-out cases. Held-out task evaluation and collection have not run.
 
+### Pose-only carton rows
+
+Seeds in the fixed ten-carton preset control independent supply X/Y jitter
+within ±2 mm of each nominal position.
+Generate more position variation while preserving carton dimensions, table pose,
+shelf height, object count and the whole-row free-space budget.
+
+```bash
+.venv/bin/python scripts/domain_randomization.py generate \
+  --pose-base configs/scenes/tight_ten_cartons_20mm.json \
+  --output outputs/ten-carton-pose-suite --development 8 --heldout 12 \
+  --development-seed 2026
+```
+
+Each scene samples shelf X translations from −12 to +4 mm and Y translations
+from −15 to +15 mm. Each case samples a per-axis jitter limit from 2 to 6 mm,
+then uses the recorded reset seed to independently offset each supply carton
+within that limit along each axis. The profile uses the base shelf and carton
+orientations. The scene and context record shelf and table world positions
+and the reset seed.
+Use `scripts/run_stocking_case.py` with the case's scene, reset seed and a frozen
+stocking profile for manipulation trials. The generic DR teacher evaluation
+has no adapter for this suite.
+
+The first ten-carton pose pilot reused the source and controller settings from
+the successful fixed seed 5 rollout. It changed shelf X/Y and carton spawn
+jitter while keeping the 20 mm total row budget. All three public development
+scenes passed native initial clearance and a guarded hold. The stocking results
+were as follows.
+
+| Case | Shelf X / Y shift | Spawn jitter bound | Picks | Shelf placements | Strict positions | Withdrawals | Terminal stop |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 000 | +3.56 / +3.44 mm | 5.70 mm | 0 | 0 | 0 | 0 | Coupled grasp closure rejected before actuation |
+| 001 | −8.46 / −2.99 mm | 5.93 mm | 1 | 1 | 0 | 0 | Side registration timed out |
+| 002 | +3.46 / +13.63 mm | 5.78 mm | 0 | 0 | 0 | 0 | Pregrasp exceeded the 25 N guard |
+
+There were zero packed rows across the three fresh episodes. Each has a
+terminal report covering all ten scheduled cartons. The source reference
+and controller inputs are under
+`outputs/runs/domain-randomization/ten-carton-pose-v1-baseline/`. The combined
+[stage report](../outputs/runs/domain-randomization/ten-carton-pose-v1-baseline/report.json)
+checks source identity, controller settings and all scheduled cartons against
+the frozen baseline. The development curriculum retains the three exact
+stops and their earlier entry states. The held-out
+split remains sealed. Start follow-up experiments with independent shelf
+translation and supply jitter before combining these factors with changes to
+carton size, shelf height/depth, mass or friction.
+
+The same reset seed as case 000 also failed on the fixed scene, at the grasp
+closure check. Applying only the sampled shelf translation or only the larger
+jitter led to pregrasp force stops instead. Each comparison used the same
+frozen controller. This places grasp clearance at the start of the pose
+generalization work, including the original 2 mm jitter profile. See
+`outputs/runs/domain-randomization/ten-carton-pose-v1-ablation/`.
+
+Pass `--policy-source-ref` to `scripts/run_stocking_case.py` to reuse an
+authenticated source bundle. Use the archived controller settings and mode
+flags from the successful run when comparing against its policy.
+
 ## Native scene validation
 
 ```bash

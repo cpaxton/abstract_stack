@@ -111,6 +111,8 @@ class ScriptConfig:
     side_square_recovery: bool = False
     balance_contact_alignment: bool = False
     screen_supported_unload: bool = False
+    dense_recovery: bool = False
+    defer_final_alignment: bool = False
 
     def __post_init__(self):
         values = asdict(self)
@@ -139,6 +141,8 @@ class ScriptConfig:
         values.pop("side_square_recovery")
         values.pop("balance_contact_alignment")
         values.pop("screen_supported_unload")
+        values.pop("dense_recovery")
+        values.pop("defer_final_alignment")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
@@ -231,6 +235,20 @@ class ScriptConfig:
             raise ValueError(
                 "Unload screening requires paired fingertips and live guarded withdrawal"
             )
+        if type(self.dense_recovery) is not bool or (
+            self.dense_recovery
+            and not (
+                self.paired_finger_insertion
+                and self.base_reposition
+                and self.live_guarded_withdrawal
+                and (self.wall_packing or self.center_last)
+            )
+        ):
+            raise ValueError("Dense recovery requires ordered released insertion with base motion")
+        if type(self.defer_final_alignment) is not bool or (
+            self.defer_final_alignment and not self.dense_recovery
+        ):
+            raise ValueError("Deferring final alignment requires the dense recovery profile")
         if not isinstance(self.gravity_compensation, bool):
             raise ValueError("gravity_compensation must be true or false")
         if not isinstance(self.adaptive_grasps, bool):
@@ -803,7 +821,7 @@ class StockingScript(SelectedFingerInsertion):
     def _sample(self, env):
         if self.observer is not None:
             self.observer.sample(self.phase, self.product.name)
-        if self.phase == "finger_push" and any(
+        if self.phase in ("finger_push", "insertion_recovery_unload") and any(
             np.linalg.norm(env.data.body(name).xpos - origin) > 0.002
             for name, origin in getattr(self, "_push_neighbor_origins", {}).items()
         ):
@@ -823,6 +841,8 @@ class StockingScript(SelectedFingerInsertion):
         forces["arm_product"] = max(0.0, arm_forces["hand"] - forces["hand"])
         forces["robot_product"] = arm_forces["hand"]
         forces["fixture_normal_world_N"] = arm_forces["fixture_normal_world_N"]
+        if self.phase == "insertion_recovery_unload" and forces["shelf"] <= 0.2:
+            raise InteractionFailure("insertion_recovery_unload: lost shelf support")
         vector = np.array(forces["fixture_normal_world_N"])
         if np.linalg.norm(vector) > np.linalg.norm(self.fixture_feedback):
             self.fixture_feedback = vector
@@ -1061,11 +1081,12 @@ class StockingScript(SelectedFingerInsertion):
                 "lateral_unload",
                 "finger_push",
                 "front_square_clear",
+                "insertion_recovery_unload",
             )
             neighbors = getattr(self, "_push_neighbor_origins", {})
             allowed_pairs = (
                 {frozenset((f"{self.product.name}_geom", f"{name}_geom")) for name in neighbors}
-                if self.phase == "finger_push"
+                if self.phase in ("finger_push", "insertion_recovery_unload")
                 else set()
             )
 
@@ -1150,6 +1171,11 @@ class StockingScript(SelectedFingerInsertion):
         self.events.append(
             {"phase": name, "product": self.product.name, "sim_time": float(self.env.data.time)}
         )
+        if self.config.dense_recovery:
+            now = time.monotonic()
+            if not hasattr(self, "_stage_wall_origin"):
+                self._stage_wall_origin = now
+            self.events[-1]["phase_start_wall_s"] = now - self._stage_wall_origin
         self._write_physics_progress(self.events[-1])
         if getattr(self, "execution_history", None) is not None:
             skill = self._agent_skill or self._agent_phase_map.get(name)
@@ -1213,6 +1239,25 @@ class StockingScript(SelectedFingerInsertion):
         )
         event = self.events[-1]
         event["ik_prediction"] = prediction.report()
+        if (
+            self.config.dense_recovery
+            and name == "approach"
+            and cartesian_entry
+            and not prediction.feasible
+        ):
+            alternate = self.controller.predict(
+                target,
+                allowed_object=None,
+                alternatives=False,
+                grip=0,
+                carrying=False,
+                path_mode="joint",
+            )
+            event["joint_descent_prediction"] = alternate.report()
+            if alternate.feasible:
+                prediction = alternate
+                event["ik_prediction"] = prediction.report()
+                event["entry_path_mode"] = "joint"
         staging = False
         if not prediction.feasible:
             event["decision"] = "hold_for_replan"
@@ -1235,7 +1280,13 @@ class StockingScript(SelectedFingerInsertion):
         start = self.controller.ik.measured_q()
         duration = max(seconds or self.config.approach_seconds, prediction.minimum_seconds * 1.05)
         path, knots = None, None
-        if cartesian_entry and not staging:
+        if event.get("entry_path_mode") == "joint":
+            event.update(
+                decision="execute_checked_joint_grasp_entry",
+                active_object_contact_allowed=False,
+                reference_timing="checked joint interpolation with quintic peak bound",
+            )
+        elif cartesian_entry and not staging:
             from abstract_stack.grasping import timed_joint_path
 
             if prediction.joint_path is None:
@@ -1338,11 +1389,29 @@ class StockingScript(SelectedFingerInsertion):
         and tilt guards remain active throughout.
         """
         self._stage("right_arm_stow")
-        target = {"Right Arm 3": 0.5}
+        name, goal = "Right Arm 3", 0.5
+        target = {name: goal}
+        event = self.events[-1]
+        if (
+            self.config.defer_final_alignment
+            and len(self.observer.completed) == len(self.env.products) - 1
+        ):
+            joint = self.env.model.joint(name)
+            position = int(joint.qposadr[0])
+            velocity = int(joint.dofadr[0])
+            if (
+                self.tracker.nominal[self.tracker.NAMES.index(name)] == goal
+                and abs(self.env.data.qpos[position] - goal) <= np.radians(0.5)
+                and abs(self.env.data.qvel[velocity]) <= 0.02
+            ):
+                event.update(
+                    verified_right_arm_stow=True, right_arm_target=target, already_stowed=True
+                )
+                return
         for _ in range(int(np.ceil(1.5 / self.env.dt))):
             if self._apply_tick(target):
                 raise InteractionFailure("right_arm_stow: task ended before stow validation")
-        self.events[-1].update(verified_right_arm_stow=True, right_arm_target=target)
+        event.update(verified_right_arm_stow=True, right_arm_target=target)
 
     def _drive_base_to(
         self,
@@ -1760,7 +1829,7 @@ class StockingScript(SelectedFingerInsertion):
             ):
                 raise InteractionFailure("grasp_workspace: no checked base/pregrasp combination")
 
-    def _ensure_loaded_reachable(self, grasp_grip, placement):
+    def _ensure_loaded_reachable(self, grasp_grip, placement, *, alternate_placements=()):
         """Reposition (possibly loaded) when the loaded shelf route is unreachable.
 
         Called after the actual grasp/lift, so the measured carried offset and
@@ -1799,30 +1868,57 @@ class StockingScript(SelectedFingerInsertion):
             0.12,
             -0.12,
         )
+        longitudinal_offsets = (0.0, 0.03, -0.03, 0.06, -0.06)
+        if self.config.dense_recovery:
+            # An inventory recovery can end well out in the aisle. Include
+            # absolute shelf-side stances so the held carton can return to the
+            # placement workspace before the lateral/seat IK is evaluated.
+            front = self.env.config.front_x
+            anchors = (
+                front + 0.70,
+                front + 0.65,
+                front + 0.60,
+                self.env.config.robot_xy[0],
+            )
+            longitudinal_offsets = (
+                tuple(round(x - base[0], 4) for x in anchors if 0.08 <= abs(x - base[0]) <= 0.35)
+                + longitudinal_offsets
+            )
         started = time.monotonic()
         for dy in dict.fromkeys(round(value, 4) for value in lateral_offsets):
             if abs(dy) > 0.6:
                 continue
-            for dx in (0.0, 0.03, -0.03, 0.06, -0.06):
+            for dx in dict.fromkeys(longitudinal_offsets):
                 if time.monotonic() - started > 20:
                     event["decision"] = "loaded_workspace_search_budget_exhausted"
                     return False
                 shift = np.array([dx, dy])
-                navigable = plan_base_path(self.env, base, base + shift) is not None
-                reachable = navigable and loaded_staging_reachable(
-                    self.env,
-                    self.controller,
-                    self.config,
-                    self.product,
-                    base_xy=shift,
-                    placement=placement,
-                    grip=grasp_grip,
-                    front_center=self._front_center_x,
+                navigable = (
+                    plan_base_path(
+                        self.env, base, base + shift, exclude_products={self.product.name}
+                    )
+                    is not None
                 )
-                candidates.append(
-                    dict(displacement_xy_m=shift.tolist(), navigable=navigable, reachable=reachable)
-                )
-                if reachable:
+                trial = dict(displacement_xy_m=shift.tolist(), navigable=navigable, reachable=False)
+                candidates.append(trial)
+                if not navigable:
+                    continue
+                for landing in (placement, *alternate_placements):
+                    if time.monotonic() - started > 20:
+                        event["decision"] = "loaded_workspace_search_budget_exhausted"
+                        return False
+                    if not loaded_staging_reachable(
+                        self.env,
+                        self.controller,
+                        self.config,
+                        self.product,
+                        base_xy=shift,
+                        placement=landing,
+                        grip=grasp_grip,
+                        front_center=self._front_center_x,
+                    ):
+                        continue
+                    trial.update(reachable=True, landing_world_m=landing.tolist())
                     event.update(
                         decision="reposition_base_for_loaded_route",
                         selected_displacement_xy_m=shift.tolist(),
@@ -1989,20 +2085,49 @@ class StockingScript(SelectedFingerInsertion):
         if not already_clear:
             self._move("retract", [-0.44, -0.20, 1.00])
             self._move("raise", [-0.44, -0.20, box[2] + config.pregrasp_height])
+        joint_entry = False
         if config.grasp_skill:
             self.controller.active_rotation = grasp_rotation.copy()
-            from abstract_stack.grasp_skill import plan_pregrasp_route
+            from abstract_stack.grasp_skill import plan_pregrasp_route, replan_pregrasp_workspace
 
             pregrasp_target = grasp_target + [0, 0, config.pregrasp_height]
-            for waypoint in plan_pregrasp_route(self, pregrasp_target, grasp_rotation):
+            try:
+                waypoints = plan_pregrasp_route(self, pregrasp_target, grasp_rotation)
+            except InteractionFailure:
+                if not config.dense_recovery:
+                    raise
+                # The retained Cartesian branch can hit a wrist/elbow limit
+                # at an otherwise reachable empty-hand pose. Admit an explicit
+                # collision-checked joint transit above the table before descent.
+                prediction = self.controller.predict(
+                    pregrasp_target, alternatives=False, carrying=False, path_mode="joint"
+                )
+                self.events[-1]["joint_transit_prediction"] = prediction.report()
+                if prediction.feasible:
+                    self.events[-1]["decision"] = "checked_joint_transit_then_cartesian_descent"
+                    self._move(
+                        "pregrasp_joint_entry", pregrasp_target, orientation_alternatives=False
+                    )
+                    joint_entry = True
+                    waypoints = []
+                else:
+                    if not replan_pregrasp_workspace(
+                        self, pregrasp_target, grasp_rotation, grasp_target
+                    ):
+                        raise
+                    waypoints = plan_pregrasp_route(
+                        self, pregrasp_target, grasp_rotation, descent_target=grasp_target
+                    )
+            for waypoint in waypoints:
                 self._move(
                     "grasp_transit", waypoint, orientation_alternatives=False, carrying=False
                 )
-        self._move(
-            "pregrasp",
-            grasp_target + [0, 0, config.pregrasp_height],
-            orientation_alternatives=False if config.grasp_skill else None,
-        )
+        if not joint_entry:
+            self._move(
+                "pregrasp",
+                grasp_target + [0, 0, config.pregrasp_height],
+                orientation_alternatives=False if config.grasp_skill else None,
+            )
         self.controller.active_rotation = grasp_rotation
         # The shared lift is capped at 8 cm/s; allow the full descent rather
         # than treating lag from a short pose command as a grasp failure.
@@ -2129,8 +2254,11 @@ class StockingScript(SelectedFingerInsertion):
         offset = self.controller.position() - actual
         placement = np.array(product.target)
         placement[0] = self._front_center_x(product.half_size[0])
-        if getattr(self, "front_lead_y_m", 0.0):
-            placement[0] += self.front_landing_x_offset_m
+        active_lead, active_x_offset = (
+            self._front_landing_adjustment() if config.ungrasped_insertion else (0.0, 0.0)
+        )
+        if active_lead:
+            placement[0] += active_x_offset
         placement[1] = self._front_reference_y()
         if not already_clear:
             self._move(
@@ -2200,6 +2328,22 @@ class StockingScript(SelectedFingerInsertion):
                 @ body.xmat.reshape(3, 3).T
                 @ env.data.xmat[self.controller.palm].reshape(3, 3)
             )
+            landings = [(placement, active_lead)]
+            if config.dense_recovery and not active_lead:
+                for lead in (0.006, 0.012, 0.024):
+                    try:
+                        landing_y = self._front_reference_y(lead_m=lead)
+                    except InteractionFailure:
+                        continue
+                    if abs(landing_y - placement[1]) < 0.001:
+                        continue
+                    lead_placement = placement + [0.004, landing_y - placement[1], 0]
+                    landings.append((lead_placement, lead))
+            approaches = [
+                (landing, lead, clearance)
+                for landing, lead in landings
+                for clearance in (0.20, 0.16, 0.12, 0.08)
+            ]
             for attempt in range(2):
                 # A native loaded base relocation changes the measured grasp.
                 # Refresh the orientation used by admission as execution does.
@@ -2210,9 +2354,10 @@ class StockingScript(SelectedFingerInsertion):
                     @ env.data.xmat[self.controller.palm].reshape(3, 3)
                 )
                 attempts = []
-                for front_clearance in (0.20, 0.16, 0.12, 0.08):
+                for landing, lead, front_clearance in approaches:
                     proposed = staging.copy()
                     proposed[0] = env.config.front_x + front_clearance + offset[0]
+                    proposed[1] = landing[1] + offset[1]
                     prediction = self.controller.predict(
                         proposed,
                         allowed_object=product.name,
@@ -2220,7 +2365,12 @@ class StockingScript(SelectedFingerInsertion):
                         grip=grasp_grip,
                     )
                     attempts.append(
-                        dict(front_clearance_m=front_clearance, prediction=prediction.report())
+                        dict(
+                            front_clearance_m=front_clearance,
+                            landing_world_m=landing.tolist(),
+                            landing_lead_m=lead,
+                            prediction=prediction.report(),
+                        )
                     )
                     if (
                         prediction.feasible
@@ -2230,7 +2380,7 @@ class StockingScript(SelectedFingerInsertion):
                             self.controller,
                             config,
                             product,
-                            placement=placement,
+                            placement=landing,
                             grip=grasp_grip,
                             front_center=self._front_center_x,
                             front_clearance=front_clearance,
@@ -2238,11 +2388,18 @@ class StockingScript(SelectedFingerInsertion):
                         )
                     ):
                         staging = proposed
+                        if lead != active_lead:
+                            self._planned_front_landing = (product.name, lead, 0.004)
+                        placement = landing
                         break
                 else:
                     # No checked candidate. Reposition the base once (retaining
                     # the carried load) and retry the bounded staging search.
-                    if attempt or not self._ensure_loaded_reachable(grasp_grip, placement):
+                    if attempt or not self._ensure_loaded_reachable(
+                        grasp_grip,
+                        placement,
+                        alternate_placements=tuple(landing for landing, _ in landings[1:]),
+                    ):
                         route_event.update(candidates=attempts, decision="hold_for_replan")
                         raise InteractionFailure(
                             "loaded_stage: no checked shelf approach candidate"
@@ -2257,6 +2414,7 @@ class StockingScript(SelectedFingerInsertion):
                 candidates=attempts,
                 decision="execute_checked_shelf_approach",
                 selected_position_world_m=staging.tolist(),
+                selected_landing_world_m=placement.tolist(),
             )
         self._move("align_shelf", staging, grasp_grip)
         transfer = placement + offset + [0, 0, config.lift_height]
@@ -2546,6 +2704,14 @@ class StockingScript(SelectedFingerInsertion):
 
     def _execute_task(self, result, *, next_cartons=None):
         """Execute the stocking composition; isolated skills override this loop."""
+        from abstract_stack.dense_recovery import (
+            finish_row,
+            recheck_terminal_positions,
+            record_packed_ready,
+            register_placement,
+            require_open_slot,
+        )
+
         completed = set(result["completed_products"])
         pending = [
             p for p in self.env.products if not p.initially_stocked and p.name not in completed
@@ -2566,6 +2732,9 @@ class StockingScript(SelectedFingerInsertion):
             ordered = self.config.wall_packing or self.config.center_last
             choices = pending[:1] if ordered else pending
             self._agent_carton_step = len(result["completed_products"]) + 1
+            if self.config.dense_recovery:
+                self.product = pending[0]
+                require_open_slot(self, self.product)
             self._record_agent_event(
                 "carton_selection_started",
                 product=None,
@@ -2603,6 +2772,9 @@ class StockingScript(SelectedFingerInsertion):
                         {"product": self.product.name, **outcome.describe()}
                     )
             result["completed_products"].append(self.product.name)
+            pending.remove(self.product)
+            if self.config.dense_recovery:
+                register_placement(self, pending)
             if getattr(self, "execution_history", None) is not None:
                 stages = self.observer.report(self.events)["products"][self.product.name]
                 gates = {key: stages[key] for key in ("pick", "place", "final_position", "retreat")}
@@ -2611,7 +2783,6 @@ class StockingScript(SelectedFingerInsertion):
                     gates=gates,
                     outcome="verified" if all(gates.values()) else "gate_open",
                 )
-            pending.remove(self.product)
             if (
                 self.config.record_skill_starts
                 and self.observer.completed >= set(result["completed_products"])
@@ -2625,6 +2796,8 @@ class StockingScript(SelectedFingerInsertion):
                 next_cartons -= 1
                 if next_cartons == 0 and pending:
                     return
+        if self.config.dense_recovery and not self.config.defer_final_alignment:
+            finish_row(self, set(result["completed_products"]))
         self._stage("settle")
         for _ in range(
             0 if self.terminal else int(self.env.config.stable_seconds / self.env.dt) + 10
@@ -2632,6 +2805,10 @@ class StockingScript(SelectedFingerInsertion):
             if self._tick(self.controller.position(), 0):
                 break
         result["physical_success"] = self.env.info()["success"]
+        if self.config.dense_recovery:
+            recheck_terminal_positions(self, set(result["completed_products"]))
+            if result["physical_success"]:
+                record_packed_ready(self)
         if not result["physical_success"]:
             result["failure"] = "Final stocking stability criteria were not met"
 
@@ -2731,6 +2908,8 @@ class StockingScript(SelectedFingerInsertion):
         except (RuntimeError, ValueError, FloatingPointError) as error:
             result["failure"] = str(error)
         finally:
+            if self.config.dense_recovery and hasattr(self, "_stage_wall_origin"):
+                result["phase_end_wall_s"] = time.monotonic() - self._stage_wall_origin
             if result["failure"]:
                 from abstract_stack.skill_entries import record_motion_failure
 
@@ -2831,7 +3010,9 @@ class StockingScript(SelectedFingerInsertion):
             from abstract_stack.evaluation import manipulation_evaluation
 
             result["manipulation_evaluation"] = manipulation_evaluation(result)
-            result["task_success"] = result["manipulation_evaluation"]["clean_success"]
+            criterion = "packed_success" if self.config.defer_final_alignment else "clean_success"
+            result["success_criterion"] = criterion
+            result["task_success"] = result["manipulation_evaluation"][criterion]
             result["controller_evidence"] = self.episode_evidence()
             result["task_plan"] = plan.describe()
             if getattr(self, "plan_outcome", None) is not None:

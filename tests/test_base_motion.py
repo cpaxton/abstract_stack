@@ -16,6 +16,7 @@ from abstract_stack.base_motion import (
     screen_base_translation,
 )
 from abstract_stack.env import ShelfStockingEnv
+from abstract_stack.interactions import InteractionFailure, StockingScript
 from abstract_stack.packing import dense_shelf_config
 from abstract_stack.scene import ShelfConfig
 
@@ -38,6 +39,77 @@ def test_invalid_base_probe_settings():
         BaseMotionConfig(max_speed_m_s=float("nan"))
     with pytest.raises(ValueError):
         closest_steering(float("nan"), 0)
+
+
+@pytest.mark.parametrize(
+    ("final_carton", "nominal", "position", "velocity", "expected_ticks"),
+    [
+        (True, 0.5, 0.501, 0.01, 0),
+        (True, 0.5, 0.501, 0.03, 75),
+        (True, 0.4, 0.501, 0.01, 75),
+        (False, 0.5, 0.501, 0.01, 75),
+    ],
+)
+def test_packed_base_move_skips_stow_only_for_the_settled_reference(
+    final_carton, nominal, position, velocity, expected_ticks
+):
+    events, controls = [], []
+    joint = SimpleNamespace(qposadr=[0], dofadr=[0])
+    script = SimpleNamespace(
+        config=SimpleNamespace(defer_final_alignment=True),
+        env=SimpleNamespace(
+            model=SimpleNamespace(joint=lambda name: joint),
+            data=SimpleNamespace(qpos=[position], qvel=[velocity]),
+            products=("first", "last"),
+            dt=0.02,
+        ),
+        observer=SimpleNamespace(completed={"first"} if final_carton else set()),
+        tracker=SimpleNamespace(NAMES=("Right Arm 3",), nominal=[nominal]),
+        events=events,
+        _stage=lambda phase: events.append({"phase": phase}),
+        _apply_tick=controls.append,
+    )
+
+    StockingScript._stow_right_arm(script)
+
+    assert controls == [{"Right Arm 3": 0.5}] * expected_ticks
+    assert events[-1].get("already_stowed", False) == (expected_ticks == 0)
+
+
+@pytest.mark.parametrize("rejected_before_turn", [True, False])
+def test_base_turn_rescreens_clearance_only_before_actuation(rejected_before_turn):
+    turns, moves, margins = [], [], []
+
+    def turn(angle):
+        turns.append(angle)
+        if len(turns) == 1:
+            if rejected_before_turn:
+                raise InteractionFailure("base_turn: yaw sweep rejected before actuation")
+            raise BaseMotionFailure("base_motion: native contact-force guard exceeded")
+
+    def screen(angle, offsets, *, margin):
+        margins.append(margin)
+        return offsets[0] if len(margins) == 1 else offsets[1]
+
+    script = SimpleNamespace(
+        config=SimpleNamespace(record_skill_starts=False),
+        observer=SimpleNamespace(incidents=[]),
+        events=[{}],
+        _screen_base_turn_stances=screen,
+        _move_base=lambda offset, *, reason: moves.append((offset, reason)),
+        _turn_base=turn,
+    )
+    if rejected_before_turn:
+        StockingScript._turn_base_from_clear_workspace(script, 0.6)
+        assert turns == [0.6, 0.6]
+        assert margins == [0.016, 0.018]
+        assert moves == [([0.015, 0], "base_turn_clearance_recovery")]
+    else:
+        with pytest.raises(BaseMotionFailure, match="contact-force guard"):
+            StockingScript._turn_base_from_clear_workspace(script, 0.6)
+        assert turns == [0.6]
+        assert margins == [0.016]
+        assert not moves
 
 
 def test_a_screened_turn_cannot_translate_or_carry():

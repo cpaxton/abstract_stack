@@ -190,6 +190,9 @@ resets preserve native physics state, recorded nominal and applied controls,
 and the all-product observer. A released legacy push can explicitly initialize
 a new tool reference from its recorded nominal joints. The reset records this
 choice before any physics steps. Isolated episodes earn only skill credit.
+A captured case can declare `skill_sim_seconds` to run a bounded skill near
+or beyond its source episode deadline. The reset report records the source
+deadline and the local budget. The native clock and checkpoint stay intact.
 Without an explicit `case_id`, the Gymnasium reset samples a lineage uniformly,
 then one of its matching checkpoint references. Adding several boundaries from
 one episode gives that lineage the same sampling weight as a single-boundary
@@ -209,6 +212,46 @@ controller once per campaign and records every scheduled result, including
 reset rejections, timeouts and unknown process outcomes. An archive checkout
 needs the referenced checkpoint files under its artifact root. Captured cases
 with different physical handoffs can have different legal action masks.
+
+Use `--workers 4` to run independent cases concurrently on CPU. Each case
+keeps its own native process, controller state, timeout, and output directory.
+The report retains the scheduled order and updates as cases finish. The
+per-case wall budget starts at launch. The default `--workers 1` runs serially.
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  .venv/bin/python scripts/evaluate_skill_curriculum.py --gym --skill push \
+  --seed 9 --seed 18 --seed 3 --seed 12 --action recorded --agent-attempts 1 \
+  --workers 4 --case-wall-seconds 120 --output outputs/runs/curriculum/push-parallel
+```
+
+`--agent-attempts 1` also records the pre-action observation, action mask,
+and measured result for the skill-option dataset builder. Independent seeds
+and captured handoffs can use this parallelism. Within a case each action,
+recovery and physics step still depends on the previous native state. When
+comparing worker counts, keep the source bundle, case schedule and thread
+settings fixed and check the recorded outcomes. Concurrent load can affect
+searches and episodes with wall-time budgets.
+
+The four-seed native push batch took 83.4 s serially and 29.9 s with four
+workers, a 2.79× throughput gain. Both runs verified three pushes. The fourth
+reached the stocked-neighbor displacement guard. Their reset states, physics
+traces and option transitions were bit-identical. The parallel result exported
+four complete option transitions, including the failed push.
+[Benchmark and parity witness](../outputs/runs/curriculum/parallel-push-v1/native/independent-parity.json)
+
+For procedural push, the action mask admits `recorded` for the single-finger
+fixture policy and `paired` for the paired-finger policy. Use the executed
+action in each attempt when comparing outcomes. The agent can select another
+admissible action when the requested preference is masked. Compare both
+policies on the same reset seeds to collect paired outcomes.
+
+The paired collection produced eight transitions from four identical starts,
+with bit-identical pre-action observations for each pair. The single-finger
+option verified three pushes. The paired-finger option exhausted contact
+refinement on all four starts. This small batch covers procedural development
+seeds and contributes zero fresh stocking credit.
+[Paired option dataset](../outputs/runs/curriculum/parallel-push-v1/native/paired-option-dataset/manifest.json)
 
 ```python
 from abstract_stack.skill_curriculum import StockingCurriculumEnv, load_curriculum

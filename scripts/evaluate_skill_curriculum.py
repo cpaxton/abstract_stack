@@ -6,7 +6,10 @@ import json
 import os
 import runpy
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from threading import Event
 
 from abstract_stack.skill_env import ACTIONS
 
@@ -118,6 +121,9 @@ def main():
     parser.add_argument("--artifact-root", type=Path, default=Path("outputs"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--case-wall-seconds", type=float, default=150)
+    parser.add_argument(
+        "--workers", type=int, default=1, help="Concurrent isolated case processes (1–32)"
+    )
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     actions = ACTIONS
@@ -148,6 +154,10 @@ def main():
         args.seed = [0] if args.gym else []
     if args.manifest and len(args.seed) != 1:
         parser.error("Captured cases use their recorded scene seeds and one selector seed")
+    if not 1 <= args.workers <= 32:
+        parser.error("Choose between 1 and 32 workers")
+    if args.worker and args.workers != 1:
+        parser.error("A worker runs one case")
     if (
         not 1 <= len(args.seed) <= 40
         or len(set(args.seed)) != len(args.seed)
@@ -214,10 +224,24 @@ def main():
     runtime = frozen.runtime_root
     script = runtime / "scripts/evaluate_skill_curriculum.py"
     supervise = runpy.run_path(str(runtime / "scripts/run_frozen_replanning.py"))["supervise"]
+    mabel_root = Path(os.environ.get("MABEL_ROOT") or root / "third_party/open_mabel")
+    environment = dict(
+        os.environ,
+        PYTHONPATH=str(runtime / "src"),
+        PYTHONFAULTHANDLER="1",
+        PYTHONDONTWRITEBYTECODE="1",
+        MABEL_ROOT=str(mabel_root.expanduser().resolve()),
+        ABSTRACT_STACK_SOURCE_REFERENCE=str(output / "source_ref.json"),
+        ABSTRACT_STACK_SOURCE_STORE=str(frozen.archive.parent),
+    )
+    workers = min(args.workers, len(cases))
+    stop_event = Event()
+    started = time.monotonic()
 
     def report():
+        temporary = output / "report.json.tmp"
         write(
-            output / "report.json",
+            temporary,
             dict(
                 kind="public_development_skill_curriculum",
                 cases=cases,
@@ -228,11 +252,13 @@ def main():
                 verify_retreat=args.verify_retreat,
                 rewind_action=args.rewind_action,
                 case_wall_budget_s=args.case_wall_seconds,
+                workers=workers,
+                case_dispatch_wall_s=time.monotonic() - started,
             ),
         )
+        temporary.replace(output / "report.json")
 
-    report()
-    for case in cases:
+    def run_case(case):
         directory = output / case.get("case_id", f"{case['skill']}-{case['seed']}")
         directory.mkdir()
         command = [
@@ -269,34 +295,65 @@ def main():
                 "--case",
                 case["case_id"],
             ]
-        process = supervise(
-            command,
-            cwd=root,
-            log=directory / "run.log",
-            wall_seconds=args.case_wall_seconds,
-            environment=dict(
-                os.environ,
-                PYTHONPATH=str(runtime / "src"),
-                PYTHONFAULTHANDLER="1",
-                PYTHONDONTWRITEBYTECODE="1",
-                ABSTRACT_STACK_SOURCE_REFERENCE=str(output / "source_ref.json"),
-                ABSTRACT_STACK_SOURCE_STORE=str(frozen.archive.parent),
-            ),
-        )
+        try:
+            process = supervise(
+                command,
+                cwd=root,
+                log=directory / "run.log",
+                wall_seconds=args.case_wall_seconds,
+                environment=environment,
+                stop_event=stop_event if workers > 1 else None,
+            )
+        except OSError as error:
+            process = dict(returncode=None, timeout=False, launch_error=str(error))
         write(directory / "process.json", process)
-        case.update(process=process, outcome="process_failure_or_unknown")
         result = directory / ("skill-result.json" if args.gym else "episode-000/result.json")
-        case["result"] = str(result.relative_to(output))
+        record = dict(
+            process=process,
+            outcome="process_failure_or_unknown",
+            result=str(result.relative_to(output)),
+        )
         if process["returncode"] in (0, 2) and not process["timeout"] and result.is_file():
-            terminal = json.loads(result.read_text())
-            if (terminal["outcome"] == "verified") == (process["returncode"] == 0):
-                case.update(outcome=terminal["outcome"], failure=terminal.get("failure"))
+            try:
+                terminal = json.loads(result.read_text())
+            except (OSError, ValueError) as error:
+                return dict(record, terminal_read_error=str(error))
+            outcome = terminal.get("outcome") if isinstance(terminal, dict) else None
+            if outcome in ("verified", "failed", "timeout", "reset_rejected") and (
+                outcome == "verified"
+            ) == (process["returncode"] == 0):
+                record.update(outcome=outcome, failure=terminal.get("failure"))
                 if "attempts" in terminal:
-                    case["attempts"] = terminal["attempts"]
+                    record["attempts"] = terminal["attempts"]
                 if "rewind" in terminal:
-                    case["initial_attempt_outcome"] = terminal["initial_attempt_outcome"]
-                    case["rewind"] = terminal["rewind"]
-        report()
+                    record["initial_attempt_outcome"] = terminal.get("initial_attempt_outcome")
+                    record["rewind"] = terminal["rewind"]
+        return record
+
+    report()
+    if workers == 1:
+        for case in cases:
+            case.update(run_case(case))
+            report()
+    else:
+        pool = ThreadPoolExecutor(max_workers=workers)
+        pending = {}
+        try:
+            for i, case in enumerate(cases):
+                pending[pool.submit(run_case, case)] = i
+            for future in as_completed(pending):
+                cases[pending[future]].update(future.result())
+                report()
+        except BaseException:
+            stop_event.set()
+            pool.shutdown(cancel_futures=True)
+            for future, i in pending.items():
+                if not future.cancelled() and future.exception() is None:
+                    cases[i].update(future.result())
+            report()
+            raise
+        else:
+            pool.shutdown()
     print(json.dumps({"report": str(output / "report.json"), "scheduled": len(cases)}))
     return 0
 

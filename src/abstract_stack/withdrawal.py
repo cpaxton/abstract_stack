@@ -114,6 +114,7 @@ def supported_withdrawal(
             finger_targets[model.joint(joint).name] = float(applied[aid])
     controls, traces, plans = [], [], []
     failure = None
+    applied_motion_bound_only = False
     source_time = float(data.time)
     active = monitor.active
     active_origin = data.xpos[active].copy()
@@ -156,7 +157,9 @@ def supported_withdrawal(
             or np.any(data.warning.number)
         ):
             failure = "native_state_or_warning"
-        if np.any(hand.position() < measured_lower) or np.any(hand.position() > measured_upper):
+        if failure is None and (
+            np.any(hand.position() < measured_lower) or np.any(hand.position() > measured_upper)
+        ):
             failure = "withdrawal_measured_tool_left_corridor"
         point, _ = hand.ik.forward(hand.command, data.qpos.copy())
         max_tracking = max(max_tracking, float(np.linalg.norm(hand.position() - point)))
@@ -487,14 +490,16 @@ def supported_withdrawal(
                 targets={name: float(bounded[model.actuator(name).id]) for name in finger_targets},
                 **admission,
             )
-            if (
-                collision
-                or np.any(applied_point < applied_lower)
-                or np.any(applied_point > applied_upper)
-                or np.linalg.norm(applied_point - previous_point) > servo_bound
-                or np.linalg.norm(rotation_error(previous_rotation, applied_rotation))
-                > angular_bound
-            ):
+            outside_applied_corridor = np.any(applied_point < applied_lower) or np.any(
+                applied_point > applied_upper
+            )
+            translation_step = float(np.linalg.norm(applied_point - previous_point))
+            rotation_step = float(
+                np.linalg.norm(rotation_error(previous_rotation, applied_rotation))
+            )
+            exceeds_motion_bound = translation_step > servo_bound or rotation_step > angular_bound
+            if collision or outside_applied_corridor or exceeds_motion_bound:
+                applied_motion_bound_only = not collision and not outside_applied_corridor
                 plans.append(
                     dict(
                         stage=stage,
@@ -503,13 +508,9 @@ def supported_withdrawal(
                         applied_point_m=applied_point.tolist(),
                         applied_lower_m=applied_lower.tolist(),
                         applied_upper_m=applied_upper.tolist(),
-                        applied_translation_step_m=float(
-                            np.linalg.norm(applied_point - previous_point)
-                        ),
+                        applied_translation_step_m=translation_step,
                         maximum_translation_step_m=servo_bound,
-                        applied_rotation_step_rad=float(
-                            np.linalg.norm(rotation_error(previous_rotation, applied_rotation))
-                        ),
+                        applied_rotation_step_rad=rotation_step,
                         maximum_rotation_step_rad=angular_bound,
                     )
                 )
@@ -617,6 +618,7 @@ def supported_withdrawal(
                 ),
             ),
             failure=failure,
+            applied_motion_bound_only=bool(applied_motion_bound_only),
             unload_only=unload_only,
             unloaded_support_verified=bool(unloaded),
             release_retreat_verified=bool(verified),

@@ -182,7 +182,9 @@ def choose_release_reference(script, monitor, dwell):
     directory = script.directory / "release-forecasts"
     directory.mkdir(exist_ok=True)
     started = time.monotonic()
-    plans = [
+    paired = bool(getattr(script.controller, "fingers", ()))
+    try_fixed_plane = script.config.dense_recovery and paired
+    references = [
         (0.0, None),
         (0.13, None),
         (-0.13, None),
@@ -191,7 +193,11 @@ def choose_release_reference(script, monitor, dwell):
         (0.0, 0.6),
         (0.0, 0.4),
     ]
-    for index, (target, preload) in enumerate(plans):
+    plans = [(target, preload, paired) for target, preload in references]
+    if try_fixed_plane:
+        plans.insert(1, (0.0, None, False))
+        plans.pop()
+    for index, (target, preload, paired_feedback) in enumerate(plans):
         if time.monotonic() - started > 60:
             break
         forecast = ReleaseForecast(script)
@@ -218,7 +224,7 @@ def choose_release_reference(script, monitor, dwell):
                 feedback=WithdrawalFeedbackConfig(
                     yaw_feedback=True,
                     yaw_reference_deg=target,
-                    paired_plane_feedback=bool(getattr(hand, "fingers", ())),
+                    paired_plane_feedback=paired_feedback,
                 ),
                 on_physics_step=forecast._sample,
                 contact_neighbors=tuple(
@@ -267,6 +273,7 @@ def choose_release_reference(script, monitor, dwell):
         row = dict(
             yaw_reference_deg=target,
             normal_target_N=preload,
+            paired_plane_feedback=paired_feedback,
             eligible=eligible,
             required_placement_conditions=placements,
             failure=failure,
@@ -290,7 +297,11 @@ def choose_release_reference(script, monitor, dwell):
         if not np.array_equal(initial, integration_state(script.env.model, script.env.data)):
             raise InteractionFailure("release_forecast: live state changed during planning")
         if row["eligible"]:
-            selected = dict(yaw_reference_deg=target, normal_target_N=preload)
+            selected = dict(
+                yaw_reference_deg=target,
+                normal_target_N=preload,
+                paired_plane_feedback=paired_feedback,
+            )
             event.update(selected=selected, wall_seconds=time.monotonic() - started)
             return selected
         if index == 0:
@@ -298,9 +309,10 @@ def choose_release_reference(script, monitor, dwell):
             # bounded reference, instead of spending the budget on blind force
             # variants. Actual yaw gates remain +/-0.15 degrees throughout.
             correction = float(np.clip(-yaw, -0.13, 0.13))
-            plans[1:3] = [(correction, None), (-correction, None)]
+            first = 2 if try_fixed_plane else 1
+            plans[first : first + 2] = [(correction, None, paired), (-correction, None, paired)]
             event["forecast_drift_correction_deg"] = correction
             if yaw > 0:
-                plans[3:5] = [(-0.10, None), (0.10, None)]
+                plans[first + 2 : first + 4] = [(-0.10, None, paired), (0.10, None, paired)]
     event["wall_seconds"] = time.monotonic() - started
     raise InteractionFailure("release_forecast: no verified bounded reference/withdrawal candidate")

@@ -64,6 +64,15 @@ project names, task descriptions, repository links, or private context.
 
 ## SIM-001 — Intermittent native MuJoCo signal during MABEL control
 
+- **2026-11-20 native episode:** a frozen headless run exited on signal 11
+  while reading the native contact list in a per-physics-step placement check.
+  The retained progress and checkpoint are from before the signal. There is no
+  terminal summary. This check now reads the same geometry IDs and distances
+  from the native contact arrays, avoiding individual contact wrappers in
+  this loop. The traceback identifies the read site. The native cause is
+  unresolved. The failure is recorded locally under
+  `outputs/runs/agent-harness/dense-recovery-v6/seed-5/`.
+
 - **2026-11-18 validation:** a frozen complete suite at `fcee9d0` reached
   95% progress before signal 11 in native data construction for a primitive
   contact-torque fixture. A later focused process failed while compiling the

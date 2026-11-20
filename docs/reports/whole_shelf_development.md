@@ -1570,3 +1570,237 @@ with strict contact, release and withdrawal. The Gymnasium recovery
 case rewound from the pressure stop and verified supported release.
 
 - [Native trials, control variants, and failure checkpoint paths](../../outputs/runs/agent-harness/combined-stocking-v1/report.json)
+
+### Fresh integrated runs and pose variation
+
+The integrated candidate ran from empty shelves on public seeds 5 and 7 with
+ten scheduled cartons, zero prefills and 20 mm of total lateral free space.
+Each reset matched its earlier early-registration run bit for bit. Both runs
+used controller source `b26c3a744102`, MABEL revision `d0181f04025c`, and
+native MuJoCo 3.17.0. The waypoints and force guards ran online from measured state.
+
+| Reset seed | Picks | Shelf support | Strict final positioning | Retreat | First terminal failure |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 5 | 6/10 | 6/10 | 4/10 | 5/10 | Sixth carton. A compensated ring-finger command would have overlapped carton 5 by 3.00 mm. |
+| 7 | 7/10 | 7/10 | 4/10 | 6/10 | Seventh carton. The return base turn brought the predicted left tower within 15.84 mm of the supply table. |
+
+Continuous monitoring recorded zero tips or drops in either episode. Strict
+positioning requires back contact, released placement and released yaw. One
+seed-5 retreat and two seed-7 retreats lacked at least one of those checks.
+The retained start before the sixth front-square handoff on seed 5 verified
+push and retreat in isolation. The original geometry stop is also retained.
+A 35° return turn cleared the native guards from the saved seed-7 stop.
+Its subsequent front square failed the compensated finger check.
+
+The pose pilot translated the shelf by (−10, +15) mm in world X/Y on seed 5.
+Its first side push passed the nominal intermediate reference, then held
+pressure about 2.8 mm beyond it until timeout. The updated skill uses measured
+side progress, support and yaw to decide when the wall lies within one more
+bounded push. After clearing the hand it replans the wall approach from the
+current tool posture. The revised fresh run reached the wall and backstop and
+then exhausted the withdrawal decision budget on the first carton. A native
+withdrawal from the retained release entry verified retreat in isolation.
+
+The independent supply pilot increased per-axis spawn jitter from ±2 to ±6 mm
+on seed 7, moving an individual carton by up to 4.72 mm from its matched start.
+It reached the first closure before a coupled finger/shelf-side check rejected
+the command. The first generated pose-suite case also stopped at closure.
+A 3.1 N grasp force setpoint verified both isolated picks from their earlier
+saved entries. A fresh supply-pilot run with that setpoint failed on the first
+lift. The first generated layout passed strict placement and retreat for
+carton one, then failed to lift carton two. The lower setpoint remains a
+development probe. All eight generated development scenes passed native reset
+clearance and a guarded 0.2 s hold.
+
+- [Frozen runs, mode flags and failure checkpoint paths](../../outputs/runs/agent-harness/fresh-integrated-v1/report.json)
+- [Fresh seed 7 video, six retreats](../../outputs/runs/agent-harness/fresh-integrated-v1/seed-7-video/stocking-timeline.mp4)
+- [Fresh seed 5 video, five retreats](../../outputs/runs/agent-harness/fresh-integrated-v1/seed-5-video/stocking-timeline.mp4)
+- [Generated pose variant video, one strict placement and retreat](../../outputs/runs/agent-harness/fresh-integrated-v1/pose-000-force31-video/stocking-timeline.mp4)
+- [Pose-only suite setup](../domain_randomization.md#pose-only-carton-rows)
+- [Eight native pose-suite reset checks](../../outputs/runs/agent-harness/fresh-integrated-v1/pose-suite-native/report.json)
+- [Two isolated grasp setpoint probes](../../outputs/runs/agent-harness/fresh-integrated-v1/wider-pose-pick-target-probe/report.json)
+- [Isolated shifted-shelf withdrawal](../../outputs/runs/agent-harness/fresh-integrated-v1/shelf-shift-isolated-retreat/report.json)
+
+### Dense recovery from an empty shelf
+
+Each trial starts with ten cartons on the table and 20 mm of nominal free
+width across the row, including the two wall gaps. The controller logs all four
+stages, keeps exact failed motion states, and measures incidents at every native
+physics step. These rows use the same policy snapshot, whose full source hash
+and effective flags are in the [campaign record](../../outputs/runs/agent-harness/dense-recovery-v4/campaign-report.json).
+
+| Seed | Pick | Shelf support | Strict final position | Verified withdrawal | First terminal blocker |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 5 | 9/10 | 8/10 | 4/10 | 8/10 | No checked loaded shelf approach for carton nine |
+| 7 | 7/10 | 7/10 | 4/10 | 7/10 | Seventh-carton corrective contact refinement exhausted |
+
+Neither episode had a tip or drop. Some placements passed support and withdrawal
+and still needed another contact pass for final alignment. For seed 7, the short
+square did execute, but its caller retained the earlier guide and the carton
+ended up about 11 mm off the controller's lateral goal. Repeating from the saved
+front-insertion entry with the handoff corrected passed strict positioning and
+withdrawal at −0.097° released yaw. That replay starts with six cartons already
+on the shelf and earns zero fresh task credit.
+
+Seed 5 ran for 23.9 minutes and seed 7 for 19.3 minutes. Native base
+repositioning consumed 8.1 and 5.6 minutes respectively, their largest
+wall-time cost. These timings include the per-step guards and recording.
+
+The sixth-carton geometry stop replay also passed strict placement and
+withdrawal after a guarded unload and reapproach. Separate saved insertion
+entries for cartons nine and ten passed strict finishing at approximately
+0.0002° and −0.112° released yaw, respectively. They start well inside those
+skills. The latest four replays reproduced those successes, using a 35 mm
+approach on the known ninth entry and 45 mm on the tenth. The default ninth
+approach exhausted contact refinement and remains a development case.
+A separate eighth-carton replay recovered its grasp path and carried
+the carton to the shelf, then a folded finger touched the supply table during
+the empty approach. The saved failure recorded 26.8 N across the contact
+patch. Adding a measured-clearance reserve to the compensated approach let the
+robot continue to a supported square contact. Strict unloading remains
+sensitive to that entry state.
+
+From the ninth-carton loaded stop, a checked front landing 6 mm toward the
+shelf center restored the transfer and verified a free shelf-supported release.
+The released carton was about 9.8° off square. A separate insertion replay
+stalled in the short-square phase at 2.6°. Both the loaded transfer stop and
+the later support and insertion stops remain in the development curriculum.
+
+In a subsequent frozen pair, seed 7 recorded 9 picks, 8 shelf-supported
+placements, 5 strict final positions and 8 withdrawals before exhausting
+its ninth loaded approach. Seed 5 reached eight withdrawal checkpoints
+before an intermittent native signal 11 during the ninth lift. The run has
+no terminal grade. Its last native boundary and crash trace remain in the
+campaign record. [SIM-001](../../home_robot_issues.md#sim-001--intermittent-native-mujoco-signal-during-mabel-control)
+
+Later saved-state replays on both lineages reached supported release for
+carton nine. Seed 7 needed retained finger postures through pressure taper
+and departure. On seed 5, the short square reduced yaw to about 1°, and a
+native side approach moved the carton 7.7 mm into the lateral opening.
+Returning from that side approach to a reachable insertion posture remains
+part of the handoff verification.
+
+The tight-three regression and the pre-change control replay took identical
+native trajectories and both stopped in the second carton's contact refinement
+with one verified withdrawal. The 10 mm frozen holdout and the 5 mm trials
+await complete packed fresh episodes at 20 mm. Strict positioning remains
+a separately reported grade when using the packed-first profile.
+
+The packed-first profile can defer fine alignment until after all withdrawals.
+The completed 20 mm packed-first trial on seed 5 verified all ten picks and
+shelf placements, nine withdrawals and five strict final positions. The tenth
+carton stayed supported while a finger retained 0.42 N of contact after opening.
+Seed 7 reached nine supported placements, eight withdrawals and five strict
+final positions before its ninth-carton finger opening stopped at the side
+panel. Neither trial reached the packed-first success gate.
+
+A subsequent matched 20 mm pair reproduced the same stage counts from reset.
+Seed 5 picked and placed all ten cartons, verified nine withdrawals and
+stopped at the tenth carton's side registration. Seed 7 picked and placed
+nine, verified eight withdrawals and stopped at the ninth carton's side
+registration. Both passed five strict final positions and recorded zero tip
+or drop incidents. Both native episodes reported terminal results.
+
+A later matched pair achieved the first fresh packed success on seed 5.
+The run started from reset with zero prefills and verified all ten picks,
+shelf placements and withdrawals. Four cartons passed strict positioning.
+The packed row had 18.93 mm projected free width and 0.070 mm aggregate
+envelope overlap at 1799.11 simulated seconds. Continuous observation recorded
+zero tips and zero drops. Seed 7 verified eight withdrawals and stopped
+during the ninth lateral shift. The frozen pair and new pose pilot therefore
+retain separate scores for packing, strict alignment and generalization.
+
+On seed 7's saved ninth-carton entry, a 10 mm checked approach to the side
+face completed the lateral shift. A coupled two-finger square then achieved
+0.092° yaw under contact and settled at 0.181° after unloading. The carton
+was still ahead of the occupied row and needed roughly 2.6 mm of lateral
+registration. The shallow-handoff replay corrected that offset and advanced
+to about 6.5 mm from its backstop depth. The compensated path check rejected
+the ring finger's approach to the stocked neighbor before commanding it.
+The exact unload and geometry stops remain available for practice. A single
+finger either failed the checked servo approach or stalled during lateral
+registration. A separate 4 mm side correction reached the lateral target
+region and left 2.76° yaw, outside its stage gate.
+
+A dedicated recentering retry on the same seed 7 state reached a base stance
+where the measured turn check rejected the swept hand near the shelf. The
+one-shot recovery rescreened the measured stance, backed off and completed
+the turn through native wheels. The next side approach still had no checked
+arm path. The two stops retain separate failure records.
+
+The standalone recentering skill passed on seed 5's saved ninth-carton
+handoff. The measured center finished inside the reserved slot and the
+projected footprint still fit after unloading and turning back. The
+continuation recorded zero incidents and saved the newly verified handoff.
+
+Continuations of seed 5 seated the tenth carton at the backstop with
+−0.0122° yaw and no remaining hand force. A fixed-orientation arm withdrawal
+left its measured lateral corridor. From that exact stop, a swept and
+force-guarded 40 mm chassis move advanced the measured hand 38.6 mm farther
+out of the shelf. The full row then passed a 0.70 s native packed hold with
+all ten cartons supported, 18.69 mm projected free width, 0.070 mm aggregate
+overlap, and no tip or drop incidents. The hold used a checkpoint-local time
+budget and earns zero fresh-task credit.
+
+Late-wall trials on the saved seed 5 landing found checked 45° and 55°
+approaches that both seated the tenth carton. Both arm exits reached the
+applied Cartesian step bound after unloading. Each saved stop passed a
+screened chassis retreat, and both stops are now independent Gym cases.
+From an earlier saved landing, the shorter checked stow, direct side exit
+and guarded chassis retreat completed the packed hold at 1789.08 s on the
+original 1800 s simulation clock. A separate replay starting before the
+tenth release exercised the same skill sequence with a skill-local deadline
+and passed all ten supported placements and the packed hold. These runs
+earn zero fresh-task credit.
+
+An experiment that skipped settled stow waits throughout the episode failed
+on seed 5's second carton. The changed trajectory entered a short side square
+and drifted 9.4 mm in shelf depth, beyond its 5 mm motion gate. The controller
+keeps the original stow wait through the first nine cartons and tries the
+shorter sequence only for the last carton.
+
+The best completed uninterrupted trace spent 655 s in base translations
+out of 1691 s of recorded simulation. Repeated right-arm stows took
+another 45 s. This breakdown keeps the timing work focused on the motions
+that dominate the full episode.
+
+The retained ten-carton fixture passed a new 0.70 s native hold, with
+17.84 mm projected free width and 0.0044 mm envelope overlap. The saved
+episode remains a continuation with zero fresh credit.
+From that fixture, a targeted correction changed carton zero's released
+yaw from 0.164° to 0.023°. Its strict contact and withdrawal passed,
+the row remained packed, and all ten cartons stayed supported with no
+tip or drop incidents.
+Repeating the correction from the new post-dwell checkpoint reached 0.009°
+released yaw and saved another verified packed boundary.
+
+The full test suite with native MABEL passed 543 tests after switching
+placement checks to the native contact arrays.
+
+- [Fresh seed 5, synchronized third-person and robot cameras](../../outputs/runs/agent-harness/dense-recovery-v3/seed-5-video/stocking-timeline.mp4)
+- [Bit-exact replay and artifact checksums](../../outputs/runs/agent-harness/dense-recovery-v3/seed-5-video/result.json)
+- [Longest uninterrupted seed 5 video, nine verified withdrawals](../../outputs/runs/agent-harness/dense-recovery-v9/seed-5-video/stocking-timeline.mp4)
+- [Longest-run bit-exact replay and artifact checksums](../../outputs/runs/agent-harness/dense-recovery-v9/seed-5-video/result.json)
+- [Repeated uninterrupted seed 5 terminal grade](../../outputs/runs/agent-harness/dense-recovery-v10/seed-5/process.json)
+- [Repeated uninterrupted seed 7 terminal grade](../../outputs/runs/agent-harness/dense-recovery-v10/seed-7/process.json)
+- [Fresh packed success on seed 5](../../outputs/runs/agent-harness/dense-recovery-v14/seed-5/process.json)
+- [Full fresh ten-carton two-camera video](../../outputs/runs/agent-harness/dense-recovery-v14/seed-5-video/stocking-timeline.mp4)
+- [Bit-exact verification of the fresh ten-carton replay](../../outputs/runs/agent-harness/dense-recovery-v14/seed-5-video/result.json)
+- [Matched seed 7 terminal grade](../../outputs/runs/agent-harness/dense-recovery-v14/seed-7/process.json)
+- [Seed 7 short square and measured unload](../../outputs/runs/agent-harness/dense-recovery-v15/ninth-coupled-square/summary.json)
+- [Measured registration and forward progress from the saved unload](../../outputs/runs/agent-harness/dense-recovery-v15/ninth-shallow-square-handoff/summary.json)
+- [Measured turn recovery and subsequent arm-planning stop](../../outputs/runs/agent-harness/dense-recovery-v16/ninth-dedicated-side-turn-recovery/summary.json)
+- [Verified standalone recentering on seed 5](../../outputs/runs/agent-harness/dense-recovery-v16/seed-5-recenter-skill/summary.json)
+- [Saved ninth-carton transfer and exact stops](../../configs/curricula/development.json)
+- [Tenth-carton chassis withdrawal from the exact arm stop](../../outputs/runs/agent-harness/dense-recovery-v9/tenth-unloaded-retreat-swept/summary.json)
+- [Tenth-carton finish with synchronized external and robot views](../../outputs/runs/agent-harness/dense-recovery-v9/tenth-packed-finish-video/stocking-timeline.mp4)
+- [Packed hold on the completed seed 5 continuation](../../outputs/runs/agent-harness/dense-recovery-v9/fresh-tenth-verified-row-swept/summary.json)
+- [Repeatable Gym retreat control from the same exact stop](../../outputs/runs/agent-harness/dense-recovery-v9/tenth-unloaded-retreat-curriculum-local/report.json)
+- [Two additional Gym retreat cases](../../outputs/runs/agent-harness/dense-recovery-v11/steep-retreat-curriculum/report.json)
+- [Packed hold under the original simulation deadline](../../outputs/runs/agent-harness/dense-recovery-v11/tenth-compact-earlier-verified-row/summary.json)
+- [Composed tenth-carton finish from the saved grasp release](../../outputs/runs/agent-harness/dense-recovery-v11/tenth-composed-local-row/summary.json)
+- [Bit-exact two-camera replay of the original-deadline finish](../../outputs/runs/agent-harness/dense-recovery-v11/tenth-composed-video/stocking-timeline.mp4)
+- [Early side-square stop from the broader stow change](../../outputs/runs/agent-harness/dense-recovery-v12/seed-5/episode/skill-entries/018-carton_8-motion_failure/checkpoint/manifest.json)
+- [Saved ten-carton packed hold](../../outputs/runs/agent-harness/dense-recovery-v9/retained-verify-row/summary.json)
+- [Targeted correction and packed-row check](../../outputs/runs/agent-harness/dense-recovery-v9/retained-finish-one/summary.json)
+- [Bit-exact targeted correction video](../../outputs/runs/agent-harness/dense-recovery-v9/retained-finish-one-video/stocking-timeline.mp4)

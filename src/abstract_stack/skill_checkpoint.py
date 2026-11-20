@@ -38,9 +38,10 @@ def restore_skill_controller(script, checkpoint, *, replan_released_tool=False):
     script.product = next(
         p for p in env.products if p.name == context["skill_entry"]["active_product"]
     )
-    if context["skill_entry"].get("phase") == "front_squaring_complete":
+    entry_phase = context["skill_entry"].get("phase")
+    if entry_phase in ("front_squaring_complete", "front_square_deferred"):
         # Route admission depends on whether the pusher is starting after a square.
-        script.phase = "front_squaring_complete"
+        script.phase = entry_phase
     legacy = "tool_settings" not in state or "grasp_abduction_targets" not in state
     script.grasp_abduction_targets = dict(
         state.get("grasp_abduction_targets", script.grasp_abduction_targets)
@@ -86,6 +87,8 @@ def restore_skill_controller(script, checkpoint, *, replan_released_tool=False):
         nominal_references=state["nominal_subset"],
     )
     script.active_grip = state["active_grip"]
+    script._planned_front_landing = state.get("planned_front_landing")
+    script._prior_strict_positions = tuple(context.get("strict_positions", ()))
     script.wrist_load = float(state.get("wrist_load_state_Nm", 0))
     if not np.isfinite(script.wrist_load) or abs(script.wrist_load) > 0.3:
         raise ValueError("Recorded wrist load exceeds the controller effort budget")

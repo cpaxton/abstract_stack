@@ -34,7 +34,13 @@ def test_prefilled_cartons_do_not_earn_manipulation_stage_credit():
     assert report["scheduled_manipulations"] == 1
     assert report["stages"] == dict.fromkeys(stages, 1)
     assert report["clean_success"]
+    result["stage_evaluation"]["products"]["inserted"]["final_position"] = False
+    report = manipulation_evaluation(result)
+    assert report["packed_success"]
+    assert not report["clean_success"]
+    assert report["remaining_alignment_products"] == ["inserted"]
     result["stage_evaluation"]["products"]["inserted"]["retreat"] = False
+    assert not manipulation_evaluation(result)["packed_success"]
     assert not manipulation_evaluation(result)["clean_success"]
     result["scheduled_pick_products"] = []
     assert not manipulation_evaluation(result)["clean_success"]

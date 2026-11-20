@@ -13,6 +13,7 @@ from abstract_stack.source_store import default_source_store
 SKILL_PHASES = {
     "motion_failure": "motion_failure",
     "stocking_milestone": "stocking_milestone",
+    "packed_row_ready": "packed_row_ready",
     "grasp_precheck": "grasp_lift",
     "carry_clear": "transfer",
     "place": "shelf_place",
@@ -29,6 +30,9 @@ SKILL_PHASES = {
     "side_slide_unloaded": "side_slide_unloaded",
     "front_square_plan": "front_squaring",
     "front_squaring_complete": "front_squaring_complete",
+    "front_square_deferred": "front_square_deferred",
+    "insertion_reapproach_ready": "front_insertion",
+    "dense_finish": "front_insertion",
     "contact_refine": "contact_refinement",
     "release_forecast": "withdrawal_planning",
     "release_unload_forecast": "withdrawal_planning",
@@ -57,6 +61,10 @@ SKILL_CONTRACTS = {
         "entry": "Verified supported intermediate push with the pusher unloaded",
         "success": "Replan final forward insertion from the measured intermediate pose",
     },
+    "front_square_deferred": {
+        "entry": "An unloaded carton remains supported ahead of the occupied row",
+        "success": "Verify the measured slot before forward advance or correct the lateral miss",
+    },
     "motion_failure": {
         "entry": "Terminal measured state at a controller stop",
         "success": "Diagnostic fixture for a checked recovery; no task credit",
@@ -64,6 +72,10 @@ SKILL_CONTRACTS = {
     "stocking_milestone": {
         "entry": "Verified retreat after a completed carton with no retained load",
         "success": "Resume with the next pending carton using the measured scene",
+    },
+    "packed_row_ready": {
+        "entry": "All cartons are supported after the native packed dwell and the hand is clear",
+        "success": "Resume a guarded alignment pass from the measured packed row",
     },
     "free_landing": {
         "entry": "Measured supported landing with the grasp hand clear",
@@ -244,6 +256,11 @@ def record_skill_entry(script, phase, *, case=None):
             phase=script.phase,
             entry_skill=skill,
         )
+    strict_positions = []
+    if script.config.dense_recovery and observer is not None:
+        from abstract_stack.dense_recovery import strict_positioned_products
+
+        strict_positions = sorted(strict_positioned_products(script, observer.completed))
     save_checkpoint(
         directory / "checkpoint",
         env.model,
@@ -286,6 +303,7 @@ def record_skill_entry(script, phase, *, case=None):
             active_rotation_world=script.controller.active_rotation.tolist(),
             nominal_cartesian_target_m=script.controller.last_target.tolist(),
             active_grip=script.active_grip,
+            planned_front_landing=getattr(script, "_planned_front_landing", None),
             base_translation_origin_xy_m=None
             if script._base_translation_origin is None
             else script._base_translation_origin.tolist(),
@@ -302,6 +320,7 @@ def record_skill_entry(script, phase, *, case=None):
         context=dict(
             skill_entry=entry,
             observer_history=history,
+            strict_positions=strict_positions,
             event_boundary=dict(
                 event_index=len(script.events) - 1,
                 phase=script.phase,

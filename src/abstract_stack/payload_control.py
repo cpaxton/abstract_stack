@@ -29,7 +29,9 @@ def measured_payload_load(script):
     return result
 
 
-def screen_unloaded_servo_path(hand, prediction, tracking_config, *, product):
+def screen_unloaded_servo_path(
+    hand, prediction, tracking_config, *, product, supply_clearance_m=0.0
+):
     """Screen a joint-space approach using gravity-compensated servo references.
 
     The projection assumes a stationary robot at each sample. Live rate,
@@ -58,6 +60,21 @@ def screen_unloaded_servo_path(hand, prediction, tracking_config, *, product):
     ]
     minimum = 0.05
     clearance_reserve = 0.002
+    supply_pairs = []
+    if supply_clearance_m:
+        supply = model.body("supply").id
+        supply_pairs = [
+            (hand_geom, fixture)
+            for hand_geom in range(model.ngeom)
+            if model.geom_bodyid[hand_geom] in ik.hand
+            for fixture in range(model.ngeom)
+            if model.geom_bodyid[fixture] == supply
+            and (
+                model.geom_contype[hand_geom] & model.geom_conaffinity[fixture]
+                or model.geom_contype[fixture] & model.geom_conaffinity[hand_geom]
+            )
+        ]
+    supply_minimum = 0.05
     rates = np.r_[np.full(len(hand.names), tracking_config.joint_speed), tracking_config.lift_speed]
     waypoints = (
         prediction.joint_path if prediction.joint_path is not None else prediction.q[None, :]
@@ -89,16 +106,41 @@ def screen_unloaded_servo_path(hand, prediction, tracking_config, *, product):
             default=minimum,
         )
         minimum = min(minimum, float(clearance))
+        supply_minimum = min(
+            supply_minimum,
+            min(
+                (
+                    mujoco.mj_geomDistance(model, ik.scratch, g, fixture, 0.05, None)
+                    for g, fixture in supply_pairs
+                ),
+                default=0.05,
+            ),
+        )
         if errors:
             return dict(
                 admitted=False, samples=index, active_product_clearance_m=minimum, errors=errors
             )
-    return dict(
+        if supply_minimum < supply_clearance_m:
+            return dict(
+                admitted=False,
+                samples=index,
+                active_product_clearance_m=minimum,
+                supply_clearance_m=supply_minimum,
+                supply_clearance_reserve_m=supply_clearance_m,
+                errors=["unloaded hand lacks supply table clearance"],
+            )
+    result = dict(
         admitted=minimum >= clearance_reserve,
         samples=len(nominal_samples),
         active_product_clearance_m=minimum,
         active_product_clearance_reserve_m=clearance_reserve,
     )
+    if supply_pairs:
+        result.update(
+            supply_clearance_m=supply_minimum,
+            supply_clearance_reserve_m=supply_clearance_m,
+        )
+    return result
 
 
 def guard_payload_targets(script, targets, *, intended_contact=None, admit_contact=None):

@@ -79,6 +79,43 @@ def sample_scene(seed, family):
             time_limit=900.0,
             terminate_on_success=False,
         )
+    adapter = (
+        "carton_bench"
+        if family == "bench_cartons"
+        else "receding_dense"
+        if family == "dense_cartons"
+        else None
+    )
+    return config, _scene_context(config, seed, family, adapter)
+
+
+def sample_carton_poses(seed, base):
+    """Vary shelf translation and individual supply positions in one fixed row."""
+    if not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed < 2**63:
+        raise ValueError("Choose a nonnegative pose seed")
+    if base.product_kind != "carton" or len(base.levels) != 1 or base.initially_stocked:
+        raise ValueError("Pose sampling requires one initially empty carton shelf")
+    rng = np.random.default_rng(seed)
+    dx = float(rng.uniform(-0.012, 0.004))
+    dy = float(rng.uniform(-0.015, 0.015))
+    config = replace(
+        base,
+        front_x=base.front_x + dx,
+        center_y=base.center_y + dy,
+        table_center_y=base.table_xy[1],
+        spawn_jitter=float(rng.uniform(0.002, 0.006)),
+    )
+    context = _scene_context(config, seed, "carton_pose", None)
+    context["teacher_capability_status"] = "evaluate_with_fresh_stocking_case"
+    context["factors"].update(
+        shelf_translation_from_base_m=[dx, dy],
+        shelf_front_center_world_xy_m=[config.front_x, config.center_y],
+        table_world_xy_m=list(config.table_xy),
+    )
+    return config, context
+
+
+def _scene_context(config, seed, family, adapter):
     products = products_for(config)
     reset_seed = int(np.random.default_rng(seed ^ 0x5A17C3).integers(0, 2**31))
     poses = initial_positions(config, products, reset_seed)
@@ -91,13 +128,6 @@ def sample_scene(seed, family):
             or abs(position[1] - ty) + p.half_size[1] > config.table_size[1] / 2
         ):
             raise ValueError("Sampled supply layout does not fit its declared table")
-    adapter = (
-        "carton_bench"
-        if family == "bench_cartons"
-        else "receding_dense"
-        if family == "dense_cartons"
-        else None
-    )
     factors = dict(
         family=family,
         product_count=len(products),
@@ -111,7 +141,7 @@ def sample_scene(seed, family):
         spawn_jitter_m=config.spawn_jitter,
         whole_row_free_space_m=config.row_free_space,
     )
-    return config, dict(
+    return dict(
         scene_seed=seed,
         reset_seed=reset_seed,
         factors=factors,
@@ -134,7 +164,13 @@ def _write(path, value):
 
 
 def generate_suite(
-    output, *, development_count=8, heldout_count=12, development_seed=2026, heldout_seed=None
+    output,
+    *,
+    development_count=8,
+    heldout_count=12,
+    development_seed=2026,
+    heldout_seed=None,
+    pose_base=None,
 ):
     """Emit configs/context plus an all-object ledger; no simulation or task credit.
 
@@ -172,8 +208,11 @@ def generate_suite(
             while seed in used:
                 seed = int(rng.integers(0, 2**31))
             used.add(seed)
-            family = FAMILIES[index % len(FAMILIES)]
-            config, context = sample_scene(seed, family)
+            if pose_base is None:
+                family = FAMILIES[index % len(FAMILIES)]
+                config, context = sample_scene(seed, family)
+            else:
+                config, context = sample_carton_poses(seed, pose_base)
             case_id = f"{split}-{index:03}"
             directory = output / "cases" / case_id
             _write(directory / "scene.json", asdict(config))

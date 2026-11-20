@@ -209,7 +209,7 @@ class NativeSwerve:
 
 
 def screen_base_translation(
-    env, displacement_xy, *, config=None, carried_product=None, turn_rad=0.0
+    env, displacement_xy, *, config=None, carried_product=None, turn_rad=0.0, planning=None
 ):
     """Screen translation or an unloaded in-place turn using scratch data.
 
@@ -235,6 +235,8 @@ def screen_base_translation(
         raise ValueError("A screened turn must be in place, unloaded and within 90 degrees")
     snapshot = env.clone_for_planning()
     model, data = snapshot.model, snapshot.data
+    if planning is not None:
+        mujoco.mj_copyData(data, model, planning.data)
     swerve = NativeSwerve(model, data, config)
     desired, _, _ = swerve.module_requests([*displacement, turn_rad])
     initial = data.qpos.copy()
@@ -330,6 +332,15 @@ def screen_base_translation(
         yaw_envelope_rad=config.path_yaw_margin_rad,
         scope="kinematic geometry; no tracking or tire-dynamics certificate",
     )
+
+
+def rotate_planning_base(snapshot, angle):
+    """Set a prospective heading on caller-owned scratch data."""
+    address = int(snapshot.model.joint("base_root").qposadr[0]) + 3
+    quaternion = snapshot.data.qpos[address : address + 4]
+    turn = np.array([np.cos(angle / 2), 0, 0, np.sin(angle / 2)])
+    mujoco.mju_mulQuat(quaternion, turn, quaternion.copy())
+    mujoco.mj_forward(snapshot.model, snapshot.data)
 
 
 class BaseMotionFailure(InteractionFailure):

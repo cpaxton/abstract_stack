@@ -898,6 +898,460 @@
       "checkpoint": "runs/agent-harness/combined-stocking-v1/continue-early-5/episode/skill-entries/022-carton_5-contact_refinement/checkpoint",
       "manifest_sha256": "78dec3d8920b8f15df52fff79f946200c0cb7a13a04acd94d3905caa6000a05d",
       "original_failure": "Saved-state worker exited with native signal 11 during fifth refinement. Terminal outcome unknown."
+    },
+    {
+      "id": "dense-ten-spread-first-grasp-entry",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-object-spread-seed7",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/object-spread/episode/skill-entries/000-carton_9-grasp_lift/checkpoint",
+      "manifest_sha256": "cb83206a5f8ecfe880e9fa9e741901b486da9e5d3863cf1140242aa36b032889",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation"
+    },
+    {
+      "id": "dense-ten-spread-first-grasp-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-object-spread-seed7",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/object-spread/episode/skill-entries/001-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "abfb830832e1a024d07157639407bbe719d5fd1d97986ad9f622b2a61a38a35d",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation",
+      "rewind_case_id": "dense-ten-spread-first-grasp-entry"
+    },
+    {
+      "id": "dense-ten-shifted-shelf-wall-registration-entry",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-shelf-shift-seed5",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/shelf-shift/episode/skill-entries/004-carton_9-free_landing/checkpoint",
+      "manifest_sha256": "5f53353aec995f940f8738f218b1abc0bfabe9a0ada949fd4d4c476c707b54df",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan"
+    },
+    {
+      "id": "dense-ten-shifted-shelf-wall-registration-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-shelf-shift-seed5",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/shelf-shift/episode/skill-entries/006-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "76bd9a330d1cc0efeb82889920a719866f5a180113e8bf63decd22a586b75eff",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan",
+      "rewind_case_id": "dense-ten-shifted-shelf-wall-registration-entry"
+    },
+    {
+      "id": "dense-ten-integrated-seed5-sixth-adjacent-before",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/seed-5/episode/skill-entries/071-carton_4-front_squaring_complete/checkpoint",
+      "manifest_sha256": "ab96c191d0d382ff323221f58738bdcdc9799b2b2597c2622bdf414392f37986",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected",
+      "replan_released_tool": true
+    },
+    {
+      "id": "dense-ten-integrated-seed5-sixth-adjacent-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/seed-5/episode/skill-entries/072-carton_4-motion_failure/checkpoint",
+      "manifest_sha256": "3f135a45bd6b2a89ae79b80decbb3798bd66a319d8e2ed04fe35f2da610dfa9b",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected",
+      "replan_released_tool": true,
+      "rewind_case_id": "dense-ten-integrated-seed5-sixth-adjacent-before"
+    },
+    {
+      "id": "dense-ten-pose000-first-grasp-entry",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-pose000",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/pose-suite-development-000/episode/skill-entries/000-carton_9-grasp_lift/checkpoint",
+      "manifest_sha256": "d0d9eebede89b135cfddd33ec93fed8cd626bee948f163a9fc867a94735a6054",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation"
+    },
+    {
+      "id": "dense-ten-pose000-first-grasp-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-pose000",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/pose-suite-development-000/episode/skill-entries/001-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "547065c03c62dd60343c79171879e858fec39c0796221e7c9b53518b3837fc59",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation",
+      "rewind_case_id": "dense-ten-pose000-first-grasp-entry"
+    },
+    {
+      "id": "dense-ten-integrated-seed7-seventh-turn-entry",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/seed-7/episode/skill-entries/077-carton_3-front_insertion/checkpoint",
+      "manifest_sha256": "52c86fd497e237bcf05a5ad818db21e23d15da31f26bbd5d4bcfb61cc6d69054",
+      "original_failure": "base_turn: yaw sweep rejected before actuation"
+    },
+    {
+      "id": "dense-ten-integrated-seed7-seventh-turn-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/seed-7/episode/skill-entries/079-carton_3-motion_failure/checkpoint",
+      "manifest_sha256": "2c0acc19bb60c88025f908ecffba70443610d116145871314c905769bc302c61",
+      "original_failure": "base_turn: yaw sweep rejected before actuation",
+      "rewind_case_id": "dense-ten-integrated-seed7-seventh-turn-entry"
+    },
+    {
+      "id": "dense-ten-shifted-shelf-first-withdrawal-entry",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-shelf-shift-seed5",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/shelf-shift-staging-handoff/episode/skill-entries/009-carton_9-release_retreat/checkpoint",
+      "manifest_sha256": "962498942456bb5609ae8a3efeadc23a19e1fe1c1e2747d3f1a675d68a72843c",
+      "original_failure": "release: withdrawal_retreat_decision_budget_exhausted"
+    },
+    {
+      "id": "dense-ten-shifted-shelf-first-withdrawal-stop",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-shelf-shift-seed5",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/shelf-shift-staging-handoff/episode/skill-entries/010-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "8557fa8ca0dfb4ce1e97bf50cf3f0bb860a113f0633454ea134f410c5eea098d",
+      "original_failure": "release: withdrawal_retreat_decision_budget_exhausted",
+      "rewind_case_id": "dense-ten-shifted-shelf-first-withdrawal-entry"
+    },
+    {
+      "id": "dense-ten-pose000-second-lift-entry",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-pose000",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/pose-suite-development-000-force31/episode/skill-entries/011-carton_8-grasp_lift/checkpoint",
+      "manifest_sha256": "ef30e578800a58902a7e950877e711c1d1c696af53f7d2437c91bd2a1405605b",
+      "original_failure": "lift: object did not rise with the hand under contact"
+    },
+    {
+      "id": "dense-ten-pose000-second-lift-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-pose000",
+      "checkpoint": "runs/agent-harness/fresh-integrated-v1/pose-suite-development-000-force31/episode/skill-entries/012-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "d2f1038c53724c62110d326af697ce58d07806458f0866516346be52303f5b86",
+      "original_failure": "lift: object did not rise with the hand under contact",
+      "rewind_case_id": "dense-ten-pose000-second-lift-entry"
+    },
+    {
+      "id": "dense-ten-seventh-short-square-entry",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v3/seventh-stop/episode/skill-entries/002-carton_3-front_insertion/checkpoint",
+      "manifest_sha256": "00219673e843da81fe5fe328f8036b167a15ff57ed0a347e9525bfc2c945c57f",
+      "original_failure": "contact_refine: measured tool left fixed corridor"
+    },
+    {
+      "id": "dense-ten-seventh-short-square-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v3/seventh-stop/episode/skill-entries/004-carton_3-motion_failure/checkpoint",
+      "manifest_sha256": "c792a53aade52ef4844d1d00bb706fd39b4aabddaa76ece1c8d4317cb592954d",
+      "original_failure": "contact_refine: measured tool left fixed corridor",
+      "rewind_case_id": "dense-ten-seventh-short-square-entry"
+    },
+    {
+      "id": "dense-ten-eighth-grasp-route-entry",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v4/late-three-development/episode/skill-entries/000-carton_2-grasp_lift/checkpoint",
+      "manifest_sha256": "a0e6c489817f07aac1b007993dd0976708e911e2f24e3f44b04873451e270e63",
+      "original_failure": "pregrasp_route: no checked empty-hand route around shelf fixtures"
+    },
+    {
+      "id": "dense-ten-eighth-grasp-route-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v4/late-three-development/episode/skill-entries/001-carton_2-motion_failure/checkpoint",
+      "manifest_sha256": "fa687bb9fda8a617ec22f43d6938af8a431c65759aa1cd2dc2192fe2c417dfb4",
+      "original_failure": "pregrasp_route: no checked empty-hand route around shelf fixtures",
+      "rewind_case_id": "dense-ten-eighth-grasp-route-entry"
+    },
+    {
+      "id": "dense-ten-eighth-loaded-workspace-stop",
+      "skill": "place",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v4/eighth-aisle-probe/episode/skill-entries/002-carton_2-motion_failure/checkpoint",
+      "manifest_sha256": "69dd32f116cd63b4f48f3022f078d70033faca64df03f966c29c50194452a9dd",
+      "original_failure": "loaded_stage: no checked shelf approach candidate"
+    },
+    {
+      "id": "dense-ten-eighth-table-clearance-entry",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v4/eighth-loaded-return/episode/skill-entries/003-carton_2-front_insertion/checkpoint",
+      "manifest_sha256": "77bd275432c054d8fec1440ad56721b4bf9701bdc8379b8ab7432332c7a85090",
+      "original_failure": "pusher_approach: folded finger contacted the supply table above the 25 N limit"
+    },
+    {
+      "id": "dense-ten-eighth-table-clearance-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v4/eighth-loaded-return/episode/skill-entries/004-carton_2-motion_failure/checkpoint",
+      "manifest_sha256": "c1ba6e85cec64f6828c20bd4c1909d2f62fac0a556e82d29da90320d1dc10401",
+      "original_failure": "pusher_approach: contact force exceeded 25.0 N",
+      "rewind_case_id": "dense-ten-eighth-table-clearance-entry"
+    },
+    {
+      "id": "dense-ten-ninth-loaded-transfer-entry",
+      "skill": "place",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v3/seed-5/episode/skill-entries/102-carton_1-transfer/checkpoint",
+      "manifest_sha256": "7b82d6b44783b86c029378e723f9e01e95061fd401bd64f491c0746602dab503",
+      "original_failure": "loaded_stage: no checked shelf approach candidate"
+    },
+    {
+      "id": "dense-ten-ninth-loaded-transfer-stop",
+      "skill": "place",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v3/seed-5/episode/skill-entries/103-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "3e176ca7738c3f11e86cc4151d9114fe2a9882c6ee49f2430818ae7e24117477",
+      "original_failure": "loaded_stage: no checked shelf approach candidate",
+      "rewind_case_id": "dense-ten-ninth-loaded-transfer-entry"
+    },
+    {
+      "id": "dense-ten-ninth-supported-align-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v5/late-three-seed-7/episode/skill-entries/015-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "f0633111e7a4edff43f48fabac7378056b5180b8f64aa39b6c30cca3eaed625e",
+      "original_failure": "stage_align: measured-pose feedback rejected before actuation"
+    },
+    {
+      "id": "dense-ten-ninth-skewed-lead-entry",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v5/ninth-lead-0.006/episode/skill-entries/003-carton_1-front_insertion/checkpoint",
+      "manifest_sha256": "25f3c690199e6a2acdca8299b25728dbac70e6ed85d5996084d30dc29435f53f",
+      "original_failure": "finger_push: contact dwell timeout"
+    },
+    {
+      "id": "dense-ten-ninth-skewed-lead-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v5/ninth-lead-insert/episode/skill-entries/002-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "d6ac576a184ca66e2762bd7abc92ba9e2986732294418ae2c105397ac4c51e03",
+      "original_failure": "finger_push: contact dwell timeout",
+      "rewind_case_id": "dense-ten-ninth-skewed-lead-entry"
+    },
+    {
+      "id": "dense-ten-ninth-nominal-release-entry",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v8/seed-7/episode/skill-entries/102-carton_1-front_release/checkpoint",
+      "manifest_sha256": "1960d0de37721f317e6bf0116d2707cd4c196f4aa74a0ef8be3681eb870e96c7",
+      "original_failure": "A middle finger's pressure-taper motion intersected the side panel",
+      "historical_recovery": "runs/agent-harness/dense-recovery-v9/seed7-nominal-release-held/summary.json"
+    },
+    {
+      "id": "dense-ten-ninth-nominal-release-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v8/seed-7/episode/skill-entries/103-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "b8ff3bb2422904de875fa276e8ee725854389613156316bb63524a6e703a6c3b",
+      "original_failure": "release_front: coupled stationary opening rejected",
+      "rewind_case_id": "dense-ten-ninth-nominal-release-entry"
+    },
+    {
+      "id": "dense-ten-tenth-wall-free-landing",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v8/tenth-joint-landing-search/episode/skill-entries/002-carton_0-free_landing/checkpoint",
+      "manifest_sha256": "9721a7ca9f4986c661d45e3d8c51538686865825e331d258d73e2602b6297ce7",
+      "original_failure": "The released tenth carton still needed its negative-wall registration"
+    },
+    {
+      "id": "dense-ten-tenth-wall-dwell-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v9/tenth-measured-unload/episode/skill-entries/001-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "26c01d17e3380d5c6ab63ecb9b23c465dc50dc8f75dd1d6fcd1a20f19cd3b772",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan",
+      "rewind_case_id": "dense-ten-tenth-wall-free-landing"
+    },
+    {
+      "id": "dense-ten-tenth-measured-withdrawal-entry",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v9/tenth-packed-direct/episode/skill-entries/002-carton_0-release_retreat/checkpoint",
+      "manifest_sha256": "99f980bb6d9f490dfa03cdcd13f9b1aa3bca3d8522c9ae01e60b27fa9feddb65",
+      "skill_sim_seconds": 90,
+      "original_failure": "release: withdrawal_measured_tool_left_corridor"
+    },
+    {
+      "id": "dense-ten-tenth-measured-withdrawal-stop",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v9/tenth-packed-direct/episode/skill-entries/003-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "419b7bfd53ee249dd494cb62d6a7ee915159f36fbab2023042a0800d7979fa66",
+      "skill_sim_seconds": 90,
+      "original_failure": "release: withdrawal_measured_tool_left_corridor",
+      "rewind_case_id": "dense-ten-tenth-measured-withdrawal-entry",
+      "historical_recovery": "runs/agent-harness/dense-recovery-v9/tenth-unloaded-retreat-swept/summary.json"
+    },
+    {
+      "id": "dense-ten-tenth-steeper-wall-withdrawal-stop",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v11/tenth-wall-45/episode/skill-entries/005-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "fc9096f0c245e00fc51d06e680f20e0d3cc091cb0e3bb616ee01b69a061f4957",
+      "skill_sim_seconds": 90,
+      "original_failure": "release: withdrawal_final_applied_geometry_or_motion",
+      "historical_recovery": "runs/agent-harness/dense-recovery-v11/tenth-wall-45-unloaded/summary.json"
+    },
+    {
+      "id": "dense-ten-tenth-steepest-wall-withdrawal-stop",
+      "skill": "retreat",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v11/tenth-wall-55/episode/skill-entries/005-carton_0-motion_failure/checkpoint",
+      "manifest_sha256": "92a24d728b894a51a29eb563932d443240b3778346e3958e5a78910d564721e8",
+      "skill_sim_seconds": 90,
+      "original_failure": "release: withdrawal_final_applied_geometry_or_motion",
+      "historical_recovery": "runs/agent-harness/dense-recovery-v11/tenth-wall-55-unloaded/summary.json"
+    },
+    {
+      "id": "dense-ten-ninth-lateral-clearance-entry",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v10/seed-7/episode/skill-entries/104-carton_1-front_insertion/checkpoint",
+      "manifest_sha256": "5f7d40fac734e4727b27f139aa573d968f4dfedf3cc860cce9ae1fe130e292a5",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan"
+    },
+    {
+      "id": "dense-ten-ninth-lateral-clearance-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v10/seed-7/episode/skill-entries/106-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "5dd4d0459085badd889f1b83b0e346e39a05df68b016474d56917d4183c0c146",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan",
+      "rewind_case_id": "dense-ten-ninth-lateral-clearance-entry"
+    },
+    {
+      "id": "dense-ten-ninth-square-unload-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v15/ninth-coupled-square/episode/skill-entries/003-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "950cf0da4281f3bdac77a62f34b9c4148d5d6c6c97cfa30dff0fb2444e8957fd",
+      "original_failure": "front_square: yaw did not survive unloading",
+      "rewind_case_id": "dense-ten-ninth-lateral-clearance-entry"
+    },
+    {
+      "id": "dense-ten-ninth-compensated-finger-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed7",
+      "checkpoint": "runs/agent-harness/dense-recovery-v15/ninth-shallow-square-handoff/episode/skill-entries/002-carton_1-motion_failure/checkpoint",
+      "manifest_sha256": "14386c9c3c3ebd4555a20c3dc83cba324f308b4b8547c03e878ae2169c077b83",
+      "original_failure": "payload_load: compensated arm/finger geometry rejected",
+      "rewind_case_id": "dense-ten-ninth-lateral-clearance-entry"
+    },
+    {
+      "id": "dense-ten-second-lateral-depth-entry",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v12/seed-5/episode/skill-entries/016-carton_8-front_insertion/checkpoint",
+      "manifest_sha256": "4447d322f4c2da48e7b8817193dab1f609a358037c7eeb26f4b6424719078c69",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan"
+    },
+    {
+      "id": "dense-ten-second-lateral-depth-stop",
+      "skill": "push",
+      "role": "recovery",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v12/seed-5/episode/skill-entries/018-carton_8-motion_failure/checkpoint",
+      "manifest_sha256": "d76d8e09c79cd3559dd53f46688a92b1c6fa7ea0f8dbb82f344750ee3d20043f",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan",
+      "rewind_case_id": "dense-ten-second-lateral-depth-entry"
+    },
+    {
+      "id": "pose-ten-000-grasp-entry",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "pose-ten-development-000",
+      "checkpoint": "runs/domain-randomization/ten-carton-pose-v1-baseline/development-000/episode/skill-entries/000-carton_9-grasp_lift/checkpoint",
+      "manifest_sha256": "7c29374f8ec6a2168ce68b963e642a3024175e579869323a75cead4b2c96fc5f",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation"
+    },
+    {
+      "id": "pose-ten-000-closure-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "pose-ten-development-000",
+      "checkpoint": "runs/domain-randomization/ten-carton-pose-v1-baseline/development-000/episode/skill-entries/001-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "b72608ed832d097347911a597d4a4546d50d3a83a793be9244ec3cebbb47592b",
+      "original_failure": "close: coupled arm/finger geometry rejected before actuation",
+      "rewind_case_id": "pose-ten-000-grasp-entry"
+    },
+    {
+      "id": "pose-ten-001-free-landing",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "pose-ten-development-001",
+      "checkpoint": "runs/domain-randomization/ten-carton-pose-v1-baseline/development-001/episode/skill-entries/004-carton_9-free_landing/checkpoint",
+      "manifest_sha256": "693c5f4d4daeb507e33b86169a84025855955d3692745bf0ad87b3e497c3cd63",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan"
+    },
+    {
+      "id": "pose-ten-001-side-registration-stop",
+      "skill": "insert",
+      "role": "recovery",
+      "lineage": "pose-ten-development-001",
+      "checkpoint": "runs/domain-randomization/ten-carton-pose-v1-baseline/development-001/episode/skill-entries/006-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "d6ac627a5a6d0d682e7a5d7e90b94281f75fbc4110521c17fc6cdb56afaf7a4e",
+      "original_failure": "lateral_push: displacement/support dwell timeout; replan",
+      "rewind_case_id": "pose-ten-001-free-landing"
+    },
+    {
+      "id": "pose-ten-002-grasp-entry",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "pose-ten-development-002",
+      "checkpoint": "runs/domain-randomization/ten-carton-pose-v1-baseline/development-002/episode/skill-entries/000-carton_9-grasp_lift/checkpoint",
+      "manifest_sha256": "8eac83a2be0a2f7989a315a763fef8807ba867a4c51a7bb0ad04a305a18a7aa3",
+      "original_failure": "pregrasp: contact force exceeded 25.0 N"
+    },
+    {
+      "id": "pose-ten-002-pregrasp-force-stop",
+      "skill": "pick",
+      "role": "recovery",
+      "lineage": "pose-ten-development-002",
+      "checkpoint": "runs/domain-randomization/ten-carton-pose-v1-baseline/development-002/episode/skill-entries/001-carton_9-motion_failure/checkpoint",
+      "manifest_sha256": "eee609e34edf38d224a62b4f3307ae707013f6af5d0c5748bd81a02085ac8b75",
+      "original_failure": "pregrasp: contact force exceeded 25.0 N",
+      "rewind_case_id": "pose-ten-002-grasp-entry"
+    },
+    {
+      "id": "dense-ten-ninth-recentered-handoff",
+      "skill": "push",
+      "role": "captured",
+      "lineage": "dense-ten-20mm-seed5",
+      "checkpoint": "runs/agent-harness/dense-recovery-v16/seed-5-recenter-skill/episode/skill-entries/001-carton_1-front_square_deferred/checkpoint",
+      "manifest_sha256": "85197b35f76e7a6b2589d5fb152732c89948b0cd6c95aac0716a91cdfb546fba"
     }
   ]
 }

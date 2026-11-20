@@ -6,10 +6,12 @@ import runpy
 from dataclasses import asdict
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from abstract_stack.config import load_scene_config
 from abstract_stack.domain_randomization import FAMILIES, generate_suite, sample_scene
-from abstract_stack.scene import products_for
+from abstract_stack.scene import initial_positions, products_for
 
 
 @pytest.mark.parametrize("family", FAMILIES)
@@ -65,6 +67,42 @@ def test_suite_reproducibility_hashes_and_disjoint_splits(tmp_path):
             for c in ledger["cases"]
         )
     assert seeds[0].isdisjoint(seeds[1])
+
+
+def test_pose_suite_varies_reset_positions_and_keeps_fixed_row(tmp_path):
+    base = load_scene_config(
+        Path(__file__).resolve().parents[1] / "configs/scenes/tight_ten_cartons_20mm.json"
+    )
+    suite = generate_suite(
+        tmp_path / "poses",
+        development_count=8,
+        heldout_count=1,
+        development_seed=29,
+        pose_base=base,
+    )
+    index = json.loads((suite / "development/index.json").read_text())
+    shelf_positions, supply_positions = set(), []
+    for row in index["cases"]:
+        config = load_scene_config(suite / row["scene"])
+        context = json.loads((suite / row["context"]).read_text())
+        nx, ny = context["factors"]["shelf_translation_from_base_m"]
+        assert -0.012 <= nx <= 0.004 and -0.015 <= ny <= 0.015
+        assert config.table_xy == base.table_xy
+        assert config.supply_xy == base.supply_xy
+        assert config.row_free_space == 0.020 and config.initially_stocked == 0
+        assert config.product_count == 10 and config.carton_size == base.carton_size
+        assert config.levels == base.levels and config.robot_xy == base.robot_xy
+        assert 0.002 <= config.spawn_jitter <= 0.006
+        products = products_for(config)
+        assert len(products) == 10
+        reset = initial_positions(config, products, context["reset_seed"])
+        np.testing.assert_array_equal(
+            reset, initial_positions(config, products, context["reset_seed"])
+        )
+        shelf_positions.add((config.front_x, config.center_y))
+        supply_positions.append(reset)
+    assert len(shelf_positions) == 8
+    assert not np.array_equal(supply_positions[0], supply_positions[1])
 
 
 def test_default_evaluation_entropy_is_independent_of_development(tmp_path, monkeypatch):

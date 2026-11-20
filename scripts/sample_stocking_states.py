@@ -12,7 +12,7 @@ SKILLS = {
     "transfer-seat": {"transfer", "shelf_place"},
     "supported-release": {"front_release"},
     "side-registration": {"free_landing", "side_registration"},
-    "insert": {"front_insertion", "front_squaring_complete"},
+    "insert": {"front_insertion", "front_squaring_complete", "front_square_deferred"},
     "push-to-contact": {"contact_finish", "contact_refinement"},
     "row-press": {"stocking_milestone"},
     "retreat": {"release_retreat", "withdrawal_planning"},

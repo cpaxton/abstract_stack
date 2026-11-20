@@ -301,3 +301,109 @@ def test_wall_packing_uses_measured_neighbor_and_preserves_remaining_row_capacit
     neighbor.xpos[1] = 0.035
     with pytest.raises(InteractionFailure, match="needs rearrangement"):
         _ = script.lateral_goal_y
+
+
+@pytest.mark.parametrize("direction", [-1, 1])
+def test_wall_registration_replans_brace_from_unloaded_staging_pose(monkeypatch, direction):
+    from abstract_stack.lateral_contact import LateralStockingScript
+
+    script = script_fixture()
+    body = script.env.data.body("active")
+    body.xpos[1] = 0.0
+    script.env.config.front_x = -0.56
+    script.controller = SimpleNamespace(last_target=np.array([-0.5, 0.0, 0.9]))
+    script._cartesian_move = lambda *args: None
+    goal = 0.051 * direction
+    monkeypatch.setattr(StockingScript, "lateral_goal_y", goal)
+    calls = []
+
+    def push(script, *, direction, distance_m, brace_wall, wall_staging_y, from_wall_staging, **kw):
+        calls.append((direction, distance_m, brace_wall, wall_staging_y, from_wall_staging))
+        body.xpos[1] += direction * (distance_m if brace_wall else 0.011)
+        return {"direct_wall_exit_verified": False}
+
+    monkeypatch.setattr(LateralStockingScript, "push_laterally", push)
+    script._register_front_laterally()
+    assert calls[0] == (direction, pytest.approx(0.009), False, goal, False)
+    assert calls[1] == (direction, pytest.approx(0.040), True, None, True)
+    assert body.xpos[1] == pytest.approx(goal)
+
+
+def test_dense_reapproach_is_bounded_and_keeps_the_wall_protocol(monkeypatch):
+    from abstract_stack.finger_pusher import FoldedFingerPusher
+    from abstract_stack.interactions import InteractionFailure
+
+    script = script_fixture()
+    script.config = SimpleNamespace(dense_recovery=True, record_skill_starts=False)
+    script.phase = "front_registered"
+    script.observer.incidents = []
+    script.last_forces = {"shelf": 1.0}
+    script.events = []
+    script._stage = lambda phase: script.events.append({"phase": phase})
+    attempts, unloads = [], []
+
+    def advance(*, precontact_standoff_m, kind, reapproach, **_):
+        attempts.append((precontact_standoff_m, kind, reapproach))
+        if len(attempts) < 3:
+            script._stage("finger_push")
+            script.events[-1]["applied_tracking_geometry_rejection"] = [{"distance_m": -0.004}]
+            raise InteractionFailure("payload_load: compensated arm/finger geometry rejected")
+
+    monkeypatch.setattr(script, "_advance_from_front", advance)
+    monkeypatch.setattr(script, "_unload_insertion_recovery", lambda: unloads.append(True))
+    script._insert_from_front()
+    assert attempts == [(None, None, False), (0.035, None, True), (0.045, FoldedFingerPusher, True)]
+    assert len(unloads) == 2
+
+    def force_stop(**_):
+        script._stage("finger_push")
+        raise InteractionFailure("finger_push: contact force exceeded 25.0 N")
+
+    monkeypatch.setattr(script, "_advance_from_front", force_stop)
+    with pytest.raises(InteractionFailure, match="contact force exceeded"):
+        script._insert_from_front()
+    assert len(unloads) == 2
+
+
+def test_short_square_handoff_requires_front_depth_for_lateral_registration():
+    script = script_fixture()
+    script.observer.incidents = []
+    script.env.config = SimpleNamespace(center_y=-0.12, width=0.2)
+    script.env.products[1].target = (-0.72, -0.173, 0.92)
+    body = SimpleNamespace(
+        xpos=np.array([-0.625, -0.131, 0.92]),
+        xmat=np.eye(3).ravel(),
+    )
+    assert not script._front_square_handoff_fits(body)
+    assert script._front_square_handoff_fits(body, row_front_x=-0.685)
+    body.xpos[0] = -0.645
+    assert not script._front_square_handoff_fits(body, row_front_x=-0.685)
+    body.xpos[1] = -0.122
+    assert script._front_square_handoff_fits(body)
+
+
+def test_provisional_release_has_no_strict_credit_until_the_measured_finish():
+    from abstract_stack.evaluation import strict_final_position
+
+    events = [
+        {
+            "phase": "release",
+            "verified_release": True,
+            "placement_conditions": True,
+            "strict_release_yaw_verified": False,
+        },
+        {"phase": "dense_position_decision", "provisional": True},
+        {"phase": "finger_push", "back_contact_verified": True},
+    ]
+    assert not strict_final_position(events)
+    events.append(
+        {
+            "phase": "release",
+            "verified_release": True,
+            "placement_conditions": True,
+            "strict_release_yaw_verified": True,
+        }
+    )
+    assert strict_final_position(events)
+    events.append({"phase": "dense_final_pose_recheck", "yaw_deg": 0.16, "verified": False})
+    assert not strict_final_position(events)
