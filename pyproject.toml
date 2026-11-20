@@ -17,6 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+curriculum = ["gymnasium>=1.2,<2"]
 # Browser teleoperation host (abstract-stack teleop); see docs/web_teleop/README.md.
 teleop = [
     "starlette>=0.41,<2",
@@ -44,6 +45,7 @@ ci = [
     "fast-simplification>=0.1.9,<1",
     "segno>=1.6,<2",
     "httpx>=0.27,<1",
+    "gymnasium>=1.2,<2",
 ]
 
 [tool.pytest.ini_options]

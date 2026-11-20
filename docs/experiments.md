@@ -1,5 +1,23 @@
 # Stocking workflows and experiment index
 
+Current whole-shelf work: [ten-carton development](reports/whole_shelf_development.md)
+tracks edge-slot bracing, native finger compensation and retained fresh/continued
+outcomes. Saved-state skill successes remain separate from fresh full-shelf credit.
+
+Latest: [adjacent insertion toward a complete shelf](reports/adjacent_insertion_development.md)
+integrates the released selected-finger skill into ordinary stocking. A fresh
+tight three-carton episode completes all stages; four/ten-carton development
+failures and saved-state continuations remain explicit in its trial ledger.
+
+Current fixed-shelf focus: [grasp skills, held-out checks and longer execution](reports/grasp_skill_development.md),
+[skill entry distributions](skills.md), and the
+[predictive/compliant two-layer plan](receding_horizon_stocking.md#fixed-shelf-two-layer-controller).
+The opt-in teacher completes two fresh stocks in 90.7 simulated seconds and
+recovers the saved failed-plan pickup. Three-carton transfer and the separate
+rear-clearance task remain open. Perfect state is used; randomized geometry
+evaluation stays parked. The [earlier video report](reports/fixed_shelf_videos.md)
+retains the original one-of-two result and failed top-contact approach.
+
 New development: [CPU/GPU rollout evaluation](backend_evaluation.md),
 [measured throughput report](reports/rollout_backend_development.md), and
 [stationary bimanual/shared-lift control](whole_body_control.md). These prototypes
@@ -9,6 +27,21 @@ retains failed proposals and native checkpoint continuations, including measured
 backstop contact. The [LfD pipeline](learning_from_demonstration.md) and
 [simulated sensors](sim_sensors.md) document causal collection, local LeRobot
 roundtrip evidence and the remaining student/camera integration work.
+The [sustained-contact follow-up](reports/sustained_contact_development.md)
+distinguishes backstop contact from squaring: bounded continuations reduce yaw
+but do not pass the unchanged placement gate or earn new task credit.
+The newer [bounded-reference study](reports/compliance_reference_projection.md)
+removes a local proposal stall and passes squaring/contact dwell from two related
+saved states at a 2 N development target. The
+[load-aware withdrawal follow-up](reports/compliance_unload_feedback.md) completes
+square–release–retreat from both, retaining the earlier frozen-compensation
+failures. Final yaw margin is small; there is no fresh stocking credit or default
+controller promotion.
+Use [simulation checkpoints](sim_checkpoints.md) and the
+[focus-bank report](reports/checkpoint_focus_development.md) to repeat the final
+millimeters without repeating pickup. The
+[small LfD pilot](reports/lfd_collection_pilot.md) documents three bounded
+controller/sensing fixtures, rather than a full manipulation dataset.
 
 ## Technical feasibility roadmap
 

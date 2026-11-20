@@ -162,6 +162,27 @@ def test_tip_incident_survives_a_later_upright_fixture_state(fixture):
     mujoco.mj_forward(model, data)
     assert monitor.sample(data, elapsed=0.002) == "product_tip_or_drop"
     assert monitor.incidents[0]["product"] == "other"
+    restored = ContactMonitor(model, data, scene)
+    restored.restore_state(monitor.state_dict(), data)
+    assert restored.sample(data, elapsed=0) == "product_tip_or_drop"
+    assert restored.incidents[0] == monitor.incidents[0]
+
+
+def test_monitor_checkpoint_preserves_contact_loss_timer_and_original_positions(fixture):
+    model, data, scene = fixture
+    # Fixture construction only: put the actuator-controlled hand clear.
+    data.qpos[int(model.joint("drive").qposadr[0])] = 0.1
+    mujoco.mj_forward(model, data)
+    monitor = ContactMonitor(model, data, scene)
+    assert monitor.sample(data, elapsed=0.03) is None
+    restored = ContactMonitor(model, data, scene)
+    restored.restore_state(monitor.state_dict(), data)
+    assert restored.sample(data, elapsed=0.012) == "lost_push_contact"
+    assert monitor.sample(data, elapsed=0.012) == "lost_push_contact"
+    bad = restored.state_dict()
+    bad["scene"]["force_limit_N"] = 26
+    with pytest.raises(ValueError, match="guard contract"):
+        ContactMonitor(model, data, scene).restore_state(bad, data)
 
 
 def test_initial_external_force_cannot_receive_forecast_admission(fixture):
@@ -176,6 +197,82 @@ def test_initial_external_force_cannot_receive_forecast_admission(fixture):
     )
     assert result[0][0]["failure"] == "external_force_input"
     assert result[0][0]["completed_steps"] == 0
+
+
+@pytest.mark.parametrize("yaw", [-0.1, 0.1])
+@pytest.mark.parametrize(
+    "objective", ["square_backstop", "lateral_left", "lateral_right", "align_backstop"]
+)
+def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(
+    fixture, yaw, objective
+):
+    model, data, scene = fixture
+    # Reset-only orientation fixture: compare screened free-joint quaternion
+    # yaw against independently guarded native forward kinematics.
+    address = int(model.jnt_qposadr[model.body_jntadr[model.body("active").id]])
+    data.qpos[address + 3 : address + 7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
+    mujoco.mj_forward(model, data)
+    candidates = [
+        dict(name=name, controls=np.full((10, 1), value))
+        for name, value in (("a", -0.001), ("b", 0.001))
+    ]
+    target_y = float(data.qpos[address + 1] + 0.001)
+    scales = 0.0005, np.radians(0.15)
+    result = evaluate_screened_batch(
+        model,
+        integration_state(model, data),
+        candidates,
+        scene,
+        rates=np.ones(1),
+        shortlist=1,
+        objective=objective,
+        alignment_goal=(target_y, *scales) if objective == "align_backstop" else None,
+    )
+    admitted = [r for r in result["candidates"] if r["eligible"]]
+    assert len(admitted) == 1 and result["guarded_count"] == 1
+    assert admitted[0]["active_yaw_rad"] == pytest.approx(
+        admitted[0]["screen_active_yaw_rad"], abs=1e-10
+    )
+    assert admitted[0]["displacement_xyz_m"][1] == pytest.approx(
+        admitted[0]["screen_displacement_y_m"], abs=1e-10
+    )
+    assert result["selected_name"] == admitted[0]["name"]
+    if objective.startswith("lateral_"):
+        direction = -1 if objective == "lateral_left" else 1
+        assert (
+            abs(
+                result["candidates"][0]["screen_displacement_y_m"]
+                - result["candidates"][1]["screen_displacement_y_m"]
+            )
+            > 1e-10
+        )
+        expected = max(result["candidates"], key=lambda r: direction * r["screen_displacement_y_m"])
+        assert result["selected_name"] == expected["name"]
+    if objective == "align_backstop":
+        expected = min(
+            result["candidates"],
+            key=lambda row: (
+                np.hypot(
+                    (data.qpos[address + 1] + row["screen_displacement_y_m"] - target_y)
+                    / scales[0],
+                    row["screen_active_yaw_rad"] / scales[1],
+                ),
+                -row["screen_progress_minus_x_m"],
+            ),
+        )
+        assert result["selected_name"] == expected["name"]
+    unchecked = next(r for r in result["candidates"] if not r["eligible"])
+    assert unchecked["verification_status"] == "not_force_checked"
+    with pytest.raises(ValueError, match="objective"):
+        evaluate_screened_batch(
+            model,
+            integration_state(model, data),
+            candidates,
+            scene,
+            rates=np.ones(1),
+            shortlist=1,
+            objective="ignore_forces",
+        )
 
 
 def test_cpp_screen_never_selects_unchecked_or_guard_rejected_candidates(fixture):

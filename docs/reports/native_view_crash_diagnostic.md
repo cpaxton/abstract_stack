@@ -113,3 +113,41 @@ The recorded environment is MuJoCo 3.17.0, CPython 3.11.12 and NumPy 1.26.4.
 `PYTHONMALLOC=debug` completed one previously failing targeted test, but that is a
 different allocator configuration, not evidence that the default native fault
 has been repaired. The library-level cause and broad stability gate remain open.
+
+### Withdrawal force-guard follow-up
+
+A reported full-suite run at `8b72b50` stopped with SIGSEGV while
+`test_withdrawal_does_not_bypass_force_guard` was the active test. The
+same revision also completed a clean local pre-push physics run. The test
+label alone does not identify the corrupting operation.
+
+A focused follow-up ran the original fixture and an indexed version 120
+times each in separate fresh Python processes. Both completed normally.
+The indexed fixture uses the monitor's existing active-body ID and resolves
+the other body ID explicitly. The same native stepping, measured load and
+force-guard assertions apply. These runs establish that the assertions
+still pass, with no evidence that this cleanup repairs the intermittent
+native crash. The original fixture source and both logs are retained under
+`outputs/native-crashes/withdrawal-force-guard-8b72b50/`.
+
+A clean committed-source export of `8b72b50` plus the indexed fixture then
+ran the complete local suite with native MABEL assets and EGL. All 488 tests
+passed in 259.78 s. This is one passing process under the default allocator.
+It does not close the intermittent crash gate or replace the reported signal.
+
+The three standalone view probes (transient, retained, indexed) also
+completed 100,000 iterations each. The independent fresh
+`tight-ten-20mm-fresh-01` stocking rollout subsequently segfaulted at
+`insertion_skill.py`'s native contact iterator during base navigation.
+Its process record, traceback and four verified retreat checkpoints remain
+in the original run directory. A focused production change reads the
+native contact-geom column in order and keeps the existing per-pair and
+sidewall force aggregation. The two native summed-force guard fixtures
+and the wider 41-test targeted set passed. The recovered execution and the
+failed fresh run retain separate outcome records.
+
+The indexed continuation passed the earlier failure point and reached
+contact refinement for carton five. It stopped normally on the bounded
+release-goal search and saved a terminal failure fixture. One continuation
+through the interval supports further testing of the indexed path. It does
+not establish the native fault's cause or demonstrate full process stability.

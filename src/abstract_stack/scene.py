@@ -48,6 +48,11 @@ class ShelfConfig:
     target_back_gap: float | None = None
     carton_size: tuple[float, float, float] = (0.09, 0.07, 0.17)
     row_free_space: float | None = None
+    supply_order: tuple[int, ...] | None = None
+    # Optional numerical contact recipe; None preserves the upstream defaults.
+    contact_impratio: float | None = None
+    rigid_fixture_contacts: bool = False
+    scene_contact_time_constant_s: float | None = None
 
     def __post_init__(self) -> None:
         positive = (
@@ -64,6 +69,30 @@ class ShelfConfig:
         )
         if any(not math.isfinite(x) or x <= 0 for x in positive):
             raise ValueError("Shelf dimensions, times, and tolerances must be finite and positive")
+        if type(self.rigid_fixture_contacts) is not bool:
+            raise ValueError("rigid_fixture_contacts must be boolean")
+        if self.rigid_fixture_contacts and (
+            self.product_kind != "carton"
+            or self.contact_impratio is not None
+            or self.scene_contact_time_constant_s is not None
+        ):
+            raise ValueError(
+                "Rigid fixture pairs require cartons and unchanged global/geom contacts"
+            )
+        if self.contact_impratio is not None and (
+            isinstance(self.contact_impratio, bool)
+            or not math.isfinite(self.contact_impratio)
+            or not 1 <= self.contact_impratio <= 100
+        ):
+            raise ValueError("contact_impratio must be between 1 and 100")
+        if self.scene_contact_time_constant_s is not None and (
+            isinstance(self.scene_contact_time_constant_s, bool)
+            or not math.isfinite(self.scene_contact_time_constant_s)
+            or not 2 * self.timestep <= self.scene_contact_time_constant_s <= 0.05
+        ):
+            raise ValueError(
+                "Scene contact time constant must resolve >=2 timesteps and be <=.05 s"
+            )
         if not math.isfinite(self.front_x) or self.front_x >= -0.4:
             raise ValueError("Shelf front must be in front of MABEL (front_x < -0.4)")
         if (
@@ -226,7 +255,18 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
         raise ValueError(
             "Supply products do not fit on the table; enlarge table_size or prefill more items"
         )
-    supply_index = 0
+    supply_order = (
+        sorted(set(range(count)) - prefilled)
+        if config.supply_order is None
+        else config.supply_order
+    )
+    if (
+        any(type(index) is not int for index in supply_order)
+        or len(supply_order) != supply_count
+        or set(supply_order) != set(range(count)) - prefilled
+    ):
+        raise ValueError("Supply order must list each non-prefilled product index once")
+    supply_index_by_product = {index: rank for rank, index in enumerate(supply_order)}
     for i in range(count):
         bottle = config.product_kind == "mixed" and i % 2 == 1
         half_size = (0.034, 0.034, 0.11) if bottle else tuple(v / 2 for v in config.carton_size)
@@ -268,12 +308,12 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
         if i in prefilled:
             spawn = (target[0], target[1], target[2] + 0.003)
         else:
+            supply_index = supply_index_by_product[i]
             spawn = (
                 config.supply_xy[0] + (supply_index % columns - (columns - 1) / 2) * stride_x,
                 config.supply_xy[1] + (supply_index // columns - (rows - 1) / 2) * stride_y,
                 config.table_top + half_size[2] + 0.003,
             )
-            supply_index += 1
         products.append(
             Product(
                 name=(
@@ -373,6 +413,9 @@ def build_scene_xml(
     option = root.find("option")
     option.set("timestep", str(config.timestep))
     option.set("gravity", "0 0 -9.81")
+    if config.contact_impratio is not None:
+        option.set("impratio", str(config.contact_impratio))
+        option.set("cone", "elliptic")
     if not config.enable_sensors:
         flag = option.find("flag")
         if flag is None:
@@ -520,6 +563,32 @@ def build_scene_xml(
             rgba=_numbers((*product.color[:3], 0.3)),
             group="4",
         )
+    if config.rigid_fixture_contacts:
+        # A local material recipe for supported rigid cartons. Explicit pairs
+        # preserve hand/carton, robot/fixture and carton/carton parameters.
+        contact = root.find("contact")
+        if contact is None:
+            contact = ET.SubElement(root, "contact")
+        fixtures = [g.get("name") for g in shelf.findall("geom")]
+        for product in products:
+            for fixture in fixtures:
+                ET.SubElement(
+                    contact,
+                    "pair",
+                    geom1=f"{product.name}_geom",
+                    geom2=fixture,
+                    condim="3",
+                    friction="0.8 0.8 0.02 0.002 0.002",
+                    solref="0.005 1",
+                    solimp="0.99 0.999 0.001 0.5 2",
+                )
+    if config.scene_contact_time_constant_s is not None:
+        # Apply only to our generated rigid objects/fixtures. Native MABEL
+        # contact parameters, geometry, inertias, gains and masks stay intact.
+        prefixes = ("shelf_", "supply_", *(p.name + "_" for p in products))
+        for geom in world.iter("geom"):
+            if geom.get("name", "").startswith(prefixes):
+                geom.set("solref", f"{config.scene_contact_time_constant_s} 1")
     center = (config.front_x - config.depth / 2, config.center_y, roof / 2)
     _camera(world, "overview", (1.7, config.center_y - 2.5, roof + 0.5), center)
     _camera(

@@ -218,6 +218,9 @@ def test_script_writes_honest_physics_evidence(robot, tmp_path):
     assert not result["metrics"]["tipped"]
     assert not result["metrics"]["dropped"]
     stage = result["events"][-1]
+    progress = json.loads((tmp_path / "physics-progress.json").read_text())
+    assert progress["phase"] == stage["phase"]
+    assert stage["sim_time"] < progress["sim_time"] <= trace["samples"][-1, 0]
     assert stage["decision"] == "bounded_staging_then_replan"
     assert "replan required" in result["failure"]
     assert stage["prediction_execution_gap_m"] < 0.035
@@ -446,7 +449,36 @@ def test_rotation_error_handles_half_turn():
     assert np.linalg.norm(error) == pytest.approx(np.pi)
 
 
-@pytest.mark.parametrize("values", [{"grip": 2}, {"max_force": 0}, {"lift_height": -0.1}])
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"grip": 2},
+        {"max_force": 0},
+        {"lift_height": -0.1},
+        {"insertion_advance_speed_m_s": 0.08},
+        {"post_square_pusher_standoff_m": 0.015},
+        {"base_speed_m_s": 0.1},
+    ],
+)
 def test_bad_script_settings(values):
     with pytest.raises(ValueError):
         ScriptConfig(**values)
+
+
+@pytest.mark.mabel
+def test_failure_before_first_motion_retains_the_original_error(robot, tmp_path):
+    script = StockingScript(
+        robot,
+        tmp_path,
+        ScriptConfig(
+            ungrasped_insertion=True,
+            paired_finger_insertion=True,
+            wall_packing=True,
+            record_skill_starts=True,
+        ),
+    )
+    result = script.run()
+    assert result["failure"] == "Wall packing requires a fresh, single dense carton row"
+    assert result["failure_checkpoint_error"] is None
+    assert not result["events"]
+    assert script.skill_entries[0]["case"]["failure"] == result["failure"]

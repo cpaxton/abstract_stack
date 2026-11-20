@@ -6,6 +6,7 @@ import pytest
 from abstract_stack.assets import mabel_model_path
 from abstract_stack.env import ShelfStockingEnv
 from abstract_stack.interactions import ScriptConfig
+from abstract_stack.interleaved_stocking import PressInterleavedStockingScript
 from abstract_stack.lateral_contact import (
     LateralPushConfig,
     LateralStockingScript,
@@ -13,6 +14,7 @@ from abstract_stack.lateral_contact import (
 )
 from abstract_stack.mabel_controller import MabelController
 from abstract_stack.packing import dense_shelf_config
+from abstract_stack.scene import ShelfConfig
 
 
 def test_force_admittance_stops_and_reverses_without_unbounded_windup():
@@ -62,14 +64,24 @@ def test_native_side_pusher_orientation_and_planning_isolation(direction):
 
 
 @pytest.mark.mabel
-def test_side_tool_switch_preserves_nominal_and_pusher_offset_budget(tmp_path):
+@pytest.mark.parametrize(
+    ("script_class", "scene"),
+    (
+        (LateralStockingScript, dense_shelf_config(0, product_count=3, initially_stocked=2)),
+        (
+            PressInterleavedStockingScript,
+            ShelfConfig(levels=(0.8,), product_count=3, product_kind="carton"),
+        ),
+    ),
+)
+def test_side_tool_switch_preserves_nominal_and_pusher_offset_budget(tmp_path, script_class, scene):
     try:
         mabel_model_path()
     except FileNotFoundError:
         pytest.skip("MABEL assets not downloaded")
-    env = ShelfStockingEnv(dense_shelf_config(0, product_count=3, initially_stocked=2))
+    env = ShelfStockingEnv(scene)
     try:
-        script = LateralStockingScript(env, tmp_path)
+        script = script_class(env, tmp_path, ScriptConfig(base_reposition=True))
         script.tracker = MabelController(env.model, env.data)
         nominal = script.tracker.nominal.copy()
         before = env.data.ctrl.copy()
@@ -85,6 +97,49 @@ def test_tiny_displacement_cannot_pass_without_a_meaningful_motion():
     script = object.__new__(LateralStockingScript)
     with pytest.raises(ValueError, match="exceed its verification tolerance"):
         script.push_laterally(direction=1, distance_m=0.0005)
+
+
+@pytest.mark.mabel
+def test_selected_finger_compensation_is_bounded_and_does_not_edit_native_state():
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    env = ShelfStockingEnv(dense_shelf_config(0, product_count=3, initially_stocked=2))
+    try:
+        before_qpos, before_ctrl = env.data.qpos.copy(), env.data.ctrl.copy()
+        ranges, gains = env.model.jnt_range.copy(), env.model.actuator_gainprm.copy()
+        hand = SideFingerPusher(
+            env.clone_for_planning(),
+            ScriptConfig(ungrasped_insertion=True),
+            direction=1,
+            wrist_posture=0.2,
+            folded_flexion=1.5,
+        )
+        tracker = hand.finger_load_compensation
+        initial = before_ctrl.copy()
+        targets, report = tracker.propose(initial, env.products[-1].name)
+        for name, state in tracker.joints.items():
+            detail = report["joints"][name]
+            assert abs(detail["requested_feedforward_offset_rad"]) <= 0.15
+            assert abs(detail["bounded_holding_Nm"]) <= 0.15
+            assert (
+                abs(targets[state["actuator"]] - initial[state["actuator"]]) <= 0.5 * env.dt + 1e-12
+            )
+            assert state["lower"] <= targets[state["actuator"]] <= state["upper"]
+            assert state["previous"] == initial[state["actuator"]]
+        tracker.acknowledge(targets)
+        assert all(
+            state["previous"] == targets[state["actuator"]] for state in tracker.joints.values()
+        )
+        np.testing.assert_array_equal(env.data.qpos, before_qpos)
+        np.testing.assert_array_equal(env.data.ctrl, before_ctrl)
+        np.testing.assert_array_equal(initial, before_ctrl)
+        np.testing.assert_array_equal(env.model.jnt_range, ranges)
+        np.testing.assert_array_equal(env.model.actuator_gainprm, gains)
+        assert hand.ik.upper[hand.ik.names.index("Left Wrist")] <= 0.324
+    finally:
+        env.close()
 
 
 @pytest.mark.mabel

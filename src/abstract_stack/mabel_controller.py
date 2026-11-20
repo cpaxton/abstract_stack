@@ -56,9 +56,17 @@ class MabelController:
         "Lift",
     )
 
-    def __init__(self, model, data, config: TrackingConfig | None = None):
+    def __init__(
+        self, model, data, config: TrackingConfig | None = None, *, nominal_references=None
+    ):
         self.model, self.data = model, data
         self.config = config or TrackingConfig()
+        self.held_unknown_names = ()
+        if nominal_references is not None:
+            if not nominal_references or not set(nominal_references) <= set(self.NAMES):
+                raise ValueError("Resume requires a nonempty known nominal tracking subset")
+            self.held_unknown_names = tuple(n for n in self.NAMES if n not in nominal_references)
+            self.NAMES = tuple(n for n in self.NAMES if n in nominal_references)
         self.ids = np.array([model.actuator(n).id for n in self.NAMES])
         self.kp = model.actuator_gainprm[self.ids, 0].copy()
         if not np.all(self.kp > 0) or not np.allclose(
@@ -71,22 +79,37 @@ class MabelController:
             raise ValueError("MABEL tracking requires fixed-gain affine position servos")
         self.lower, self.upper = model.actuator_ctrlrange[self.ids].T.copy()
         # Restrict direct joint references by both actuator and joint bounds.
-        for i, name in enumerate(self.NAMES[:-1]):
+        for i, name in enumerate(self.NAMES):
+            if name == "Lift":
+                continue
             joint = model.joint(name)
             self.lower[i] = max(self.lower[i], joint.range[0])
             self.upper[i] = min(self.upper[i], joint.range[1])
-        self.rates = np.r_[
-            np.full(len(self.ids) - 1, self.config.joint_speed), self.config.lift_speed
-        ]
-        self.offset_limits = np.r_[
-            np.full(len(self.ids) - 1, self.config.joint_offset_limit),
-            self.config.lift_offset_limit,
-        ]
+        self.rates = np.array(
+            [self.config.lift_speed if n == "Lift" else self.config.joint_speed for n in self.NAMES]
+        )
+        self.offset_limits = np.array(
+            [
+                self.config.lift_offset_limit if n == "Lift" else self.config.joint_offset_limit
+                for n in self.NAMES
+            ]
+        )
         if self.config.wrist_offset_limit is not None:
             for name in ("Left Wrist", "Right Wrist"):
-                self.offset_limits[self.NAMES.index(name)] = self.config.wrist_offset_limit
+                if name in self.NAMES:
+                    self.offset_limits[self.NAMES.index(name)] = self.config.wrist_offset_limit
         self.nominal = np.clip(data.ctrl[self.ids], self.lower, self.upper)
-        self.applied = self.nominal.copy()
+        if nominal_references is not None:
+            self.nominal = np.array([nominal_references[n] for n in self.NAMES], dtype=float)
+            if (
+                not np.isfinite(self.nominal).all()
+                or np.any(self.nominal < self.lower)
+                or np.any(self.nominal > self.upper)
+            ):
+                raise ValueError("Resumed nominal references exceed native joint bounds")
+        self.applied = (
+            self.nominal.copy() if nominal_references is None else data.ctrl[self.ids].copy()
+        )
         self.scratch = mujoco.MjData(model)
         self.last_report = {}
 
@@ -127,6 +150,12 @@ class MabelController:
                 raise ValueError("load feedforward requires finite named tracking-actuator efforts")
             load[self.NAMES.index(name)] = effort
         desired = validate_targets(self.model, self.data.ctrl, requested)
+        for name in self.held_unknown_names:
+            aid = self.model.actuator(name).id
+            if desired[aid] != self.data.ctrl[aid]:
+                raise ValueError(
+                    "Cannot command a tracking dimension with unknown nominal reference"
+                )
         reference = desired[self.ids]
         # Omitted tracking dimensions retain their nominal reference, even when
         # live ctrl already contains a feedforward offset.
@@ -150,6 +179,8 @@ class MabelController:
         # Canonical wrists have kp=1, kv=0; add bounded measured velocity
         # feedback through references without editing native actuator gains.
         for name in ("Left Wrist", "Right Wrist"):
+            if name not in self.NAMES:
+                continue
             i = self.NAMES.index(name)
             velocity = (nominal[i] - self.nominal[i]) / dt
             force[i] += self.config.wrist_damping * (
@@ -172,6 +203,7 @@ class MabelController:
         self.nominal, self.applied = nominal, applied
         self.last_report = {
             "gravity_compensation": self.config.gravity_compensation,
+            "held_unknown_nominal_names": list(self.held_unknown_names),
             "nominal": dict(zip(self.NAMES, nominal.tolist(), strict=True)),
             "measured": dict(
                 zip(self.NAMES, self.data.actuator_length[self.ids].tolist(), strict=True)

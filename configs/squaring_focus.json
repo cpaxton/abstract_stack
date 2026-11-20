@@ -1,0 +1,12 @@
+{
+  "purpose": "Fixed development fixtures; zero pick or fresh episode credit",
+  "replans": 20,
+  "case_wall_seconds": 60,
+  "normal_target_N": 1.0,
+  "cases": [
+    {"name": "left-held", "side": "left", "candidates": 1, "wrist_freedom_deg": 0},
+    {"name": "left-push", "side": "left", "candidates": 10, "wrist_freedom_deg": 15},
+    {"name": "right-held", "side": "right", "candidates": 1, "wrist_freedom_deg": 0},
+    {"name": "right-push", "side": "right", "candidates": 10, "wrist_freedom_deg": 15}
+  ]
+}

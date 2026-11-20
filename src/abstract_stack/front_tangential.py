@@ -26,7 +26,7 @@ from abstract_stack.packing import row_geometry
 TangentialFingerPusher = LoadAwareFingerPusher
 
 
-class FrontTangentialStockingScript(LateralStockingScript):
+class FrontTangentialPress:
     def _change_hand(self, kind, **kwargs):
         super()._change_hand(kind, **kwargs)
         self.finger_load = None
@@ -160,6 +160,8 @@ class FrontTangentialStockingScript(LateralStockingScript):
         settings=None,
         force_guided=False,
         contact_offset_m=0.0,
+        row_products=None,
+        staged_approach=False,
     ):
         if not isinstance(force_guided, bool):
             raise ValueError("force_guided must be boolean")
@@ -183,6 +185,13 @@ class FrontTangentialStockingScript(LateralStockingScript):
         ):
             raise ValueError("Tangential force targets must be below unchanged abort guard")
         env = self.env
+        row_products = set(row_products) if row_products is not None else None
+        if row_products is not None and (
+            self.product.name not in row_products
+            or not row_products <= self.observer.completed
+            or self.observer.incidents
+        ):
+            raise ValueError("Partial-row press requires incident-free stocked products")
         start = env.data.body(self.product.name).xpos.copy()
         extent = np.abs(env.data.body(self.product.name).xmat.reshape(3, 3)) @ np.asarray(
             self.product.half_size
@@ -191,7 +200,7 @@ class FrontTangentialStockingScript(LateralStockingScript):
             raise ValueError("Front contact offset exceeds the bounded active face")
         height = env.config.levels[self.product.level] + settings.height_m
         precontact = np.array([start[0] + extent[0] + 0.02, start[1] + contact_offset_m, height])
-        high = precontact + [0, 0, 0.12]
+        high = precontact + [0.085 if staged_approach else 0, 0, 0.12]
         end = precontact + [-0.024, direction * distance_m, 0]
         # Stage relative to the measured base, rather than retaining a world
         # waypoint from a different reset fixture. No live base motion is applied.
@@ -238,7 +247,10 @@ class FrontTangentialStockingScript(LateralStockingScript):
         if selected is None:
             raise InteractionFailure("tangential_plan: bounded approach search rejected")
         event["selected"] = selected
+        event["outside_shelf_orientation_stage"] = bool(staged_approach)
         self._change_hand(TangentialFingerPusher, **selected)
+        if staged_approach:
+            self._settle_pusher_preshape()
         self._move("tangential_orient_high", high, carrying=False, orientation_alternatives=False)
         self._cartesian_move("tangential_approach", precontact)
         self._stage("front_tangential_push")
@@ -352,7 +364,14 @@ class FrontTangentialStockingScript(LateralStockingScript):
         for _ in range(int(0.5 / env.dt)):
             self._apply_tick(self.controller.joint_targets(self.controller.command, 0))
         final = env.data.body(self.product.name)
-        geometry = row_geometry(env)
+        geometry = row_geometry(env, product_names=row_products)
+        placed = env._placement_conditions()
+        if row_products is not None:
+            placed = [
+                ok
+                for product, ok in zip(env.products, placed, strict=True)
+                if product.name in row_products
+            ]
         error = abs(float(final.xpos[1] - desired_y))
         event.update(final_lateral_error_m=error, final_row_geometry=geometry)
         if (
@@ -361,9 +380,13 @@ class FrontTangentialStockingScript(LateralStockingScript):
             or self.last_forces["hand"] > 0.2
             or self.last_forces["shelf"] <= 0.2
             or abs(final.xpos[0] - start[0]) > 0.005
-            or not bool(env._placement_conditions().all())
+            or not all(placed)
             or (self.observer is not None and self.observer.incidents)
         ):
             raise InteractionFailure("tangential_retreat: final displacement/row/support guard")
         event.update(verified_tangential_displacement=True, retreat_verified=True)
         return event
+
+
+class FrontTangentialStockingScript(FrontTangentialPress, LateralStockingScript):
+    """Dense reset-fixture runner for the standalone front press."""

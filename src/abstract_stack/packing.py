@@ -54,7 +54,57 @@ def dense_shelf_config(seed, *, product_count=10, total_free_space=0.01, initial
     return config
 
 
-def row_geometry(env):
+def outside_in_order(products):
+    """Alternate ends of a row, starting at positive Y, so the last slot is central."""
+    row = sorted(products, key=lambda product: product.target[1])
+    ordered = []
+    for index in range(len(row)):
+        ordered.append(row[-1 - index // 2] if index % 2 == 0 else row[index // 2])
+    return ordered
+
+
+def is_two_sided_slot(env, product, completed):
+    """Whether both immediately neighboring target slots are already occupied."""
+    row = sorted(
+        (item for item in env.products if item.level == product.level),
+        key=lambda item: item.target[1],
+    )
+    index = row.index(product)
+    return (
+        0 < index < len(row) - 1
+        and row[index - 1].name in completed
+        and row[index + 1].name in completed
+    )
+
+
+def open_slot_interval(env, product, completed):
+    """Center bounds after reserving room for every unplaced carton on both sides."""
+    row = sorted(
+        (item for item in env.products if item.level == product.level),
+        key=lambda item: item.target[1],
+    )
+    index = row.index(product)
+    lower = env.config.center_y - env.config.width / 2 + product.half_size[1]
+    upper = env.config.center_y + env.config.width / 2 - product.half_size[1]
+    bounds = [lower, upper]
+    for side, neighbors in enumerate((reversed(row[:index]), iter(row[index + 1 :]))):
+        direction = 1 if side == 0 else -1
+        reserved = 0.0
+        for neighbor in neighbors:
+            if neighbor.name in completed:
+                body = env.data.body(neighbor.name)
+                extent = (np.abs(body.xmat.reshape(3, 3)) @ neighbor.half_size)[1]
+                bounds[side] = float(
+                    body.xpos[1] + direction * (extent + product.half_size[1] + reserved)
+                )
+                break
+            reserved += 2 * neighbor.half_size[1]
+        else:
+            bounds[side] += direction * reserved
+    return tuple(bounds)
+
+
+def row_geometry(env, *, product_names=None):
     """Projected outer envelopes; numerical overlap is never counted as space.
 
     This is conservative for yawed cuboids. It is meaningful as a packed-row
@@ -66,11 +116,15 @@ def row_geometry(env):
         raise ValueError("row_geometry requires a dense row configuration")
     intervals = []
     for product in env.products:
+        if product_names is not None and product.name not in product_names:
+            continue
         body = env.data.body(product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
         intervals.append(
             (float(body.xpos[1] - extent[1]), float(body.xpos[1] + extent[1]), product.name)
         )
+    if not intervals:
+        raise ValueError("row_geometry requires at least one product")
     intervals.sort()
     left, right = config.center_y - config.width / 2, config.center_y + config.width / 2
     gaps = [intervals[0][0] - left]
@@ -90,3 +144,20 @@ def row_geometry(env):
         "maximum_allowed_envelope_overlap_m": 0.0002,
         "maximum_allowed_total_envelope_overlap_m": 0.0002,
     }
+
+
+def exposed_row_capacity(env, product_names, direction):
+    """Measure the opening and slack when pressing a supported group toward a wall."""
+    if direction not in (-1, 1):
+        raise ValueError("Row press direction must be -1 or +1")
+    names = set(product_names)
+    report = row_geometry(env, product_names=names)
+    gaps = report["gaps_including_walls_m"]
+    end = 0 if direction > 0 else -1
+    return dict(
+        report,
+        exposed_product=report["product_order"][end],
+        available_m=gaps[end],
+        closable_slack_m=sum(gaps) - gaps[end],
+        required_m=sum(2 * p.half_size[1] for p in env.products if p.name not in names),
+    )

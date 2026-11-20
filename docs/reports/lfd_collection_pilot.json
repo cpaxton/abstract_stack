@@ -1,0 +1,584 @@
+{
+  "kind": "small_native_lfd_format_pilot",
+  "purpose": "controller/sensing fixtures; not successful stocking demonstrations",
+  "base_revision": "03bea50192853908e225bbbd666323360cafbb75",
+  "uncommitted_source_snapshot": true,
+  "source_hashes": {
+    "scripts/export_lfd_fixture.py": "4bb61af480a8585bd4e307a219ca560705504a7c71ab7d4576b6d59074336937",
+    "src/abstract_stack/lfd/fixtures.py": "c308a32951079ffcd8828bd1b60d61153b6ec98a060881cfd35930ed5f3441b4",
+    "src/abstract_stack/mabel_controller.py": "309d48c138ea032daa4e9040a252f4d82fa13ddbc8cc7b34a504b04f0b76c277",
+    "src/abstract_stack/lfd/episode.py": "9c7cfdb149bd226c638e59c50e7eec38e42cdd3ccd7b4569bf92f7cc53f2b920",
+    "src/abstract_stack/sim_sensors.py": "3d0cdb670a077493363a50fe6afe2fe3180b92839d2f8fab603ed8480213b245",
+    "src/abstract_stack/lfd/cameras.py": "ca976a4a618b021d61914017dc1e142bcab1d5acc5df781d779ae019c2a16403"
+  },
+  "full_collection_source_hashes_path": "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/source_sha256.json",
+  "full_collection_source_hashes_sha256": "5168c35a5826813d35564e586a518186f0de1d399b93d80c3ea32c7cfbcd6b9e",
+  "scheduled_episodes": 3,
+  "completed_collection_processes": 3,
+  "scheduled_transitions": 60,
+  "recorded_transitions": 60,
+  "proprioception_snapshots": 63,
+  "raw_rgb_images": 126,
+  "exported_preaction_rgb_images": 120,
+  "available_rgb_images": 126,
+  "missing_rgb_images": 0,
+  "guarded_physics_steps": 2100,
+  "guarded_recorded_phase_steps": 600,
+  "fixture_task_failures": 3,
+  "unknown_task_outcomes": 0,
+  "stocking_attempts": 0,
+  "fresh_task_credit": 0,
+  "episodes": [
+    {
+      "seed": 1201,
+      "scene_configuration_seed": 1201,
+      "environment_reset_jitter_seed": 0,
+      "profile": "lift_pan",
+      "scheduled_transitions": 20,
+      "recorded_transitions": 20,
+      "proprioception_snapshots": 21,
+      "collection_process": {
+        "stage": "seed-1201",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/source_snapshot/scripts/export_lfd_fixture.py",
+          "--output",
+          "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1201",
+          "--steps",
+          "20",
+          "--seed",
+          "1201",
+          "--motion-profile",
+          "lift_pan",
+          "--cameras"
+        ],
+        "returncode": 0,
+        "timeout": false,
+        "budget_s": 60,
+        "wall_s": 12.34613254999931
+      },
+      "outcome": {
+        "status": "failure",
+        "task_success": false,
+        "reason": "Completed unloaded collection fixture; no stocking task attempted"
+      },
+      "training_eligible": false,
+      "fresh_task_credit": 0,
+      "physics_guard_steps_total": 700,
+      "physics_guard_steps_settling": 500,
+      "physics_guard_steps_recorded_phase": 200,
+      "guard": {
+        "peak_contact_normal_N": {
+          "robot_fixture_N": 0.0,
+          "robot_product_N": 0.0,
+          "carton_pair_N": 0.0
+        },
+        "peak_actuator_effort_Nm": {
+          "FL Steer": 0.0008326122142832787,
+          "FL Drive": 0.0013858124217340992,
+          "FR Steer": 0.000341119663411184,
+          "FR Drive": 0.00026727210468339003,
+          "B Steer": 0.0009436385823255623,
+          "B Drive": 0.00023766106314045525
+        },
+        "maximum_product_displacement_m": {
+          "carton_0": 0.004426353896467172,
+          "carton_1": 0.004426353896467172
+        },
+        "incidents": [],
+        "reference_yaw_rad": 0.0,
+        "product_displacement_limit_m": null
+      },
+      "motion": {
+        "Lift": {
+          "units": "m",
+          "commanded_amplitude": 0.004,
+          "nominal_excursion": 0.0040000000000000036,
+          "measured_excursion": 0.0039167702198028564,
+          "next_boundary_tracking_rmse": 0.0005469150797590712,
+          "terminal_nominal": 0.3175,
+          "terminal_measured": 0.31831008195877075
+        },
+        "Neck Yaw": {
+          "units": "rad",
+          "commanded_amplitude": 0.08,
+          "nominal_excursion": 0.08,
+          "measured_excursion": 0.06092975288629532,
+          "next_boundary_tracking_rmse": 0.02711595233437918,
+          "terminal_nominal": -1.3320644404465174e-05,
+          "terminal_measured": 0.039497628808021545
+        }
+      },
+      "cameras": {
+        "zed_left": {
+          "raw_frames": 21,
+          "available_frames": 21,
+          "missing_frames": 0,
+          "shape": [
+            21,
+            120,
+            160,
+            3
+          ],
+          "pixels_sha256": "fb0ba909deb782acaa55688856744e19274866d6bdbd7b81b4ee1e16804d294a",
+          "unique_frames": 21,
+          "sample_timestamps_match_native_boundaries": true
+        },
+        "stocking_third_person": {
+          "raw_frames": 21,
+          "available_frames": 21,
+          "missing_frames": 0,
+          "shape": [
+            21,
+            120,
+            160,
+            3
+          ],
+          "pixels_sha256": "8d60ff0c3546d6174ad816f5cf8098db37060a3da7768ed6716c7833b8c3f3cf",
+          "unique_frames": 21,
+          "sample_timestamps_match_native_boundaries": true
+        }
+      },
+      "sensor_availability": {
+        "observation.state": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.wrist_wrench": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.contact_wrench": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.tactile": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.images.zed_left": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.images.stocking_third_person": {
+          "available": 21,
+          "snapshots": 21
+        }
+      },
+      "peak_wrist_reaction_force_norm_N": 2.327385425567627,
+      "peak_wrist_reaction_torque_norm_Nm": 0.1968567967414856,
+      "peak_abs_contact_wrench": 0.0,
+      "peak_abs_tactile_proxy_N": 0.0,
+      "scene_xml_sha256": "6aa2655613cd50b95fc965442e0b371d005ca6519030ed618a3ec4b4f47a0d44",
+      "episode_sha256": {
+        "frames.npz": "c682db84bf9514321a7c2e62ed25e4a58c3527766f2b98f1cfddc8eeb4247c62",
+        "teacher.jsonl": "39a319583093c418bd53c9737d116115e67c58959af38ae1af0fc25a31070403"
+      },
+      "camera_capture_log_sha256": "b5f3ee08c3d60b8e0a539a3dc914979793c8ce43f0c7f438934cb342b2a943fe",
+      "model_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b"
+    },
+    {
+      "seed": 1202,
+      "scene_configuration_seed": 1202,
+      "environment_reset_jitter_seed": 0,
+      "profile": "left_wrist_pan",
+      "scheduled_transitions": 20,
+      "recorded_transitions": 20,
+      "proprioception_snapshots": 21,
+      "collection_process": {
+        "stage": "seed-1202",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/source_snapshot/scripts/export_lfd_fixture.py",
+          "--output",
+          "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1202",
+          "--steps",
+          "20",
+          "--seed",
+          "1202",
+          "--motion-profile",
+          "left_wrist_pan",
+          "--cameras"
+        ],
+        "returncode": 0,
+        "timeout": false,
+        "budget_s": 60,
+        "wall_s": 12.295148691002396
+      },
+      "outcome": {
+        "status": "failure",
+        "task_success": false,
+        "reason": "Completed unloaded collection fixture; no stocking task attempted"
+      },
+      "training_eligible": false,
+      "fresh_task_credit": 0,
+      "physics_guard_steps_total": 700,
+      "physics_guard_steps_settling": 500,
+      "physics_guard_steps_recorded_phase": 200,
+      "guard": {
+        "peak_contact_normal_N": {
+          "robot_fixture_N": 0.0,
+          "robot_product_N": 0.0,
+          "carton_pair_N": 0.0
+        },
+        "peak_actuator_effort_Nm": {
+          "FL Steer": 0.0008326122142832787,
+          "FL Drive": 0.0012810427168036536,
+          "FR Steer": 0.000341119663411184,
+          "FR Drive": 0.0002491856490841534,
+          "B Steer": 0.0009436385823255623,
+          "B Drive": 0.00023766106314045525
+        },
+        "maximum_product_displacement_m": {
+          "carton_0": 0.004426353749438006,
+          "carton_1": 0.004426353749438006
+        },
+        "incidents": [],
+        "reference_yaw_rad": 0.0,
+        "product_displacement_limit_m": null
+      },
+      "motion": {
+        "Left Wrist": {
+          "units": "rad",
+          "commanded_amplitude": 0.04,
+          "nominal_excursion": 0.04000000000000001,
+          "measured_excursion": 0.029114052653312683,
+          "next_boundary_tracking_rmse": 0.007708167403882672,
+          "terminal_nominal": 0.15,
+          "terminal_measured": 0.15494687855243683
+        },
+        "Neck Yaw": {
+          "units": "rad",
+          "commanded_amplitude": -0.08,
+          "nominal_excursion": 0.08,
+          "measured_excursion": 0.06093836575746536,
+          "next_boundary_tracking_rmse": 0.027114393023803123,
+          "terminal_nominal": -1.3320644404465174e-05,
+          "terminal_measured": -0.039533667266368866
+        }
+      },
+      "cameras": {
+        "zed_left": {
+          "raw_frames": 21,
+          "available_frames": 21,
+          "missing_frames": 0,
+          "shape": [
+            21,
+            120,
+            160,
+            3
+          ],
+          "pixels_sha256": "0dae84e99cc18039d26b342b632735d382934e7f6662f498bb673dd040ca2770",
+          "unique_frames": 21,
+          "sample_timestamps_match_native_boundaries": true
+        },
+        "stocking_third_person": {
+          "raw_frames": 21,
+          "available_frames": 21,
+          "missing_frames": 0,
+          "shape": [
+            21,
+            120,
+            160,
+            3
+          ],
+          "pixels_sha256": "c3ff609818bb264d2b31efa7ad9e6111d5e443958b7adf2f70a0ef53841938ea",
+          "unique_frames": 21,
+          "sample_timestamps_match_native_boundaries": true
+        }
+      },
+      "sensor_availability": {
+        "observation.state": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.wrist_wrench": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.contact_wrench": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.tactile": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.images.zed_left": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.images.stocking_third_person": {
+          "available": 21,
+          "snapshots": 21
+        }
+      },
+      "peak_wrist_reaction_force_norm_N": 2.3245606422424316,
+      "peak_wrist_reaction_torque_norm_Nm": 0.19605645537376404,
+      "peak_abs_contact_wrench": 0.0,
+      "peak_abs_tactile_proxy_N": 0.0,
+      "scene_xml_sha256": "8ab7d3d92321a73af32f87e6645bbfa4b541d7aadf24949aa9ca0d0ce45db6cd",
+      "episode_sha256": {
+        "frames.npz": "eceaaecbdd84122268a22847121be982113d712719f757854c5476fe18ec8199",
+        "teacher.jsonl": "cf4b309dd68f9f3e380efb6b224d270d763c193de39e58620f1f97b4e9ae6555"
+      },
+      "camera_capture_log_sha256": "5e7390e81f26e89b629f472290b1e4df4bf4d1acd65fdcf9ca028beaee09241f",
+      "model_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b"
+    },
+    {
+      "seed": 1203,
+      "scene_configuration_seed": 1203,
+      "environment_reset_jitter_seed": 0,
+      "profile": "right_wrist_tilt",
+      "scheduled_transitions": 20,
+      "recorded_transitions": 20,
+      "proprioception_snapshots": 21,
+      "collection_process": {
+        "stage": "seed-1203",
+        "command": [
+          "/home/cpaxton/src/abstract_stack/.venv/bin/python",
+          "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/source_snapshot/scripts/export_lfd_fixture.py",
+          "--output",
+          "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1203",
+          "--steps",
+          "20",
+          "--seed",
+          "1203",
+          "--motion-profile",
+          "right_wrist_tilt",
+          "--cameras"
+        ],
+        "returncode": 0,
+        "timeout": false,
+        "budget_s": 60,
+        "wall_s": 12.246471583999664
+      },
+      "outcome": {
+        "status": "failure",
+        "task_success": false,
+        "reason": "Completed unloaded collection fixture; no stocking task attempted"
+      },
+      "training_eligible": false,
+      "fresh_task_credit": 0,
+      "physics_guard_steps_total": 700,
+      "physics_guard_steps_settling": 500,
+      "physics_guard_steps_recorded_phase": 200,
+      "guard": {
+        "peak_contact_normal_N": {
+          "robot_fixture_N": 0.0,
+          "robot_product_N": 0.0,
+          "carton_pair_N": 0.0
+        },
+        "peak_actuator_effort_Nm": {
+          "FL Steer": 0.0008326122142832787,
+          "FL Drive": 0.0012810427168036536,
+          "FR Steer": 0.000341119663411184,
+          "FR Drive": 0.0002393809380774983,
+          "B Steer": 0.0009436385823255623,
+          "B Drive": 0.00023766106314045525
+        },
+        "maximum_product_displacement_m": {
+          "carton_0": 0.00442635372133926,
+          "carton_1": 0.00442635372133926
+        },
+        "incidents": [],
+        "reference_yaw_rad": 0.0,
+        "product_displacement_limit_m": null
+      },
+      "motion": {
+        "Right Wrist": {
+          "units": "rad",
+          "commanded_amplitude": 0.04,
+          "nominal_excursion": 0.04000000000000001,
+          "measured_excursion": 0.03038923442363739,
+          "next_boundary_tracking_rmse": 0.008138047531050815,
+          "terminal_nominal": -0.15,
+          "terminal_measured": -0.14525070786476135
+        },
+        "Neck Pitch": {
+          "units": "rad",
+          "commanded_amplitude": 0.06,
+          "nominal_excursion": 0.06,
+          "measured_excursion": 0.053440868854522705,
+          "next_boundary_tracking_rmse": 0.020221986850098905,
+          "terminal_nominal": 0.004804625803192016,
+          "terminal_measured": 0.043791964650154114
+        }
+      },
+      "cameras": {
+        "zed_left": {
+          "raw_frames": 21,
+          "available_frames": 21,
+          "missing_frames": 0,
+          "shape": [
+            21,
+            120,
+            160,
+            3
+          ],
+          "pixels_sha256": "b0971cfd04b2b77373e6d7adef205167c95edee76caf55c4eb0b6ca7642f09eb",
+          "unique_frames": 21,
+          "sample_timestamps_match_native_boundaries": true
+        },
+        "stocking_third_person": {
+          "raw_frames": 21,
+          "available_frames": 21,
+          "missing_frames": 0,
+          "shape": [
+            21,
+            120,
+            160,
+            3
+          ],
+          "pixels_sha256": "63564cbeb76799a09d86526acc95639eefeff8ca4077a9d3f33bd06956eba92e",
+          "unique_frames": 21,
+          "sample_timestamps_match_native_boundaries": true
+        }
+      },
+      "sensor_availability": {
+        "observation.state": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.wrist_wrench": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.contact_wrench": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.tactile": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.images.zed_left": {
+          "available": 21,
+          "snapshots": 21
+        },
+        "observation.images.stocking_third_person": {
+          "available": 21,
+          "snapshots": 21
+        }
+      },
+      "peak_wrist_reaction_force_norm_N": 2.3162643909454346,
+      "peak_wrist_reaction_torque_norm_Nm": 0.19535300135612488,
+      "peak_abs_contact_wrench": 0.0,
+      "peak_abs_tactile_proxy_N": 0.0,
+      "scene_xml_sha256": "17420de30b4364ed944b231a4c6c32406f7c12fcb0530fd86346d2f9ec2c5fac",
+      "episode_sha256": {
+        "frames.npz": "4745d873a6d659a593b80b0c69a5a2281caf2d1c70adeeb21d179487827c7673",
+        "teacher.jsonl": "e821cbad68197b1c89f08889678fbdd98ebb4bf1d8885ba0e321e9bc364bac77"
+      },
+      "camera_capture_log_sha256": "294839b380584559f9740a1425e252136c98e2103accb51bb3fba416cdc840c3",
+      "model_revision": "d0181f04025c06e1790b7ab41fe44d602cc2ee5b"
+    }
+  ],
+  "initial_sdk_export_failure": {
+    "process": {
+      "stage": "export",
+      "command": [
+        "/home/cpaxton/src/abstract_stack/outputs/envs/lfd-export/bin/python",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/source_snapshot/scripts/export_lfd.py",
+        "lerobot",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1201",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1202",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1203",
+        "--output",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/lerobot",
+        "--include-failed"
+      ],
+      "returncode": 1,
+      "timeout": false,
+      "budget_s": 45,
+      "wall_s": 2.321691174998705
+    },
+    "reason": "LeRobot 0.7 aggregate_stats treats scalar feature names containing 'image' as RGB; rejects shape(1,)",
+    "retained_directory": "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/lerobot"
+  },
+  "corrected_export_process": [
+    {
+      "stage": "export",
+      "command": [
+        "/home/cpaxton/src/abstract_stack/outputs/envs/lfd-export/bin/python",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/export-corrected/source_snapshot/scripts/export_lfd.py",
+        "lerobot",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1201",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1202",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/run/seed-1203",
+        "--output",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/export-corrected/lerobot",
+        "--include-failed"
+      ],
+      "returncode": 0,
+      "timeout": false,
+      "wall_s": 2.571653064998827,
+      "budget_s": 45
+    },
+    {
+      "stage": "verify",
+      "command": [
+        "/home/cpaxton/src/abstract_stack/outputs/envs/lfd-export/bin/python",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/export-corrected/source_snapshot/scripts/export_lfd.py",
+        "verify-lerobot",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/export-corrected/lerobot",
+        "--output",
+        "/tmp/abstract-stack-lfd-pr/outputs/lfd-pilot-v1/export-corrected/verified"
+      ],
+      "returncode": 0,
+      "timeout": false,
+      "wall_s": 2.1699258700027713,
+      "budget_s": 45
+    }
+  ],
+  "roundtrip": {
+    "kind": "official_lerobot_local_roundtrip",
+    "episodes": 3,
+    "frames": 60,
+    "native_clock_float64_storage_exact": true,
+    "reader_clock_dtypes": [
+      "float32"
+    ],
+    "raw_image_storage_uint8_pixels_exact": true,
+    "reader_image_representations": [
+      "float32 RGB divided by 255"
+    ],
+    "nominal_applied_and_sensor_values_exact_at_declared_dtype": true,
+    "masks_and_outcomes_preserved": true,
+    "privileged_fields_exported": false,
+    "uploaded": false,
+    "video_decode_tested": false,
+    "fresh_task_credit": 0,
+    "exporter_source_sha256": "74011e559d05f553d368ca790c1844840fca3cfef7beb5c7e39db4be9f09363a"
+  },
+  "backward_verification": {
+    "kind": "official_lerobot_local_roundtrip",
+    "episodes": 1,
+    "frames": 5,
+    "native_clock_float64_storage_exact": true,
+    "reader_clock_dtypes": [
+      "float32"
+    ],
+    "raw_image_storage_uint8_pixels_exact": true,
+    "reader_image_representations": [
+      "float32 RGB divided by 255"
+    ],
+    "nominal_applied_and_sensor_values_exact_at_declared_dtype": true,
+    "masks_and_outcomes_preserved": true,
+    "privileged_fields_exported": false,
+    "uploaded": false,
+    "video_decode_tested": false,
+    "fresh_task_credit": 0,
+    "exporter_source_sha256": "74011e559d05f553d368ca790c1844840fca3cfef7beb5c7e39db4be9f09363a"
+  },
+  "limitations": [
+    "No successful pick/grasp/place/insertion examples or contact-rich action policy",
+    "Target references return to baseline but measured head/wrist motion has not fully settled at episode end",
+    "All wrist reaction values are simulated; no noise, shutter, transport latency or hardware calibration",
+    "Actual contact-only/tactile channels are zero in these unloaded fixtures",
+    "Raw original camera poses may occlude useful task geometry",
+    "Recorded scene_seed is configuration-generation seed; environment reset jitter seed is0",
+    "Original collector source revision is pinned by base commit plus full copied source hashes, not a clean-commit claim",
+    "No training, uploads or MP4 codec validation"
+  ]
+}

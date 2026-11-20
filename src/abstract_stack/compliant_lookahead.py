@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from abstract_stack.bounded_reference import ReferenceEnvelope
 from abstract_stack.cartesian_feedback import bounded_contact_prediction
 from abstract_stack.ik import interpolate_rotation, rotation_error
 
@@ -43,7 +44,7 @@ class PushAdmittance:
         if (
             not np.isfinite(lateral_bias)
             or not np.isfinite(normal_scale)
-            or not 0 < normal_scale <= 1
+            or not 0 <= normal_scale <= 1
         ):
             raise ValueError("Invalid bounded admittance alternative")
         vx = -self.normal_gain_m_Ns * (self.normal_target_N - force[0]) * normal_scale
@@ -79,8 +80,12 @@ def generate_push_candidates(
     max_candidates=16,
     wall_seconds=10.0,
     admittance=None,
+    lateral_goal_m=None,
+    lateral_measurement_m=None,
+    project_reference_bounds=False,
+    finger_control_targets=None,
 ):
-    """Generate checked arm/lift trajectories with held native finger commands.
+    """Generate checked arm/lift paths with held or explicitly bounded fingers.
 
     Caller supplies an independent planning hand and known uncompensated nominal
     references. Applied servo offsets are frozen from the initial native state,
@@ -108,6 +113,10 @@ def generate_push_candidates(
         or not 1 <= max_candidates <= 16
         or not np.isfinite(wall_seconds)
         or not 0 < wall_seconds <= 30
+        or lateral_goal_m is not None
+        and (not np.isfinite(lateral_goal_m) or not lower_xyz[1] <= lateral_goal_m <= upper_xyz[1])
+        or lateral_measurement_m is not None
+        and (lateral_goal_m is None or not np.isfinite(lateral_measurement_m))
     ):
         raise ValueError("Invalid bounded push forecast configuration")
     # Validate wrench even when only the held-target baseline is requested.
@@ -127,13 +136,33 @@ def generate_push_candidates(
     for body in range(hand.palm + 1, model.nbody):
         if int(model.body_parentid[body]) in hand_bodies:
             hand_bodies.add(body)
-    finger_targets = {}
+    finger_ids = {}
     for aid in range(model.nu):
         if model.actuator_trntype[aid] != 0 or aid in aids:
             continue
         joint = int(model.actuator_trnid[aid, 0])
         if joint >= 0 and int(model.jnt_bodyid[joint]) in hand_bodies:
-            finger_targets[model.joint(joint).name] = float(base[aid])
+            finger_ids[model.joint(joint).name] = aid
+    finger_goals = {}
+    if finger_control_targets is not None:
+        if not isinstance(finger_control_targets, dict):
+            raise ValueError("Finger proposals must be an explicit native-name mapping")
+        for name, value in finger_control_targets.items():
+            if (
+                name not in finger_ids
+                or isinstance(value, bool)
+                or not isinstance(value, (float, int, np.floating, np.integer))
+                or not np.isfinite(value)
+            ):
+                raise ValueError("Finger proposals must name native distal hand position actuators")
+            aid = finger_ids[name]
+            joint = int(model.actuator_trnid[aid, 0])
+            lo = max(model.jnt_range[joint, 0], model.actuator_ctrlrange[aid, 0])
+            hi = min(model.jnt_range[joint, 1], model.actuator_ctrlrange[aid, 1])
+            if not lo <= value <= hi or abs(value - base[aid]) > 0.5 * hand.env.dt + 1e-12:
+                raise ValueError("Finger proposal exceeds native bounds or the 0.5 rad/s rate")
+            finger_goals[aid] = float(value)
+            rates[aid] = 0.5
     old_command, old_rotation = hand.command.copy(), hand.active_rotation.copy()
     old_prediction = hand.last_prediction
     old_carry, old_slide = hand.ik.carry, hand.ik.slide
@@ -153,6 +182,12 @@ def generate_push_candidates(
     candidates = [baseline]
     rejected = []
     alternatives = [
+        # Hold normal position while correcting shear. Retreating every moving
+        # proposal can lose contact on a stiff backstop, leaving only the
+        # immobile baseline eligible even when a lateral correction is needed.
+        (0, 0, 0),
+        (0, -0.004, 0),
+        (0, 0.004, 0),
         (1, 0.004, 0),
         (0.5, 0.004, 0),
         (1, 0, 0),
@@ -181,6 +216,18 @@ def generate_push_candidates(
             velocity = config.velocity(
                 wrench_on_hand_world, lateral_bias=lateral_bias, normal_scale=normal_scale
             )
+            if lateral_goal_m is not None:
+                velocity[1] = np.clip(
+                    2
+                    * (
+                        lateral_goal_m
+                        - (origin[1] if lateral_measurement_m is None else lateral_measurement_m)
+                    )
+                    + config.tangent_gain_m_Ns * np.asarray(wrench_on_hand_world)[1]
+                    + lateral_bias,
+                    -config.lateral_speed_m_s,
+                    config.lateral_speed_m_s,
+                )
             angle = np.radians(tilt_deg)
             turn = np.array(
                 [[np.cos(angle), 0, np.sin(angle)], [0, 1, 0], [-np.sin(angle), 0, np.cos(angle)]]
@@ -221,6 +268,8 @@ def generate_push_candidates(
                 lateral_bias_m_s=lateral_bias,
                 tilt_delta_deg=tilt_deg,
                 velocity_world_m_s=velocity.tolist(),
+                privileged_lateral_goal_m=lateral_goal_m,
+                privileged_lateral_measurement_m=lateral_measurement_m,
                 endpoint=endpoint.report(),
                 compensation="frozen initial applied-minus-nominal offsets",
             )
@@ -230,6 +279,7 @@ def generate_push_candidates(
             applied = base.copy()
             controls = []
             nominal_trace = []
+            projection_trace = []
             failure = None
             for tick in range(steps // interval):
                 if time.monotonic() - started >= wall_seconds:
@@ -242,8 +292,21 @@ def generate_push_candidates(
                 # unchanged throughout this independent open-loop forecast.
                 proposal = replace(endpoint, requested_rotation=proposal_rotation)
                 prediction = bounded_contact_prediction(
-                    hand, proposal, target, hand.env.dt, nominal_rates
+                    hand,
+                    proposal,
+                    target,
+                    hand.env.dt,
+                    nominal_rates,
+                    reference_envelope=(
+                        ReferenceEnvelope(
+                            lower_xyz, upper_xyz, applied_lower, applied_upper, applied[aids]
+                        )
+                        if project_reference_bounds
+                        else None
+                    ),
                 )
+                if project_reference_bounds:
+                    projection_trace.append(prediction.bounded_feedback)
                 previous_point, previous_rotation = hand.ik.forward(
                     hand.command, endpoint.reference_qpos
                 )
@@ -266,9 +329,23 @@ def generate_push_candidates(
                     > config.angular_speed_rad_s * hand.env.dt + 1e-6
                 ):
                     failure = "bounded_nominal_geometry_or_motion"
+                    report["nominal_rejection"] = dict(
+                        control_tick=tick,
+                        prediction=prediction.report(),
+                        lower_m=lower_xyz.tolist(),
+                        upper_m=upper_xyz.tolist(),
+                        linear_step_m=float(np.linalg.norm(prediction.position - previous_point)),
+                        max_linear_step_m=float(linear_bound),
+                        angular_step_rad=float(
+                            np.linalg.norm(rotation_error(previous_rotation, prediction.rotation))
+                        ),
+                        max_angular_step_rad=float(config.angular_speed_rad_s * hand.env.dt),
+                    )
                     break
                 wanted = base.copy()
                 wanted[aids] = base[aids] + prediction.q - nominal
+                for aid, value in finger_goals.items():
+                    wanted[aid] = value
                 limited = model.actuator_ctrllimited != 0
                 wanted[limited] = np.clip(
                     wanted[limited],
@@ -307,7 +384,10 @@ def generate_push_candidates(
                     )
                     break
                 collision = hand.check_hand_step(
-                    SimpleNamespace(q=bounded[aids]), 0, active, targets=finger_targets
+                    SimpleNamespace(q=bounded[aids]),
+                    0,
+                    active,
+                    targets={name: float(bounded[aid]) for name, aid in finger_ids.items()},
                 )
                 if collision:
                     failure = "coupled_applied_arm_finger_geometry"
@@ -318,6 +398,8 @@ def generate_push_candidates(
                 applied = bounded
                 hand.command = prediction.q.copy()
                 nominal_trace.append(prediction.q.tolist())
+            if project_reference_bounds:
+                report["bounded_feedback_trace"] = projection_trace
             if failure:
                 rejected.append(dict(report, failure=failure))
             else:
@@ -344,10 +426,12 @@ def generate_push_candidates(
             applied_virtual_origin_m=applied_origin.tolist(),
             applied_envelope_translation_m=(applied_origin - origin).tolist(),
             generation_seconds=time.monotonic() - started,
+            project_reference_bounds=project_reference_bounds,
             scheduled_candidates=1 + len(alternatives),
             generated=len(candidates),
             rejected=rejected,
             fresh_task_credit=0,
+            selected_finger_control_targets=finger_control_targets,
         ),
         rates,
     )

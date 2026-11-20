@@ -25,6 +25,9 @@ def _positive_int(value):
 def _parser():
     parser = argparse.ArgumentParser(prog="abstract-stack", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    from abstract_stack.checkpoint_cli import add_commands
+
+    add_commands(commands.add_parser("checkpoint", help="Capture, inspect and replay native state"))
     fetch = commands.add_parser("fetch-mabel", help="Download the pinned MABEL model and meshes")
     fetch.add_argument("--destination", type=Path)
     random_scene = commands.add_parser(
@@ -194,6 +197,104 @@ def _parser():
                 "--guarded-approach",
                 action="store_true",
                 help="Experimental force-triggered approach and preshaping",
+            )
+            sub.add_argument(
+                "--grasp-skill",
+                action="store_true",
+                help="Experimental object-aligned grasp with checked Cartesian entry",
+            )
+            sub.add_argument(
+                "--ungrasped-insertion",
+                action="store_true",
+                help="Use released-carton finger insertion beside stocked neighbors",
+            )
+            sub.add_argument(
+                "--paired-finger-insertion",
+                action="store_true",
+                help="Experimental two-fingertip squaring surface for released insertion",
+            )
+            opening = sub.add_mutually_exclusive_group()
+            opening.add_argument(
+                "--release-pose-feedback",
+                action="store_true",
+                help="Keep bounded pose corrections during supported continuous opening",
+            )
+            opening.add_argument(
+                "--legacy-opening",
+                action="store_true",
+                help="Use the earlier feedback-guided pressure reduction and opening schedule",
+            )
+            sub.add_argument(
+                "--live-guarded-withdrawal",
+                action="store_true",
+                help="Development rollout with live checked exits instead of full exit forecasts",
+            )
+            sub.add_argument(
+                "--wall-packing",
+                action="store_true",
+                help="Fill a fresh dense row from the positive wall inward",
+            )
+            sub.add_argument(
+                "--center-last",
+                action="store_true",
+                help="Fill from alternating walls and leave the final slot near the center",
+            )
+            sub.add_argument(
+                "--guided-wall-entry",
+                action="store_true",
+                help="Use measured corner clearance during positive-wall row insertion",
+            )
+            sub.add_argument(
+                "--plan-driven",
+                action="store_true",
+                help="Compose the per-carton sequence through the task-plan skill library",
+            )
+            sub.add_argument(
+                "--screen-pusher-approach",
+                action="store_true",
+                help="Check a post-square approach with projected arm and finger servo targets",
+            )
+            sub.add_argument(
+                "--side-square-recovery",
+                action="store_true",
+                help="Try a measured side shift when a released carton lacks room to square",
+            )
+            sub.add_argument(
+                "--balance-contact-alignment",
+                action="store_true",
+                help="Rank guarded backstop prefixes by combined yaw and lateral error",
+            )
+            sub.add_argument(
+                "--screen-supported-unload",
+                action="store_true",
+                help="Forecast alternate guarded unloads beside stocked cartons",
+            )
+            sub.add_argument(
+                "--interleave-row-press",
+                action="store_true",
+                help="Experimental three-carton sequence with a measured press after two stocks",
+            )
+            sub.add_argument(
+                "--post-press-release-reapproach",
+                action="store_true",
+                help="Open the grasp and reapproach with fingertips on the post-press carton",
+            )
+            sub.add_argument(
+                "--payload-wrist-compensation",
+                action="store_true",
+                help="Use measured payload wrist load, reserved references "
+                "and applied geometry checks",
+            )
+            sub.add_argument(
+                "--record-skill-starts",
+                action="store_true",
+                help="Save measured per-skill entry distributions and native checkpoints",
+            )
+            sub.add_argument(
+                "--base-reposition",
+                action="store_true",
+                help="Reposition an empty hand via native wheels when a loaded shelf route "
+                "is unreachable",
             )
             sub.add_argument(
                 "--fixture-avoidance",
@@ -388,8 +489,17 @@ def _teleop(env, args):
 def main(argv=None):
     parser = _parser()
     args = parser.parse_args(argv)
+    if args.command == "checkpoint":
+        from abstract_stack.checkpoint_cli import run
+
+        result = run(args)
+        if result:
+            parser.exit(result, "Checkpoint operation did not verify; inspect retained logs.\n")
+        return
     if args.command == "solve":
         args.command = "script"
+    if getattr(args, "post_press_release_reapproach", False) and not args.interleave_row_press:
+        parser.error("Post-press release/reapproach requires --interleave-row-press")
     if args.command == "tune":
         from abstract_stack.tuning import hill_climb
 
@@ -527,7 +637,15 @@ def main(argv=None):
                 from abstract_stack.interactions import ScriptConfig, StockingScript
 
                 solver = StockingScript
-                if config.row_free_space is not None:
+                solver_options = {}
+                if args.interleave_row_press:
+                    from abstract_stack.interleaved_stocking import PressInterleavedStockingScript
+
+                    solver = PressInterleavedStockingScript
+                    solver_options["post_press_release_reapproach"] = (
+                        args.post_press_release_reapproach
+                    )
+                elif config.row_free_space is not None and not args.ungrasped_insertion:
                     from abstract_stack.dense_interactions import DenseStockingScript
 
                     solver = DenseStockingScript
@@ -544,8 +662,25 @@ def main(argv=None):
                         head_tracking=not args.no_head_tracking,
                         contact_aware=not args.legacy_contact_control,
                         guarded_approach=args.guarded_approach,
+                        grasp_skill=args.grasp_skill,
+                        ungrasped_insertion=args.ungrasped_insertion,
+                        payload_wrist_compensation=args.payload_wrist_compensation,
+                        paired_finger_insertion=args.paired_finger_insertion,
+                        wall_packing=args.wall_packing,
+                        center_last=args.center_last,
+                        live_guarded_withdrawal=args.live_guarded_withdrawal,
+                        plan_driven=args.plan_driven,
+                        guided_wall_entry=args.guided_wall_entry,
+                        screen_pusher_approach=args.screen_pusher_approach,
+                        side_square_recovery=args.side_square_recovery,
+                        balance_contact_alignment=args.balance_contact_alignment,
+                        screen_supported_unload=args.screen_supported_unload,
+                        release_pose_feedback=args.release_pose_feedback,
+                        continuous_finger_opening=not args.legacy_opening,
+                        record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,
+                        base_reposition=args.base_reposition,
                         **resolve_control_settings(args.force_profile, args.control_config),
                     ),
                     force_profile=args.force_profile,
@@ -556,6 +691,7 @@ def main(argv=None):
                     video_height=args.video_height,
                     first_person=args.first_person_camera,
                     third_person=args.third_person_camera,
+                    **solver_options,
                 ).run()
                 print(json.dumps(result, indent=2))
                 if result.get("video_error"):

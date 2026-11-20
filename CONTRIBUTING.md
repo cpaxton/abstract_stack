@@ -51,6 +51,13 @@ every compensation path. Review videos and post-step diagnostic traces cannot
 substitute for causally aligned raw training observations. Keep privileged
 teacher context out of student features and preserve unknown/failed outcomes.
 
+For the opt-in grasp teacher and skill-entry checkpoints, follow the
+[skill curriculum](docs/skills.md). Evaluate isolated skills and complete task
+sequences separately, retaining blocked and unreached scheduled cases. Freeze
+the teacher before drawing private held-out seeds. A checkpoint retry earns no
+fresh episode credit, and unknown historical nominal references require explicit
+new-reference initialization. Entry snapshots alone are not BC demonstrations.
+
 ## Required checks
 
 ```bash
@@ -128,6 +135,13 @@ source fingerprints in every episode bundle. If child source fingerprints
 differ, preserve the outcomes and report the mismatch as development evidence;
 do not combine them into a frozen-policy success rate.
 
+For new launchers, use [shared source bundles](docs/experiment_sources.md): record
+Git HEAD and scoped dirty metadata, capture exact selected source bytes once,
+and reference that content ID from each run. Keep runnable extractions in the
+shared cache rather than copying Python trees into every output directory.
+Portable checkpoints embed a compressed archive. Do not rewrite historical
+manifests or discard failed experiment evidence during this migration.
+
 The benchmark baseline uses `--force-profile legacy --legacy-contact-control`;
 the selected script
 enables checked alternate withdrawal paths and wrist/board clearance feedback.
@@ -149,6 +163,13 @@ when available. For an archived checkout, record its commit explicitly alongside
 the campaign. Compare settled integration-state hashes as well as scene/model
 inputs before claiming a matched experiment. Historical reports must name their
 historical checkout; the current benchmark command follows current defaults.
+
+For a long single-scene development run, `scripts/run_stocking_case.py`
+accepts an optional `--idle-seconds` budget alongside `--wall-seconds`.
+The worker writes `physics-progress.json` on phase changes and once per
+simulated second of native motion. An idle stop records the last heartbeat
+and earns zero terminal stage credit. Choose an idle budget that allows
+the planned search and recording work for the scene.
 
 `--force-profile selected` uses the current default grasp/push force setpoints
 (4.5 N / 1.875 N). `--force-profile legacy` selects 6 N / 2 N without changing

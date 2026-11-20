@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from abstract_stack.config import load_scene_config
 from abstract_stack.control_profiles import resolve_control_settings
 from abstract_stack.env import ShelfStockingEnv
 from abstract_stack.interactions import ScriptConfig
@@ -17,6 +18,7 @@ from abstract_stack.replanning import SearchConfig
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--scene-config", type=Path, help="Explicit frozen DR scene configuration")
     parser.add_argument("--objects", type=int, default=10)
     parser.add_argument("--total-free-space", type=float, default=0.01)
     parser.add_argument("--mabel-root", type=Path)
@@ -51,8 +53,12 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=False)
-    config = dense_shelf_config(
-        args.seed, product_count=args.objects, total_free_space=args.total_free_space
+    config = (
+        load_scene_config(args.scene_config)
+        if args.scene_config
+        else dense_shelf_config(
+            args.seed, product_count=args.objects, total_free_space=args.total_free_space
+        )
     )
     (args.output_dir / "scene.json").write_text(json.dumps(asdict(config), indent=2) + "\n")
     search = SearchConfig(wall_seconds=args.search_seconds)

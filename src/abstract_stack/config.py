@@ -31,6 +31,10 @@ def load_scene_config(path: str | Path | None = None, *, scene: str = "stocking"
             if not isinstance(values[key], list):
                 raise ValueError(f"{key} must be a JSON array")
             values[key] = tuple(values[key])
+    if values.get("supply_order") is not None:
+        if not isinstance(values["supply_order"], list):
+            raise ValueError("supply_order must be a JSON array")
+        values["supply_order"] = tuple(values["supply_order"])
     if "initial_joint_positions" in values:
         try:
             values["initial_joint_positions"] = tuple(

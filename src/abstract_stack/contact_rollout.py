@@ -5,9 +5,11 @@ Model arrays are shared read-only. Forces and every product are checked at each
 physics step, rather than inferred from sparsely saved trajectory endpoints.
 """
 
+import copy
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import mujoco
 import numpy as np
@@ -136,6 +138,174 @@ class ContactMonitor:
         )
         self.last = {}
         self.incidents = []
+        self.phase = "push"
+        self.withdrawal_started_s = None
+
+    def begin_withdrawal(self, data, squared_dwell):
+        """Admit intentional hand unloading after fresh supported square dwell.
+
+        This changes only the contact-retention requirement. Force, support,
+        robot-link, external-input and every-product tip/drop guards persist.
+        A subsequent release/retreat result needs its own measured admission.
+        """
+        if (
+            self.phase != "push"
+            or not squared_dwell.verified
+            or squared_dwell.last_time_s is None
+            or abs(squared_dwell.last_time_s - data.time) > 1e-8
+            or squared_dwell.physics_dt_s != self.model.opt.timestep
+            or squared_dwell.required_seconds < 0.12
+            or squared_dwell.yaw_limit_degrees > 0.15
+            or squared_dwell.upright_limit_degrees > 5
+            or squared_dwell.force_threshold_N < 0.4
+            or squared_dwell.held_seconds + 1e-12 < squared_dwell.required_seconds
+        ):
+            raise ValueError("Withdrawal requires fresh verified supported squared dwell")
+        failure = self.sample(data, elapsed=0)
+        rotation = data.xmat[self.active].reshape(3, 3)
+        yaw = np.arctan2(rotation[1, 0], rotation[0, 0])
+        if (
+            failure
+            or self.last["back_N"] < 0.4
+            or self.last["hand_N"] <= 0.2
+            or self.last["support_N"] <= 0.2
+            or abs(yaw) > np.radians(0.15)
+            or rotation[2, 2] < np.cos(np.radians(5))
+        ):
+            raise ValueError("Withdrawal source no longer has admitted squared support")
+        self.phase = "withdrawal"
+        self.withdrawal_started_s = float(data.time)
+
+    def begin_coarse_loaded_withdrawal(self, data):
+        """Development entry gate for supported contact without precision dwell."""
+        failure = self.sample(data, elapsed=0)
+        rotation = data.xmat[self.active].reshape(3, 3)
+        yaw = np.arctan2(rotation[1, 0], rotation[0, 0])
+        velocity = np.empty(6)
+        mujoco.mj_objectVelocity(
+            self.model, data, mujoco.mjtObj.mjOBJ_BODY, self.active, velocity, 0
+        )
+        if (
+            self.phase != "push"
+            or failure
+            or self.last["back_N"] < 0.4
+            or self.last["hand_N"] <= 0.2
+            or self.last["support_N"] <= 0.2
+            or abs(yaw) > np.radians(1)
+            or rotation[2, 2] < np.cos(np.radians(5))
+            or np.linalg.norm(velocity[3:]) >= 0.01
+            or np.linalg.norm(velocity[:3]) >= 0.05
+        ):
+            raise ValueError("Coarse exit requires stationary supported backstop contact")
+        self.phase = "withdrawal"
+        self.withdrawal_started_s = float(data.time)
+
+    def begin_unloaded_withdrawal(self, data):
+        """Admit a square, stationary, supported carton with an unloaded robot."""
+        failure = self.sample(data, elapsed=0)
+        rotation = data.xmat[self.active].reshape(3, 3)
+        yaw = np.arctan2(rotation[1, 0], rotation[0, 0])
+        velocity = np.empty(6)
+        mujoco.mj_objectVelocity(
+            self.model, data, mujoco.mjtObj.mjOBJ_BODY, self.active, velocity, 0
+        )
+        if (
+            self.phase != "push"
+            or failure
+            or self.last["robot_product_N"] > 0.2
+            or self.last["support_N"] <= 0.2
+            or self.support_loss
+            or abs(yaw) > np.radians(0.15)
+            or rotation[2, 2] < np.cos(np.radians(5))
+            or np.linalg.norm(velocity[3:]) >= 0.01
+            or np.linalg.norm(velocity[:3]) >= 0.05
+        ):
+            raise ValueError(
+                "Unloaded clear requires stationary squared support and low hand force"
+            )
+        self.phase = "withdrawal"
+        self.withdrawal_started_s = float(data.time)
+
+    def state_dict(self):
+        """Explicit continuation memory; incidents and timers must not reset."""
+        return copy.deepcopy(
+            dict(
+                schema_version=1,
+                scene=json.loads(json.dumps(asdict(self.scene))),
+                initial_positions={
+                    name: self.initial[body].tolist() for body, name in self.products.items()
+                },
+                initial_yaw=self.initial_yaw,
+                contact_seen=self.contact_seen,
+                contact_loss=self.contact_loss,
+                support_loss=self.support_loss,
+                max_displacement=self.max_displacement,
+                peaks=self.peaks,
+                last=self.last,
+                incidents=self.incidents,
+                phase=self.phase,
+                withdrawal_started_s=self.withdrawal_started_s,
+            )
+        )
+
+    def restore_state(self, state, data):
+        """Restore only a matching native scene and clock; never change physics."""
+        state = copy.deepcopy(state)
+        if state.get("schema_version") != 1 or state.get("scene") != json.loads(
+            json.dumps(asdict(self.scene))
+        ):
+            raise ValueError("Contact monitor checkpoint has a different scene/guard contract")
+        positions = {
+            name: np.asarray(value, float) for name, value in state["initial_positions"].items()
+        }
+        if set(positions) != set(self.products.values()) or any(
+            value.shape != (3,) or not np.isfinite(value).all() for value in positions.values()
+        ):
+            raise ValueError("Contact monitor checkpoint product history is invalid")
+        for name, keys in (("peaks", self.peaks), ("max_displacement", self.max_displacement)):
+            values = state[name]
+            if values.keys() != keys.keys() or any(
+                not np.isfinite(v) or v < 0 for v in values.values()
+            ):
+                raise ValueError("Contact monitor checkpoint history is invalid")
+        if (
+            type(state["contact_seen"]) is not bool
+            or not np.isfinite(state["initial_yaw"])
+            or any(
+                not np.isfinite(state[n]) or state[n] < 0 for n in ("contact_loss", "support_loss")
+            )
+            or not isinstance(state["incidents"], list)
+            or state["last"]
+            and abs(state["last"]["sim_time"] - data.time) > 1e-8
+        ):
+            raise ValueError("Contact monitor checkpoint clock/timers are invalid")
+        json.dumps(state, allow_nan=False)
+        phase = state.get("phase", "push")
+        withdrawal_started = state.get("withdrawal_started_s")
+        if phase not in ("push", "withdrawal") or (
+            phase == "push"
+            and withdrawal_started is not None
+            or phase == "withdrawal"
+            and (
+                withdrawal_started is None
+                or not np.isfinite(withdrawal_started)
+                or not 0 <= withdrawal_started <= data.time
+            )
+        ):
+            raise ValueError("Invalid contact monitor phase history")
+        self.phase, self.withdrawal_started_s = phase, withdrawal_started
+        self.initial = {body: positions[name] for body, name in self.products.items()}
+        for name in (
+            "initial_yaw",
+            "contact_seen",
+            "contact_loss",
+            "support_loss",
+            "max_displacement",
+            "peaks",
+            "last",
+            "incidents",
+        ):
+            setattr(self, name, state[name])
 
     def sample(self, data, *, elapsed):
         model, scene = self.model, self.scene
@@ -219,7 +389,7 @@ class ContactMonitor:
         self.contact_loss = 0.0 if hand > 0.2 else self.contact_loss + elapsed
         if self.support_loss > scene.support_loss_seconds:
             return "lost_surface_support"
-        if self.contact_loss > scene.contact_loss_seconds:
+        if self.phase == "push" and self.contact_loss > scene.contact_loss_seconds:
             return "lost_push_contact"
         return None
 
@@ -336,6 +506,9 @@ def evaluate_batch(model, initial_state, candidates, scene, *, rates, workers=1)
             fresh_task_credit=0,
             live_execution_admitted=False,
             contact_seen=monitor.contact_seen,
+            active_yaw_rad=float(
+                np.arctan2(data.xmat[monitor.active, 3], data.xmat[monitor.active, 0])
+            ),
         )
         return result, np.asarray(samples, float), integration_state(model, data)
 
@@ -349,7 +522,17 @@ def evaluate_batch(model, initial_state, candidates, scene, *, rates, workers=1)
 
 
 def evaluate_screened_batch(
-    model, initial_state, candidates, scene, *, rates, workers=4, shortlist=4
+    model,
+    initial_state,
+    candidates,
+    scene,
+    *,
+    rates,
+    workers=4,
+    shortlist=4,
+    objective="advance",
+    yaw_target_rad=0.0,
+    alignment_goal=None,
 ):
     """Rank with C++ trajectories, then guard a bounded shortlist from reset.
 
@@ -361,6 +544,34 @@ def evaluate_screened_batch(
 
     if type(shortlist) is not int or not 1 <= shortlist <= len(candidates) <= 32:
         raise ValueError("Shortlist must be between one and the bounded candidate count")
+    if objective not in (
+        "advance",
+        "square_backstop",
+        "lateral_left",
+        "lateral_right",
+        "align_backstop",
+    ):
+        raise ValueError("Unknown contact forecast objective")
+    if not np.isfinite(yaw_target_rad) or abs(yaw_target_rad) > np.pi:
+        raise ValueError("Yaw reference must be a finite angle inside +/-pi")
+    direction = -1 if objective == "lateral_left" else 1
+    if objective == "align_backstop":
+        goal = np.asarray(alignment_goal, dtype=float)
+        if goal.shape != (3,) or not np.isfinite(goal).all() or min(goal[1:]) <= 0:
+            raise ValueError("Alignment objective requires lateral target and positive scales")
+        goal_y, y_scale, yaw_scale = goal
+
+    def score(progress, yaw, lateral):
+        error = float(np.arctan2(np.sin(yaw - yaw_target_rad), np.cos(yaw - yaw_target_rad)))
+        if objective == "advance":
+            return (progress,)
+        if objective == "square_backstop":
+            return (-abs(error), progress)
+        if objective == "align_backstop":
+            lateral_error = (initial_y + lateral - goal_y) / y_scale
+            return (-float(np.hypot(lateral_error, error / yaw_scale)), progress)
+        return (direction * lateral, -abs(error))
+
     # Validate every complete applied-target sequence before launching the
     # screen. Neither ranking nor finite endpoint state establishes force safety.
     if type(workers) is not int or not 1 <= workers <= 8:
@@ -426,6 +637,7 @@ def evaluate_screened_batch(
     ):
         raise ValueError("Screen ranking requires a world-root free-joint product")
     x_index = 1 + int(model.jnt_qposadr[joint])
+    initial_y = float(data.qpos[x_index])
     started = time.monotonic()
     with mujoco.rollout.Rollout(nthread=workers) as pool:
         states, _ = pool.rollout(
@@ -450,20 +662,32 @@ def evaluate_screened_batch(
             )
         )
         progress = float(data.qpos[x_index - 1] - states[index, -1, x_index]) if valid else None
+        lateral = float(states[index, -1, x_index + 1] - data.qpos[x_index]) if valid else None
+        yaw = None
+        if valid:
+            rotation = np.empty(9)
+            quaternion = states[index, -1, x_index + 3 : x_index + 7]
+            if not np.isclose(np.linalg.norm(quaternion), 1, atol=1e-6, rtol=0):
+                valid = False
+            else:
+                mujoco.mju_quat2Mat(rotation, quaternion)
+                yaw = float(np.arctan2(rotation[3], rotation[0]))
         rows.append(
             dict(
                 name=candidate["name"],
                 screen_progress_minus_x_m=progress,
+                screen_displacement_y_m=lateral,
+                screen_active_yaw_rad=yaw,
                 eligible=False,
                 verification_status="not_force_checked",
                 fresh_task_credit=0,
             )
         )
         if valid:
-            ranking.append((index, progress))
+            ranking.append((index, score(progress, yaw, lateral)))
         else:
             rows[-1]["verification_status"] = "invalid_screen_trajectory"
-    ranking.sort(key=lambda item: (-item[1], item[0]))
+    ranking.sort(key=lambda item: tuple(-v for v in item[1]) + (item[0],))
     selected = ranking[:shortlist]
     if selected:
         guarded, guard_seconds = evaluate_batch(
@@ -474,9 +698,21 @@ def evaluate_screened_batch(
     for (index, _), result in zip(selected, guarded, strict=True):
         rows[index].update(result[0], verification_status="guarded_forecast")
     admitted = [r for r in rows if r["eligible"]]
-    best = max(admitted, key=lambda r: r["progress_minus_x_m"]) if admitted else None
+    best = (
+        max(
+            admitted,
+            key=lambda r: score(
+                r["progress_minus_x_m"], r["active_yaw_rad"], r["displacement_xyz_m"][1]
+            ),
+        )
+        if admitted
+        else None
+    )
     return dict(
         kind="screen_then_guard_forecast_zero_task_credit",
+        objective=objective,
+        yaw_target_rad=float(yaw_target_rad),
+        alignment_goal=goal.tolist() if objective == "align_backstop" else None,
         candidates=rows,
         selected_name=None if best is None else best["name"],
         screen_seconds=screen_seconds,

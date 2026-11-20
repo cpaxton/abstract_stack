@@ -1,12 +1,76 @@
 """Supported insertion stages preserve task grading and terminal force aborts."""
 
+from types import SimpleNamespace
+
 import mujoco
 import numpy as np
 import pytest
 
 from abstract_stack.dense_interactions import DenseStockingScript
+from abstract_stack.insertion_skill import SelectedFingerInsertion
 from abstract_stack.interactions import InteractionFailure
+from abstract_stack.lateral_contact import LateralContact
 from abstract_stack.receding_stocking import RecedingStockingScript
+
+
+@pytest.mark.parametrize(
+    ("center_y", "occupied_front_x", "hand_load", "yaw", "expected_fraction"),
+    [
+        (0.0575, -0.690, 0.0, 0.05, 0.65),
+        (0.0575, -0.690, 0.0, -0.05, 0.0),
+        (0.052, -0.690, 0.0, 0.05, None),
+        (0.0575, -0.647, 0.0, 0.05, None),
+        (0.0575, -0.690, 0.3, 0.05, None),
+    ],
+)
+def test_side_recovery_uses_measured_footprint_and_supported_workspace(
+    monkeypatch, center_y, occupied_front_x, hand_load, yaw, expected_fraction
+):
+    moves = []
+    script = SimpleNamespace(
+        env=SimpleNamespace(
+            data=SimpleNamespace(
+                body=lambda name: SimpleNamespace(
+                    xpos=np.array(
+                        [
+                            -0.600,
+                            center_y,
+                            0.920,
+                        ]
+                    )
+                )
+            ),
+            config=SimpleNamespace(center_y=-0.15, width=0.52),
+        ),
+        product=SimpleNamespace(name="carton", half_size=np.array([0.035, 0.025, 0.12])),
+        lateral_goal_y=0.060,
+        arm_bodies=set(),
+        observer=SimpleNamespace(incidents=[]),
+        events=[],
+        _square_after_side_press=lambda turn: moves.append(("square", turn)),
+    )
+    script._stage = lambda phase: script.events.append({"phase": phase})
+    monkeypatch.setattr(
+        "abstract_stack.interactions.contact_forces",
+        lambda *args: {"shelf": 1.0, "hand": hand_load},
+    )
+
+    def press(controller, **kwargs):
+        moves.append(("press", kwargs))
+        return {"lateral_staging_verified": True}
+
+    monkeypatch.setattr(LateralContact, "push_laterally", press)
+    assert SelectedFingerInsertion._recover_front_square_clearance(
+        script, occupied_front_x, np.array([0.038, 0.028, 0.12]), yaw
+    ) is (expected_fraction is not None)
+    if expected_fraction is not None:
+        _, kwargs = moves[0]
+        assert kwargs["direction"] == -1
+        assert kwargs["distance_m"] == pytest.approx(0.004)
+        assert kwargs["front_contact_fraction"] == expected_fraction
+        assert moves[1] == ("square", kwargs["base_turn_rad"])
+    else:
+        assert not moves
 
 
 @pytest.fixture

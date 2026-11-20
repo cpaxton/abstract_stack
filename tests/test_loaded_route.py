@@ -7,9 +7,48 @@ import pytest
 
 from abstract_stack.assets import mabel_model_path
 from abstract_stack.env import ShelfStockingEnv
-from abstract_stack.interactions import CartesianHand, ScriptConfig
+from abstract_stack.interactions import CartesianHand, ScriptConfig, StockingScript
 from abstract_stack.loaded_route import object_tool_goal
 from abstract_stack.scene import ShelfConfig
+
+
+def test_grasped_transfer_checks_loaded_route_without_released_insertion(monkeypatch):
+    from abstract_stack import grasp_skill
+
+    body = SimpleNamespace(xpos=np.array([0.0, 0.0, 0.9]), xmat=np.eye(3).ravel())
+    data = SimpleNamespace(body=lambda _: body, xmat=np.array([body.xmat]))
+    env = SimpleNamespace(data=data, config=ShelfConfig())
+    product = SimpleNamespace(name="carton", target=(-0.7, 0.0, 0.9), half_size=(0.04, 0.03, 0.11))
+    controller = SimpleNamespace(
+        palm=0,
+        position=lambda: body.xpos + [0.05, 0.0, 0.0],
+        predict=lambda *args, **kwargs: SimpleNamespace(
+            feasible=True, minimum_seconds=1.0, report=dict
+        ),
+    )
+    moves, events, checked = [], [], []
+
+    def check_route(*args, front_clearance, **kwargs):
+        checked.append(front_clearance)
+        return True
+
+    monkeypatch.setattr(grasp_skill, "loaded_staging_reachable", check_route)
+    script = SimpleNamespace(
+        env=env,
+        config=ScriptConfig(grasp_skill=True, base_reposition=True),
+        product=product,
+        controller=controller,
+        events=events,
+        _stage=lambda phase: events.append({"phase": phase}),
+        _move=lambda phase, *args: moves.append(phase),
+        _front_center_x=lambda extent: env.config.front_x - extent,
+        _front_reference_y=lambda: product.target[1],
+        _seat_front=lambda grip: grip,
+    )
+
+    assert StockingScript._transfer_and_place_front(script, 0.4) == 0.4
+    assert checked == [0.20]
+    assert moves == ["carry_clear", "align_shelf", "transfer"]
 
 
 @pytest.mark.mabel
