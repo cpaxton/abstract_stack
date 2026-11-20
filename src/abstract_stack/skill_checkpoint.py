@@ -38,6 +38,9 @@ def restore_skill_controller(script, checkpoint, *, replan_released_tool=False):
     script.product = next(
         p for p in env.products if p.name == context["skill_entry"]["active_product"]
     )
+    if context["skill_entry"].get("phase") == "front_squaring_complete":
+        # Route admission depends on whether the pusher is starting after a square.
+        script.phase = "front_squaring_complete"
     legacy = "tool_settings" not in state or "grasp_abduction_targets" not in state
     script.grasp_abduction_targets = dict(
         state.get("grasp_abduction_targets", script.grasp_abduction_targets)
@@ -101,6 +104,10 @@ def restore_skill_controller(script, checkpoint, *, replan_released_tool=False):
             value = set(value)
         setattr(script.observer, name, value)
     script.last_forces = contact_forces(env, script.product.name, script.hand_bodies)
+    if script.config.head_tracking and state.get("head_gaze") is not None:
+        from abstract_stack.recording import HeadGaze
+
+        script.gaze = HeadGaze.restore(env.model, env.data, state["head_gaze"])
     if replan_released_tool:
         return "new_checked_tool_reference_from_recorded_nominal"
     return "recorded_nominal_with_legacy_tool_defaults" if legacy else "recorded_tool_and_nominal"

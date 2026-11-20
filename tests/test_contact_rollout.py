@@ -200,7 +200,9 @@ def test_initial_external_force_cannot_receive_forecast_admission(fixture):
 
 
 @pytest.mark.parametrize("yaw", [-0.1, 0.1])
-@pytest.mark.parametrize("objective", ["square_backstop", "lateral_left", "lateral_right"])
+@pytest.mark.parametrize(
+    "objective", ["square_backstop", "lateral_left", "lateral_right", "align_backstop"]
+)
 def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(
     fixture, yaw, objective
 ):
@@ -214,6 +216,8 @@ def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(
         dict(name=name, controls=np.full((10, 1), value))
         for name, value in (("a", -0.001), ("b", 0.001))
     ]
+    target_y = float(data.qpos[address + 1] + 0.001)
+    scales = 0.0005, np.radians(0.15)
     result = evaluate_screened_batch(
         model,
         integration_state(model, data),
@@ -222,6 +226,7 @@ def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(
         rates=np.ones(1),
         shortlist=1,
         objective=objective,
+        alignment_goal=(target_y, *scales) if objective == "align_backstop" else None,
     )
     admitted = [r for r in result["candidates"] if r["eligible"]]
     assert len(admitted) == 1 and result["guarded_count"] == 1
@@ -242,6 +247,19 @@ def test_yaw_objective_keeps_force_admission_and_rejects_unknown_objectives(
             > 1e-10
         )
         expected = max(result["candidates"], key=lambda r: direction * r["screen_displacement_y_m"])
+        assert result["selected_name"] == expected["name"]
+    if objective == "align_backstop":
+        expected = min(
+            result["candidates"],
+            key=lambda row: (
+                np.hypot(
+                    (data.qpos[address + 1] + row["screen_displacement_y_m"] - target_y)
+                    / scales[0],
+                    row["screen_active_yaw_rad"] / scales[1],
+                ),
+                -row["screen_progress_minus_x_m"],
+            ),
+        )
         assert result["selected_name"] == expected["name"]
     unchecked = next(r for r in result["candidates"] if not r["eligible"])
     assert unchecked["verification_status"] == "not_force_checked"

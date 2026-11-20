@@ -42,6 +42,7 @@ class ScriptConfig:
     tracking_tolerance: float = 0.035
     push_speed: float = 0.025
     insertion_advance_speed_m_s: float = 0.04
+    insertion_registration_gap_m: float = 0.003
     post_square_pusher_standoff_m: float = 0.02
     push_distance: float = 0.16
     contact_threshold: float = 0.4
@@ -94,6 +95,7 @@ class ScriptConfig:
     ungrasped_insertion: bool = False
     adjacent_release_clearance_m: float = 0.006
     continuous_finger_opening: bool = True
+    release_pose_feedback: bool = False
     pre_release_yaw_goal_deg: float = 0.01
     front_alignment_position_gain_s: float = 3.0
     front_alignment_yaw_gain_s: float = 4.0
@@ -107,6 +109,8 @@ class ScriptConfig:
     guided_wall_entry: bool = False
     screen_pusher_approach: bool = False
     side_square_recovery: bool = False
+    balance_contact_alignment: bool = False
+    screen_supported_unload: bool = False
 
     def __post_init__(self):
         values = asdict(self)
@@ -123,6 +127,7 @@ class ScriptConfig:
         values.pop("base_reposition")
         values.pop("ungrasped_insertion")
         values.pop("continuous_finger_opening")
+        values.pop("release_pose_feedback")
         values.pop("payload_wrist_compensation")
         values.pop("paired_finger_insertion")
         values.pop("wall_packing")
@@ -132,6 +137,8 @@ class ScriptConfig:
         values.pop("guided_wall_entry")
         values.pop("screen_pusher_approach")
         values.pop("side_square_recovery")
+        values.pop("balance_contact_alignment")
+        values.pop("screen_supported_unload")
         if any(not np.isfinite(v) or v <= 0 for v in values.values()):
             raise ValueError("Script settings must be finite and positive")
         if self.grip > 1 or self.max_force <= self.contact_threshold:
@@ -148,6 +155,8 @@ class ScriptConfig:
             raise ValueError("Minimum lift reference must reserve 25–100 mm extension")
         if not 0.02 <= self.insertion_advance_speed_m_s <= 0.065:
             raise ValueError("Insertion advance speed must be within 20–65 mm/s")
+        if not 0.003 <= self.insertion_registration_gap_m <= 0.04:
+            raise ValueError("Insertion registration gap must be within 3–40 mm")
         if not 0.02 <= self.post_square_pusher_standoff_m <= 0.045:
             raise ValueError("Post-square pusher standoff must be within 20–45 mm")
         if not 0.015 <= self.base_speed_m_s <= 0.05:
@@ -169,6 +178,11 @@ class ScriptConfig:
             raise ValueError("ungrasped_insertion must be boolean")
         if not isinstance(self.continuous_finger_opening, bool):
             raise ValueError("continuous_finger_opening must be boolean")
+        if type(self.release_pose_feedback) is not bool or (
+            self.release_pose_feedback
+            and not (self.ungrasped_insertion and self.continuous_finger_opening)
+        ):
+            raise ValueError("Release pose feedback requires continuous released insertion")
         if not isinstance(self.payload_wrist_compensation, bool):
             raise ValueError("payload_wrist_compensation must be boolean")
         if not isinstance(self.paired_finger_insertion, bool):
@@ -205,6 +219,17 @@ class ScriptConfig:
         ):
             raise ValueError(
                 "Side-square recovery requires guided entry, paired fingers and base motion"
+            )
+        if type(self.balance_contact_alignment) is not bool or (
+            self.balance_contact_alignment and not self.paired_finger_insertion
+        ):
+            raise ValueError("Balanced contact alignment requires paired fingertips")
+        if type(self.screen_supported_unload) is not bool or (
+            self.screen_supported_unload
+            and not (self.paired_finger_insertion and self.live_guarded_withdrawal)
+        ):
+            raise ValueError(
+                "Unload screening requires paired fingertips and live guarded withdrawal"
             )
         if not isinstance(self.gravity_compensation, bool):
             raise ValueError("gravity_compensation must be true or false")
@@ -988,6 +1013,7 @@ class StockingScript(SelectedFingerInsertion):
             if self.active_grip is not None or self.phase in (
                 "stage_align",
                 "release_unload",
+                "release_pressure_relief",
                 "release_front",
             ):
                 return measured_payload_load(self)
@@ -1318,7 +1344,18 @@ class StockingScript(SelectedFingerInsertion):
                 raise InteractionFailure("right_arm_stow: task ended before stow validation")
         self.events[-1].update(verified_right_arm_stow=True, right_arm_target=target)
 
-    def _drive_base_to(self, goal_xy, body, swerve, settings, reference_yaw, *, arrival_scale=1.0):
+    def _drive_base_to(
+        self,
+        goal_xy,
+        body,
+        swerve,
+        settings,
+        reference_yaw,
+        *,
+        arrival_scale=1.0,
+        yaw_arrival_scale=1.0,
+        dwell_seconds=0.3,
+    ):
         """Drive the base to one world-XY waypoint with native wheels and guards."""
         env = self.env
         goal_xy = np.asarray(goal_xy, dtype=float)
@@ -1329,6 +1366,8 @@ class StockingScript(SelectedFingerInsertion):
         waypoint_evidence = dict(
             goal_xy_m=goal_xy.tolist(),
             arrival_goal_m=settings.position_tolerance_m * arrival_scale,
+            yaw_arrival_goal_rad=settings.yaw_tolerance_rad * yaw_arrival_scale,
+            dwell_seconds=dwell_seconds,
             position_gain_s=1.2,
             velocity_damping=0.3,
             integral_gain_s2=0.25 if self.config.ungrasped_insertion else 0.0,
@@ -1391,7 +1430,7 @@ class StockingScript(SelectedFingerInsertion):
                 elif (
                     np.linalg.norm(error)
                     <= min(settings.position_tolerance_m * arrival_scale, 0.0015)
-                    and abs(yaw_error) <= settings.yaw_tolerance_rad
+                    and abs(yaw_error) <= settings.yaw_tolerance_rad * yaw_arrival_scale
                 ):
                     settling = True
                 if settling != previous_settling:
@@ -1438,7 +1477,7 @@ class StockingScript(SelectedFingerInsertion):
                     and abs(after_error) <= settings.yaw_tolerance_rad
                 )
             held = held + env.dt if accepted and stopped else 0.0
-            if held >= 0.3:
+            if held >= dwell_seconds:
                 break
         else:
             waypoint_evidence.update(
@@ -1473,6 +1512,7 @@ class StockingScript(SelectedFingerInsertion):
             BaseContactGuard,
             BaseMotionConfig,
             NativeSwerve,
+            screen_base_translation,
         )
         from abstract_stack.navigation import (
             BaseNavigationSpace,
@@ -1571,6 +1611,29 @@ class StockingScript(SelectedFingerInsertion):
             for _ in range(int(0.5 / env.dt)):
                 self._apply_tick(swerve.targets([0, 0, 0], dt=env.dt))
             final_error = float(np.linalg.norm(goal - env.data.xpos[body, :2]))
+            if settings.position_tolerance_m < final_error <= 0.006:
+                correction = goal - env.data.xpos[body, :2]
+                screen = screen_base_translation(
+                    env,
+                    correction,
+                    config=settings,
+                    carried_product=self.product.name if carrying else None,
+                )
+                event["final_settle_retry"] = dict(
+                    initial_error_m=final_error, correction_m=correction.tolist(), geometry=screen
+                )
+                if screen["accepted"]:
+                    # A zero-twist hold can coast outside the final gate.
+                    # Re-enter the same goal and maintain its measured dwell.
+                    final_error = self._drive_base_to(
+                        goal,
+                        body,
+                        swerve,
+                        replace(settings, motion_timeout_s=8.0),
+                        reference_yaw,
+                        arrival_scale=0.5,
+                        dwell_seconds=0.8,
+                    )
             event.update(
                 final_position_error_m=final_error, final_xy_m=env.data.xpos[body, :2].tolist()
             )
@@ -1624,7 +1687,14 @@ class StockingScript(SelectedFingerInsertion):
         event.update(requested_turn_rad=turn_rad, goal_yaw_rad=heading + turn_rad)
         self._base_guard = guard
         try:
-            self._drive_base_to(start, body, swerve, settings, heading + turn_rad)
+            self._drive_base_to(
+                start,
+                body,
+                swerve,
+                settings,
+                heading + turn_rad,
+                yaw_arrival_scale=0.5 if self.config.side_square_recovery else 1.0,
+            )
             self.controller.last_target = self.controller.position().copy()
         finally:
             event.update(guard=guard.report(), end_time=float(env.data.time))

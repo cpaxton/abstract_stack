@@ -36,7 +36,8 @@ requires rewinding to an earlier boundary.
 - [x] Complete the fresh tight three-carton sequence: all stages 3/3, zero
   prefills/incidents, 208.198 simulated seconds (`tight-three-14`). This has
   spacious walls and 3 mm target inter-carton gaps; it is not the whole-row test.
-- [ ] Complete four cartons without restarting between objects.
+- [x] Verify four retreats without restarting between objects in the 20 mm
+  development row. Track strict final positions separately.
 - [x] Recover the ten-carton edge-slot transfer from a saved native state:
   interior front handoff, measured sidewall bracing, outer-finger insertion,
   backstop contact and full shelf exit. Final yaw -0.07586 degrees; zero
@@ -295,6 +296,10 @@ Reports, source IDs and videos: [grasp and longer execution](docs/reports/grasp_
   separately. Use event-driven completion in place of unnecessary fixed holds.
 - [ ] Shorten checked free-space routes; use faster bounded trajectories away
   from contact and brake before contact. Tune speed and compliance together.
+- [ ] Profile candidate generation, IK, collision queries, and guarded forecasts
+  separately. Batch the hot queries through the existing native backend and
+  measure decision latency on saved opening and withdrawal failures. Evaluate
+  a Rust extension if map integration or swept checks remain a bottleneck.
 - [ ] Aim for 2x lower median simulated completion time at matched complete-shelf
   success relative to the first working ten-carton baseline; no such baseline yet.
 
@@ -313,6 +318,13 @@ Reports, source IDs and videos: [grasp and longer execution](docs/reports/grasp_
 - [ ] Wire the recorder into stocking and VR before all compensation paths;
   collect raw synchronized camera observations and verified task demonstrations.
 - [ ] Add calibrated sensor noise/bias and hardware observation adapters.
+- [ ] Prototype a local voxel-map plugin around the shelf opening. Fuse calibrated,
+  timestamped depth into observed free, occupied, and unobserved space in the shelf
+  frame. Provide clearance queries for swept finger, palm, wrist, and arm geometry
+  through opening and withdrawal. Use tracked carton and shelf geometry to name
+  intended contacts, and carry pose uncertainty into the clearance checks. Start
+  with simulated depth and evaluate false clears, unnecessary rejections, and
+  query latency against MuJoCo on saved failure scenes with occlusion and pose error.
 - [ ] Train/evaluate a student with declared sensor inputs; add teacher queries
   on student-induced states after the teacher primitives are reliable. No RL yet.
 - [x] Collect a small parallel pilot: three fresh controller/sensing fixtures,

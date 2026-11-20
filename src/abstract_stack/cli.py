@@ -135,6 +135,17 @@ def _parser():
                 action="store_true",
                 help="Experimental two-fingertip squaring surface for released insertion",
             )
+            opening = sub.add_mutually_exclusive_group()
+            opening.add_argument(
+                "--release-pose-feedback",
+                action="store_true",
+                help="Keep bounded pose corrections during supported continuous opening",
+            )
+            opening.add_argument(
+                "--legacy-opening",
+                action="store_true",
+                help="Use the earlier feedback-guided pressure reduction and opening schedule",
+            )
             sub.add_argument(
                 "--live-guarded-withdrawal",
                 action="store_true",
@@ -169,6 +180,16 @@ def _parser():
                 "--side-square-recovery",
                 action="store_true",
                 help="Try a measured side shift when a released carton lacks room to square",
+            )
+            sub.add_argument(
+                "--balance-contact-alignment",
+                action="store_true",
+                help="Rank guarded backstop prefixes by combined yaw and lateral error",
+            )
+            sub.add_argument(
+                "--screen-supported-unload",
+                action="store_true",
+                help="Forecast alternate guarded unloads beside stocked cartons",
             )
             sub.add_argument(
                 "--interleave-row-press",
@@ -502,6 +523,10 @@ def main(argv=None):
                         guided_wall_entry=args.guided_wall_entry,
                         screen_pusher_approach=args.screen_pusher_approach,
                         side_square_recovery=args.side_square_recovery,
+                        balance_contact_alignment=args.balance_contact_alignment,
+                        screen_supported_unload=args.screen_supported_unload,
+                        release_pose_feedback=args.release_pose_feedback,
+                        continuous_finger_opening=not args.legacy_opening,
                         record_skill_starts=args.record_skill_starts,
                         fixture_avoidance=args.fixture_avoidance,
                         thumb_preshape=args.thumb_preshape,

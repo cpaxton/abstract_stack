@@ -24,6 +24,7 @@ def test_push_action_mask_preserves_paired_dense_protocol(tmp_path):
 
     env = StockingCurriculumEnv("push", tmp_path)
     env._case = object()
+    env._entry = {"skill": "front_insertion"}
     env.script = SimpleNamespace(
         active_grip=None,
         config=ScriptConfig(
@@ -31,6 +32,8 @@ def test_push_action_mask_preserves_paired_dense_protocol(tmp_path):
         ),
     )
     assert env._action_mask().tolist() == [1, 1, 0, 0]
+    env._entry = {"skill": "side_slide_unloaded"}
+    assert env._action_mask().tolist() == [1, 0, 0, 0]
 
 
 def test_insert_action_mask_distinguishes_held_and_released_entries(tmp_path):

@@ -1,13 +1,14 @@
 """Intentional contact loss needs a fresh square gate and preserves safety history."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import mujoco
 import numpy as np
 import pytest
 
 from abstract_stack.contact_finish import BackstopDwell
-from abstract_stack.contact_rollout import ContactMonitor, RolloutScene
+from abstract_stack.contact_rollout import ContactMonitor, RolloutScene, integration_state
 
 
 def squared_world():
@@ -105,3 +106,57 @@ def test_withdrawal_does_not_bypass_force_guard():
     # Stricter guard injection tests the same measured native contact load.
     monitor.scene = replace(monitor.scene, force_limit_N=0.001)
     assert monitor.sample(data, elapsed=0) == "contact_force_guard"
+
+
+def test_unload_forecast_checks_each_mode_from_the_same_state(monkeypatch):
+    from abstract_stack import release_planning
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.withdrawal_feedback import WithdrawalFeedbackConfig
+
+    model, data, monitor, dwell = squared_world()
+    initial = integration_state(model, data)
+    product = SimpleNamespace(name="active")
+    events = []
+    script = SimpleNamespace(
+        env=SimpleNamespace(model=model, data=data),
+        product=product,
+        observer=SimpleNamespace(completed=set()),
+        events=events,
+        _stage=lambda phase: events.append({"phase": phase}),
+    )
+
+    def clone(_):
+        scratch = mujoco.MjData(model)
+        mujoco.mj_copyData(scratch, model, data)
+        return SimpleNamespace(
+            env=SimpleNamespace(model=model, data=scratch, products=(product,)),
+            controller=SimpleNamespace(command=np.zeros(1), data=scratch),
+        )
+
+    def forecast(hand, nominal, guarded, square, **kwargs):
+        np.testing.assert_array_equal(integration_state(model, hand.data), initial)
+        assert kwargs["unload_only"]
+        admitted = not kwargs["feedback"].paired_plane_feedback
+        mujoco.mj_step(model, hand.data)
+        return (
+            dict(unloaded_support_verified=admitted, strict_release_yaw_verified=admitted),
+            [],
+            [],
+        )
+
+    monkeypatch.setattr(release_planning, "ReleaseForecast", clone)
+    monkeypatch.setattr(release_planning, "supported_withdrawal", forecast)
+    monkeypatch.setattr(ShelfStockingEnv, "_placement_conditions", lambda env: [True])
+    chosen = release_planning.choose_unload_feedback(
+        script,
+        monitor,
+        dwell,
+        WithdrawalFeedbackConfig(yaw_feedback=True, paired_plane_feedback=True),
+        clear_distance_m=0.08,
+        contact_neighbors=(),
+        release_yaw_limit_deg=0.15,
+        coarse_loaded_entry=False,
+    )
+    assert not chosen.paired_plane_feedback
+    assert [row["admitted"] for row in events[-1]["candidates"]] == [False, True]
+    np.testing.assert_array_equal(integration_state(model, data), initial)

@@ -184,6 +184,12 @@ project names, task descriptions, repository links, or private context.
   artifacts. An earlier whole-body focused-test process also failed during
   environment construction before the new controller was created; its later
   passing focused tests do not replace that unknown outcome.
+- **Headless native continuation, 2026-11-19:** a saved-state continuation
+  exited with signal 11 in the Python frame calling the native contact
+  monitor during refinement. The saved contact entry, frozen source and
+  faulthandler trace are retained in local experiment artifacts. This
+  frame does not localize the native fault. The interrupted process has
+  no terminal result.
 
 ## SIM-002 — Warp CUDA compilation signal in state helper
 

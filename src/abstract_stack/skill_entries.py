@@ -31,6 +31,7 @@ SKILL_PHASES = {
     "front_squaring_complete": "front_squaring_complete",
     "contact_refine": "contact_refinement",
     "release_forecast": "withdrawal_planning",
+    "release_unload_forecast": "withdrawal_planning",
     "loaded_push_stall": "loaded_push_recovery",
     "push_recovery_exhausted": "push_recovery_exhausted",
 }
@@ -296,6 +297,7 @@ def record_skill_entry(script, phase, *, case=None):
             if script.payload_rotation_goal is None
             else script.payload_rotation_goal.tolist(),
             tracking_config=asdict(script.tracker.config),
+            head_gaze=script.gaze.snapshot() if getattr(script, "gaze", None) is not None else None,
         ),
         context=dict(
             skill_entry=entry,

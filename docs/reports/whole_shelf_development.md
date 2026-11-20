@@ -1418,3 +1418,155 @@ The side-and-square sequence is opt-in through the checkpoint probe.
 
 - [Per-trial stage results and frozen source links](../../outputs/runs/agent-harness/side-compression-v1/report.json)
 - [Seed-6 forward continuation](../../outputs/runs/agent-harness/side-compression-v1/official-side-square-6/summary.json)
+
+### Measured side recovery and supported opening
+
+In the seed study, seeds 1–7 reached less than 0.05° yaw before
+unloading carton two. They moved to 0.84–1.14° during pressure reduction
+and 4.90–5.08° after opening. The resulting lateral overhang activates
+clearance steering instead of the squaring motion. The front pusher
+reaches staging depth while the corner still falls short of clearance.
+
+The live side-recovery policy computes a bounded shift from the
+measured footprint relative to the occupied side. It requests about
+3.8–4.3 mm on the second-carton development starts, unloads, turns back,
+and squares ahead of the row. Fresh seeds 2 and 6 matched the archived
+native state bit for bit at the release-to-insertion handoff. In the
+initial fresh comparison, seed 2 stopped at the approach base turn.
+Its yaw repeatedly drifted across the 0.01 rad arrival boundary
+during zero-twist hold. A tighter internal heading for entering
+settling verified the base turn and completed carton two from the same
+saved release. The pose and stop dwell gates were kept fixed.
+
+The other initial fresh trial, seed 6, passed the side shift and
+stopped at a front-square dwell timeout with 0.156° yaw. Saved seeds
+3 and 7 completed strict release and withdrawal with the initial
+policy. Seed 5 still timed out after a supported shift. A bounded yaw
+integral changed the loaded alignment but degraded release or square
+on two of three replayed handoffs. That variant was dropped.
+
+Five paired release trials start from the same seated, still-grasped
+carton for each row below. The feedback variant keeps pose correction
+active under measured load and uses the original continuous finger
+schedule. The earlier opening variant also changes the finger
+interpolation and timing. All releases passed the physical unloaded
+support gate.
+
+| Seed and ordinal | Continuous opening yaw | Continuous opening with pose feedback | Earlier feedback-guided opening |
+| --- | ---: | ---: | ---: |
+| 0, eighth | 4.76° | 0.33° | 0.28° |
+| 2, second | 5.10° | 0.33° | 0.32° |
+| 4, second | 4.64° | 0.45° | 0.38° |
+| 5, second | 5.23° | 0.32° | 0.40° |
+| 7, second | 4.97° | 0.56° | 0.40° |
+
+From the improved landings, seeds 4 and 5 with continuous pose feedback
+completed strict release and withdrawal from the saved start. Seeds 2
+and 7 with the earlier opening schedule verified placement and
+withdrawal with their relaxed development release-yaw outcome.
+
+The fresh seed-5 run with continuous pose feedback reached five picks,
+five shelf placements, one strict final position, and four verified
+retreats. Its original seed-study run reached two placements and one
+retreat. The new run stopped on the fifth carton's side press with zero
+tip or drop incidents. The corner press moved the carton center 4.95 mm
+against a 4.94 mm request. The bottom-face error was 0.26 mm, inside the
+0.5 mm displacement gate. Yaw grew from −1.62° to −5.84°, outside the
+5° side-staging gate. The fresh seed-7 run with the earlier release
+schedule reached second-carton withdrawal, where the applied geometry
+check rejected a move. Both runs retained the measured stops.
+
+On a continuation from the fifth carton's released checkpoint, the
+selector chose the side center because the corner force would add yaw
+in the measured direction. The centered press moved 4.99 mm and
+verified its unloaded handoff. Front squaring then passed, and the run
+verified the fifth retreat with no incidents. Its final yaw was 0.66°,
+outside the strict final release gate. This saved-state recovery earns
+zero fresh credit.
+
+Comparing the fresh and saved seed-2 recovery from a bit-identical
+integration state found a replay difference at the first tick. The
+first differing control values were neck yaw and pitch. The archived
+probe held the saved targets, and the fresh run continued to track the
+carton. New skill entries retain the gaze controller reference and update
+clock. A native checkpoint test verifies identical neck commands and
+integration state through the next gaze update.
+
+Continuations earn zero fresh credit. Every source bundle and effective
+controller mode is linked in the report. The development curriculum
+pins original stops, recovered handoffs and later failures by manifest
+hash and episode lineage.
+
+- [Matched release, side recovery and fresh runs](../../outputs/runs/agent-harness/measured-side-recovery-v1/report.json)
+
+### Earlier registration and checked unloading
+
+The guided advance held up to 4 mm of open-side clearance until the
+last part of the approach. In the archived second-, fourth-, and
+fifth-carton pushes, the carton moved farther from its lateral goal
+between 40 mm and 10–15 mm from the backstop. Returning to that goal
+after loading the backstop left the pusher trying to slide the carton
+sideways under constraint.
+
+The matched continuation below starts at the same recorded front-square
+handoff for each pair. Both variants rank guarded finishing prefixes by
+the combined lateral and yaw residual. The early registration profile
+brings the intended lateral reference back to the slot 25 mm before
+the backstop. Coupled arm/finger admission still applies during the
+advance. Post-square restores now preserve the phase used by the live
+pusher approach screen.
+
+| Saved start | Backstop-entry lateral error with 3 mm setting | Error with 25 mm setting | Strict contact, release and retreat with 25 mm setting |
+| --- | ---: | ---: | --- |
+| Second carton | 3.86 mm | 0.13 mm | Verified |
+| Fourth carton | 2.61 mm | 0.09 mm | Verified |
+| Fifth carton | 1.86 mm | 0.38 mm | Verified |
+
+The independent seed-6 continuation verified retreat with 0.33° final
+yaw. The independent seed-7 continuation stopped at the compensated
+arm/finger geometry check. Both are retained in the development report.
+
+The earlier seed-7 withdrawal guard rejected a distal ring-finger
+overlap of about 3.01 mm beside a stocked carton. From the loaded entry,
+the unload screen rejected the paired-plane correction and selected
+contact-lever feedback. Subsequent native execution verified strict
+release and full hand retreat. Starting the alternative at the later
+geometry stop failed. The screen therefore checks the unload prefix
+before committing to motion. The final yaw gate is measured after the
+hand clears. A fifth-carton continuation passed the unload prefix and
+later drifted out of strict yaw during retreat.
+
+The fresh early-registration trials on seeds 5 and 7 both reached a
+base waypoint that passed its stopped dwell and drifted outside the
+2 mm goal during the following hold. The final errors were 2.13 mm and
+2.21 mm, with no robot–carton force. A screened short correction from
+each exact stop recovered the same goal, with final errors of 1.999 mm
+and 1.89 mm. The retry maintains a measured 0.8 s dwell.
+
+At the later seed-7 supported opening stop, the thumb group had fallen
+to 0.17 N while the other fingers held 0.86 N. The pressure-relief motion
+used the same checked finger targets and moved the arm away from the
+measured load. It reached the existing 0.6 N per-group gate, then
+completed supported opening with 0.25° released yaw. The saved opening
+and base retries earn zero fresh stocking credit.
+
+The seed-7 continuation from its second milestone reproduced the base
+settle error, ran the checked correction, then verified native strict
+contact, release and retreat for both subsequent cartons. The seed-5
+continuation from its third milestone verified a fourth retreat and
+then exited with native signal 11 during fifth-carton refinement. Its
+terminal task outcome is unknown. The fresh seed-5 wrapper exited with
+status 143 after seven logged retreat checkpoints and before a terminal
+summary. Those checkpoints identify real resumable stages. The
+interrupted episode earns zero fresh stage credit.
+
+The contact retries from those saved entries reached the fifth and
+eighth retreat milestones with zero incidents. Both passed released
+yaw, at −0.117° and +0.012° respectively. Both entered the exit through
+the coarse loaded handoff, so they receive withdrawal evidence only
+under the existing strict final-position scoring. The pressure-relief
+retry on seed 7 also completed a separate fifth-carton continuation
+with strict contact, release and withdrawal. The Gymnasium recovery
+case rewound from the pressure stop and verified supported release.
+
+- [Native trials, control variants, and failure checkpoint paths](../../outputs/runs/agent-harness/combined-stocking-v1/report.json)

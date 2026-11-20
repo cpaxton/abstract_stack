@@ -25,6 +25,7 @@ def supported_withdrawal(
     contact_neighbors=(),
     release_yaw_limit_deg=0.15,
     coarse_loaded_entry=False,
+    unload_only=False,
 ):
     """Unload toward 6 mm, clear 40 mm/+20 mm, measure released squared support.
 
@@ -57,6 +58,8 @@ def supported_withdrawal(
         or not 0.15 <= release_yaw_limit_deg <= 1.0
     ):
         raise ValueError("Keep clearance goals and physical motion bounded")
+    if unload_only and resume_withdrawal:
+        raise ValueError("An unload forecast requires a loaded entry")
     nominal = np.array(nominal, float, copy=True)
     if resume_withdrawal:
         if monitor.phase != "withdrawal" or monitor.withdrawal_started_s is None:
@@ -201,15 +204,16 @@ def supported_withdrawal(
         and tracker.config.yaw_feedback
         and tracker.config.straight_retreat_first
     )
-    stages.append(
-        (
-            "retreat",
-            np.array([clear_distance_m, 0, 0]) if straight_first else displacement,
-            clear_speed_m_s,
-            max(7.0, 1.5 * float(np.linalg.norm(displacement)) / clear_speed_m_s),
+    if not unload_only:
+        stages.append(
+            (
+                "retreat",
+                np.array([clear_distance_m, 0, 0]) if straight_first else displacement,
+                clear_speed_m_s,
+                max(7.0, 1.5 * float(np.linalg.norm(displacement)) / clear_speed_m_s),
+            )
         )
-    )
-    if straight_first:
+    if straight_first and not unload_only:
         stages.append(
             (
                 "retreat_lift",
@@ -573,7 +577,7 @@ def supported_withdrawal(
         if stage == "unload" and monitor.last.get("robot_product_N", 0) > 0.2:
             failure = "withdrawal_pressure_not_unloaded"
             break
-    if not failure:
+    if not failure and not unload_only:
         for _ in range(int(0.5 / model.opt.timestep)):
             mujoco.mj_step(model, data)
             mujoco.mj_forward(model, data)
@@ -583,14 +587,18 @@ def supported_withdrawal(
                 break
     measured_delta = hand.position() - measured_origin
     terminal_nominal_point, _ = hand.ik.forward(nominal, data.qpos.copy())
-    verified = (
+    unloaded = (
         failure is None
         and release_held + 1e-12 >= 0.12
-        and measured_delta[0] >= clear_distance_m - 0.005
-        and measured_delta[2] >= clear_height_m - 0.005
         and np.max(np.abs(data.xpos[active] - active_origin)) <= 0.005
     )
-    if not verified and failure is None:
+    verified = (
+        unloaded
+        and not unload_only
+        and measured_delta[0] >= clear_distance_m - 0.005
+        and measured_delta[2] >= clear_height_m - 0.005
+    )
+    if not (unloaded if unload_only else verified) and failure is None:
         failure = "withdrawal_released_squared_support_or_clearance_not_verified"
     return (
         dict(
@@ -609,6 +617,8 @@ def supported_withdrawal(
                 ),
             ),
             failure=failure,
+            unload_only=unload_only,
+            unloaded_support_verified=bool(unloaded),
             release_retreat_verified=bool(verified),
             fresh_task_credit=0,
             task_success=False,

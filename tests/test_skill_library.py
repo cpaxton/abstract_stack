@@ -1,5 +1,6 @@
 """Skill library and task-plan composition are declarative and re-executable."""
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +11,7 @@ from abstract_stack.skill_library import (
     TaskPlan,
     annotate_events,
     build_stocking_plan,
+    describe_stocking_skills,
     run_plan,
 )
 
@@ -78,6 +80,19 @@ def test_build_stocking_plan_is_a_valid_composable_sequence():
     assert plan.phase_map()["finger_push"] == "push_to_contact"
     assert plan.phase_map()["front_registered"] == "insert"
     assert plan.phase_map()["release"] == "retreat"
+
+
+def test_agent_skill_catalog_exports_contracts_and_actual_entry_points():
+    catalog = json.loads(json.dumps(describe_stocking_skills()))
+    skills = {skill["name"]: skill for skill in catalog["skills"]}
+    assert len(skills) == len(catalog["skills"])
+    assert catalog["plan_order"] == [skill.name for skill in build_stocking_plan()]
+    for skill in skills.values():
+        assert skill["description"]
+        assert skill["preconditions"] == skill["entry_condition"]
+        assert skill["postconditions"] == skill["exit_gate"]
+        assert skill["callable"] or skill["entry_point"]
+    assert "--side-press" in skills["side_press"]["entry_point"]
 
 
 def test_run_plan_executes_each_skill_in_order_and_verifies():

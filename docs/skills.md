@@ -381,7 +381,28 @@ The [selection guide](#decide-the-next-motion-from-measured-preconditions)
 also covers the callable recovery and between-carton skills. The active-carton
 side press is available through the checkpoint probe. The row press has a
 separate between-carton entry point and appears as `slide` in the Gymnasium
-curriculum. General automatic recovery selection for both presses is open.
+curriculum. The opt-in live side-square policy selects the active-carton
+press from measured clearance.
+
+Agents can read the catalog before motion:
+
+```python
+from abstract_stack.skill_library import describe_stocking_skills
+
+catalog = describe_stocking_skills()
+for skill in catalog["skills"]:
+    print(skill["name"], skill["description"])
+    print(skill["preconditions"], skill["postconditions"])
+```
+
+`plan_order` lists the five per-carton steps. Each descriptor includes
+its entry point or a `run_plan` adapter and its upstream dependencies.
+`callable` identifies adapters accepted by the Python task plan. Other
+entries name their controller, probe or curriculum entry point.
+`preconditions` and `postconditions` are strings for choosing and explaining
+actions. The measured controller checks and journaled outcomes determine
+whether a particular action is admitted or succeeds. Completed stocking runs
+save this same catalog in `summary.json` under `skill_catalog`.
 
 ## Why reset poses are insufficient
 
@@ -559,6 +580,12 @@ motion state, but resuming a partially executed motion requires its controller
 references, progress and guard state. Do not silently treat an in-contact
 snapshot as a cleared milestone. All continuations earn zero fresh credit.
 
+New live skill entries record the head controller's command, desired angles
+and next update time. A continuation restores that state when head tracking
+is enabled. Older probes serialize native neck targets and hold them during
+continuation. Those targets can differ from a live rollout's commands even
+when both begin at a bit-identical native state.
+
 ### Decide the next motion from measured preconditions
 
 | Skill | Use when | What to verify |
@@ -710,6 +737,52 @@ checkpoint with `--resume-side-square` to evaluate the front sequence
 from that handoff. Choose the press direction and base turn for the
 available side clearance. For a supported row, use the row-compaction
 environment and verify measured open span after unloading.
+
+`--side-square-recovery` enables clearance-based dispatch in the live
+positive-wall policy. It requires `--guided-wall-entry`, paired fingertips
+and base motion. The selector reobserves the released pose, projects the
+measured carton footprint, and computes the shift needed away from the
+occupied side. It reserves 2.5 mm beyond the measured shortfall and caps
+the shift at 10 mm. It also checks shelf support, arm load, wall clearance,
+and room for the short square ahead of the row. An eligible shift uses
+the checked side press, return turn and front square before forward
+insertion. It selects the side center when the front patch would add
+torque in the direction of the observed yaw. The side tool's nominal
+60° approach turn applies to the tested
+positive-wall layout. Physical approach, displacement, yaw, and support
+still have independent gates.
+
+`--release-pose-feedback` keeps bounded position and yaw feedback active
+while the fingers unload and open on the shelf. The continuous opening
+schedule and coupled finger, force and support checks still apply. Arm
+correction stops when measured hand contact falls below 0.2 N. Start a
+matched release trial from a `front_release` checkpoint with
+`probe_front_release.py --insert --stop-after release --release-pose-feedback`.
+Verify the unloaded pose and test the following insertion and retreat.
+
+The [early registration profile](../configs/controllers/early_registration_development.json)
+starts returning from the open-side buffer before the carton reaches the
+backstop. Its 25 mm gap is a motion reference for the start of aligned
+advance. The planner screens the proposed fingertip and arm geometry and
+the native controller checks each applied motion. Pair this profile with
+`--balance-contact-alignment` to rank bounded finishing prefixes by their
+combined lateral and yaw error, scaled by the corresponding measured gates.
+After contact, the live dwell and release still determine the result.
+
+`--screen-supported-unload` checks candidate unloads beside stocked
+neighbors in independent native states. It compares paired-plane yaw
+correction with contact-lever feedback when the first candidate fails
+admission or loses strict yaw during unloading. The forecast covers the
+unloading prefix. The live guarded withdrawal verifies the subsequent exit
+and records the released pose after the hand clears.
+
+The [development corpus](../configs/curricula/development.json) includes
+the seed-study front-square stops and their earlier starts, plus subsequent
+turn, square, unload and contact-refinement failures. For a side-unloaded
+entry, Gymnasium `push` exposes its `recorded` action. It starts with the
+short square and then runs the existing push gate. If the exact stop fails
+the measured reset gate, use its declared rewind or the matching native
+probe. Keep the stop and the earlier handoff in the same episode lineage.
 
 The experimental `--center-last` order packs alternately from the two
 ends. It reserves measured space for unplaced widths and targets the

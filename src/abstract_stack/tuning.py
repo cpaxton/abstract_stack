@@ -17,6 +17,7 @@ CONTROL_BOUNDS = {
     "grip_max_rate": (0.10, 0.50),
     "push_speed": (0.01, 0.04),
     "insertion_advance_speed_m_s": (0.02, 0.065),
+    "insertion_registration_gap_m": (0.003, 0.04),
     "post_square_pusher_standoff_m": (0.02, 0.045),
     "base_speed_m_s": (0.015, 0.05),
     "payload_orientation_speed": (0.10, 0.60),

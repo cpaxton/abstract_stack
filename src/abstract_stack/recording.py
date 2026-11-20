@@ -32,6 +32,33 @@ class HeadGaze:
         self.scratch = mujoco.MjData(model)
         self.next_update = 0.0
 
+    def snapshot(self):
+        """Record the reference and scheduling state alongside native servo state."""
+        return {
+            "camera": self.model.camera(self.camera).name,
+            "command_rad": self.command.tolist(),
+            "desired_rad": self.desired.tolist(),
+            "next_update_sim_s": self.next_update,
+        }
+
+    @classmethod
+    def restore(cls, model, data, state):
+        gaze = cls(model, data, camera=state["camera"])
+        for key, attribute in (("command_rad", "command"), ("desired_rad", "desired")):
+            angles = np.asarray(state[key], dtype=float)
+            if (
+                angles.shape != gaze.command.shape
+                or not np.isfinite(angles).all()
+                or np.any(angles < gaze.lower)
+                or np.any(angles > gaze.upper)
+            ):
+                raise ValueError(f"Saved head gaze {key} is outside the native joint bounds")
+            setattr(gaze, attribute, angles)
+        gaze.next_update = float(state["next_update_sim_s"])
+        if not np.isfinite(gaze.next_update) or not 0 <= gaze.next_update <= data.time + 0.100001:
+            raise ValueError("Saved head gaze update time is inconsistent with native time")
+        return gaze
+
     def _error(self, q, goal):
         self.scratch.qpos[:] = self.data.qpos
         self.scratch.qpos[self.adr] = q
