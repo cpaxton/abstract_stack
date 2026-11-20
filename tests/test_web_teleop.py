@@ -791,6 +791,8 @@ def test_video_render_model_simplifies_only_peripheral_meshes(clear_env):
     assert (copy.nq, copy.nbody, copy.ngeom) == (model.nq, model.nbody, model.ngeom)
 
 
+@pytest.mark.mabel
+@pytest.mark.rendering  # needs a GL context: deselected on hosted macOS CI
 def test_simplified_head_camera_render_matches_full_detail(clear_env):
     from abstract_stack.web_teleop.retarget import READY_POSTURE
     from abstract_stack.web_teleop.video import PERIPHERAL_FACE_BUDGET, render_model
