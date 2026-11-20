@@ -47,6 +47,8 @@ class ShelfConfig:
     product_kind: str = "mixed"
     target_back_gap: float | None = None
     carton_size: tuple[float, float, float] = (0.09, 0.07, 0.17)
+    carton_masses_kg: tuple[float, ...] | None = None
+    carton_support_friction: float | None = None
     row_free_space: float | None = None
     supply_order: tuple[int, ...] | None = None
     # Optional numerical contact recipe; None preserves the upstream defaults.
@@ -175,6 +177,26 @@ class ShelfConfig:
             raise ValueError("environment must be 'studio' or 'small_house'")
         if self.product_kind not in ("mixed", "carton"):
             raise ValueError("product_kind must be 'mixed' or 'carton'")
+        carton_count = (
+            self.product_count if self.product_kind == "carton" else (self.product_count + 1) // 2
+        )
+        masses = self.carton_masses_kg
+        if masses is not None and (
+            not isinstance(masses, (tuple, list))
+            or len(masses) != carton_count
+            or any(
+                type(mass) not in (int, float) or not math.isfinite(mass) or mass <= 0
+                for mass in masses
+            )
+        ):
+            raise ValueError(
+                "carton_masses_kg needs one positive finite mass per carton, in ID order"
+            )
+        friction = self.carton_support_friction
+        if friction is not None and (
+            type(friction) not in (int, float) or not math.isfinite(friction) or friction <= 0
+        ):
+            raise ValueError("carton_support_friction must be finite and positive")
         if len(self.carton_size) != 3 or any(
             not math.isfinite(v) or v <= 0 for v in self.carton_size
         ):
@@ -322,7 +344,13 @@ def products_for(config: ShelfConfig) -> tuple[Product, ...]:
                 ),
                 kind="bottle" if bottle else "carton",
                 half_size=half_size,
-                mass=0.25 if bottle else 0.18,
+                mass=(
+                    0.25
+                    if bottle
+                    else 0.18
+                    if config.carton_masses_kg is None
+                    else config.carton_masses_kg[i // 2 if config.product_kind == "mixed" else i]
+                ),
                 color=colors[(i // 2 if config.product_kind == "mixed" else i) % len(colors)],
                 level=level,
                 target=target,
@@ -361,6 +389,50 @@ def _box(parent, name, pos, size, color, **attributes):
         friction="0.8 0.02 0.002",
         **attributes,
     )
+
+
+def _carton_contact_pairs(root, shelf, config, products):
+    friction = config.carton_support_friction
+    if friction is None and not config.rigid_fixture_contacts:
+        return
+    # Explicit pairs set effective friction even when it is below the default
+    # of the two geoms. Only load-bearing boards and the tabletop vary.
+    supports = {f"shelf_board_{i}" for i in range(len(config.levels))}
+    pairs = {}
+    if config.rigid_fixture_contacts:
+        for geom in shelf.findall("geom"):
+            fixture = geom.get("name")
+            sliding = friction if fixture in supports and friction is not None else 0.8
+            pairs[fixture] = dict(
+                friction=_numbers((sliding, sliding, 0.02, 0.002, 0.002)),
+                solref="0.005 1",
+                solimp="0.99 0.999 0.001 0.5 2",
+            )
+    if friction is not None:
+        for fixture in sorted(supports | {"supply_table"}):
+            pairs.setdefault(
+                fixture,
+                dict(
+                    friction=_numbers((friction, friction, 0.02, 0.002, 0.002)),
+                    solref=f"{config.scene_contact_time_constant_s or 0.02} 1",
+                    solimp="0.9 0.95 0.001 0.5 2",
+                ),
+            )
+    contact = root.find("contact")
+    if contact is None:
+        contact = ET.SubElement(root, "contact")
+    for product in products:
+        if product.kind != "carton":
+            continue
+        for fixture, attributes in pairs.items():
+            ET.SubElement(
+                contact,
+                "pair",
+                geom1=f"{product.name}_geom",
+                geom2=fixture,
+                condim="3",
+                **attributes,
+            )
 
 
 def _camera(world, name, pos, look_at):
@@ -563,25 +635,7 @@ def build_scene_xml(
             rgba=_numbers((*product.color[:3], 0.3)),
             group="4",
         )
-    if config.rigid_fixture_contacts:
-        # A local material recipe for supported rigid cartons. Explicit pairs
-        # preserve hand/carton, robot/fixture and carton/carton parameters.
-        contact = root.find("contact")
-        if contact is None:
-            contact = ET.SubElement(root, "contact")
-        fixtures = [g.get("name") for g in shelf.findall("geom")]
-        for product in products:
-            for fixture in fixtures:
-                ET.SubElement(
-                    contact,
-                    "pair",
-                    geom1=f"{product.name}_geom",
-                    geom2=fixture,
-                    condim="3",
-                    friction="0.8 0.8 0.02 0.002 0.002",
-                    solref="0.005 1",
-                    solimp="0.99 0.999 0.001 0.5 2",
-                )
+    _carton_contact_pairs(root, shelf, config, products)
     if config.scene_contact_time_constant_s is not None:
         # Apply only to our generated rigid objects/fixtures. Native MABEL
         # contact parameters, geometry, inertias, gains and masks stay intact.

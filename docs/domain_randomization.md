@@ -15,10 +15,9 @@ separate results.
 | Small house | 2–10 mixed cartons/bottles | 2–3 | Not admitted by the current evaluation adapter |
 
 Dense rows retain **5 or 10 mm total whole-row free width**, including both
-walls. Other families have explicit larger gaps and are not dense-packing
-benchmarks. Carton dimensions vary per scene; bottles retain the existing fixed
-shape. Materials, masses, sensor noise/delay and native camera calibration are
-not randomized in v1. Those need separate explicit configurations and evidence.
+walls. Other families use explicit larger gaps. Carton dimensions vary per
+scene, and bottles retain their existing shape. The geometry profiles keep
+mass, contact materials, sensor timing and camera calibration fixed.
 
 ![Randomized carton bench](media/domain_randomization/bench.png)
 ![Mixed objects and multiple shelves in a house](media/domain_randomization/house.png)
@@ -103,6 +102,49 @@ generalization work, including the original 2 mm jitter profile. See
 Pass `--policy-source-ref` to `scripts/run_stocking_case.py` to reuse an
 authenticated source bundle. Use the archived controller settings and mode
 flags from the successful run when comparing against its policy.
+
+### Rigid carton mass and support friction
+
+`carton_masses_kg` accepts one mass per carton in numeric carton ID order.
+`carton_support_friction` sets the effective sliding coefficient of cartons on
+the shelf boards and supply tabletop. An explicit MuJoCo contact pair applies
+the coefficient even when it is below the default. The pair still uses the
+configured contact solver recipe. The default carton mass is 0.18 kg and
+the default scene sliding coefficient is 0.8.
+
+```bash
+.venv/bin/python scripts/domain_randomization.py generate \
+  --material-base configs/scenes/tight_ten_cartons_20mm.json \
+  --output outputs/ten-carton-material-suite --development 3 --heldout 3 \
+  --development-seed 2026
+```
+
+The development cases cycle through mass, support friction and their
+combination. Individual carton masses sample 0.70–1.35 times their configured
+values. Support friction samples 0.60–1.20 times its configured value. These
+are development ranges for sensitivity checks. For comparisons, use the same
+recorded reset seed on the base scene and its variant. The sampler preserves
+the layout, jitter bounds, object count and total row clearance.
+
+The first three generated ten-carton material scenes passed the native
+initial clearance and guarded hold checks. A separate matched three-carton
+stocking pilot uses `[0.13, 0.24, 0.16]` kg and friction `0.56` in its varied
+case. The runs are under
+`outputs/runs/domain-randomization/rigid-carton-material-pilot/`.
+
+### Realism priorities
+
+| Area | First experiment | Evidence to retain |
+| --- | --- | --- |
+| Inventory and pickup | Vary shelf/table offsets, carton pose and nearby items. Screen the complete approach and closing sweep with measured clearance. | Pick and hold rates, guard stops and verified retries |
+| Contact and payload | Pair mass and support-friction changes with matched resets. Add measured friction ranges and deformation once rigid contact control is reliable. | Force traces, slip, settling, and row disturbance |
+| Perception and sensing | Give the controller timestamped pose estimates from the robot cameras. Add occlusion, pose error and delay, then use wrist force and tactile feedback for local correction. | Pose and tracking errors, reobservations, and recoveries |
+| Task layout | Add mixed cartons and bottles, multiple levels and partially stocked shelves. Include aisle constraints and ambiguous gaps. | All scheduled stages, packed-row outcome, time and interventions |
+
+Keep fixed-seed stock-from-reset runs alongside randomized development and
+private held-out suites. Pickup clearance is the immediate robustness target
+from the pose pilot. The material cases can exercise isolated contact skills
+in parallel with that work.
 
 ## Native scene validation
 

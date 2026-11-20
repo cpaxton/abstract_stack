@@ -111,8 +111,14 @@ def main():
     parser.add_argument("--development", type=int, default=8)
     parser.add_argument("--heldout", type=int, default=12)
     parser.add_argument("--development-seed", type=int, default=2026)
-    parser.add_argument(
+    profiles = parser.add_mutually_exclusive_group()
+    profiles.add_argument(
         "--pose-base", type=Path, help="Generate pose-only variants of an empty carton-row config"
+    )
+    profiles.add_argument(
+        "--material-base",
+        type=Path,
+        help="Generate mass and support friction variants of a carton layout",
     )
     parser.add_argument("--limit", type=int, default=4)
     parser.add_argument("--preview", action="store_true")
@@ -132,6 +138,7 @@ def main():
             heldout_count=args.heldout,
             development_seed=args.development_seed,
             pose_base=load_scene_config(args.pose_base) if args.pose_base else None,
+            material_base=load_scene_config(args.material_base) if args.material_base else None,
         )
         print(
             json.dumps(

@@ -37,6 +37,11 @@ requires rewinding to an earlier boundary.
 - [ ] Validate recovery from the seed 7 shallow landing through final retreat.
   Exercise the same re-registration and turn recovery on independent pose
   variants before sweeping object size, shelf height/depth or materials.
+- [x] Add per-carton mass and effective support-friction settings with a
+  generated material suite for matched-reset contact tests.
+- [ ] Generalize pickup across the nominal jitter and shelf-pose cases. Screen
+  the coupled pregrasp and closing paths against the shelf panel, then test
+  recovery with timestamped pose estimates and native force feedback.
 
 - [x] Share the existing dense selected-finger skill with ordinary stocking;
   opt in with `--ungrasped-insertion`. Recheck the pusher after native base moves.

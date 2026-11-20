@@ -15,6 +15,7 @@ from abstract_stack.scene import initial_positions, products_for
 
 VERSION = "stocking_geometry_dr_v1"
 FAMILIES = ("bench_cartons", "dense_cartons", "multi_shelf_cartons", "mixed_house")
+MATERIAL_FACTORS = ("mass", "support_friction", "combined")
 
 
 def sample_scene(seed, family):
@@ -115,6 +116,38 @@ def sample_carton_poses(seed, base):
     return config, context
 
 
+def sample_carton_materials(seed, base, factor):
+    """Vary rigid carton mass and support friction around a fixed layout."""
+    if not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed < 2**63:
+        raise ValueError("Choose a nonnegative material seed")
+    if base.product_kind != "carton" or base.initially_stocked or not base.product_count:
+        raise ValueError("Material sampling requires an initially empty shelf with cartons")
+    if factor not in MATERIAL_FACTORS:
+        raise ValueError("Choose a declared material factor")
+    rng = np.random.default_rng(seed)
+    masses = base.carton_masses_kg
+    friction = base.carton_support_friction
+    if factor in {"mass", "combined"}:
+        nominal_masses = masses if masses is not None else (0.18,) * base.product_count
+        masses = tuple(
+            map(float, np.asarray(nominal_masses) * rng.uniform(0.7, 1.35, len(nominal_masses)))
+        )
+    if factor in {"support_friction", "combined"}:
+        nominal_friction = friction if friction is not None else 0.8
+        friction = nominal_friction * float(rng.uniform(0.6, 1.2))
+    config = replace(base, carton_masses_kg=masses, carton_support_friction=friction)
+    context = _scene_context(config, seed, "carton_material", None)
+    context["teacher_capability_status"] = "evaluate_with_fresh_stocking_case"
+    context["unchanged"].remove("object material parameters")
+    context["unchanged"].append("shelf, table and supply layout parameters")
+    context["factors"].update(
+        material_factor=factor,
+        carton_masses_kg=[p.mass for p in products_for(config)],
+        carton_support_friction=friction if friction is not None else 0.8,
+    )
+    return config, context
+
+
 def _scene_context(config, seed, family, adapter):
     products = products_for(config)
     reset_seed = int(np.random.default_rng(seed ^ 0x5A17C3).integers(0, 2**31))
@@ -171,6 +204,7 @@ def generate_suite(
     development_seed=2026,
     heldout_seed=None,
     pose_base=None,
+    material_base=None,
 ):
     """Emit configs/context plus an all-object ledger; no simulation or task credit.
 
@@ -193,6 +227,8 @@ def generate_suite(
         raise ValueError("Keep suite counts and master seeds bounded and nonnegative")
     if heldout_seed is None:
         heldout_seed = secrets.randbits(63)
+    if pose_base is not None and material_base is not None:
+        raise ValueError("Generate pose and material suites separately")
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     used = set()
@@ -208,7 +244,10 @@ def generate_suite(
             while seed in used:
                 seed = int(rng.integers(0, 2**31))
             used.add(seed)
-            if pose_base is None:
+            if material_base is not None:
+                factor = MATERIAL_FACTORS[index % len(MATERIAL_FACTORS)]
+                config, context = sample_carton_materials(seed, material_base, factor)
+            elif pose_base is None:
                 family = FAMILIES[index % len(FAMILIES)]
                 config, context = sample_scene(seed, family)
             else:

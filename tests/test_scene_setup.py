@@ -1,6 +1,8 @@
 """Scene composition, packaged presets, and reproducible exports."""
 
 import json
+from contextlib import closing
+from dataclasses import replace
 
 import mujoco
 import numpy as np
@@ -95,6 +97,10 @@ def test_cli_custom_config(tmp_path):
         {"product_count": 100},
         {"initially_stocked": 7},
         {"enable_sensors": "false"},
+        {"carton_masses_kg": [0.2]},
+        {"carton_masses_kg": [True, 0.2, 0.2]},
+        {"carton_support_friction": 0},
+        {"carton_support_friction": True},
         {"product_count": 18, "initially_stocked": 12, "width": 0.5, "target_gap": 0.1},
     ],
 )
@@ -179,3 +185,49 @@ def test_rigid_contact_recipe_preserves_native_robot_and_static_carton(local_pai
 def test_contact_recipe_rejects_invalid_or_unresolved_settings(values):
     with pytest.raises(ValueError):
         ShelfConfig(**values)
+
+
+@pytest.mark.parametrize("robot", [False, pytest.param(True, marks=pytest.mark.mabel)])
+def test_carton_materials_change_native_mass_and_only_support_friction(robot):
+    from abstract_stack.assets import mabel_model_path
+
+    if robot:
+        try:
+            mabel_model_path()
+        except FileNotFoundError:
+            pytest.skip("MABEL assets not downloaded")
+    base = replace(
+        load_scene_config("configs/scenes/tight_three_cartons.json"), initially_stocked=1
+    )
+    material = replace(base, carton_masses_kg=(0.12, 0.18, 0.24), carton_support_friction=0.43)
+    with (
+        closing(ShelfStockingEnv(base, robot=robot)) as nominal,
+        closing(ShelfStockingEnv(material, robot=robot)) as variant,
+    ):
+        assert [p.mass for p in variant.products] == [0.12, 0.18, 0.24]
+        assert [variant.model.body(p.name).mass[0] for p in variant.products] == pytest.approx(
+            [0.12, 0.18, 0.24]
+        )
+        for attribute in (
+            "qpos0",
+            "geom_size",
+            "geom_friction",
+            "geom_contype",
+            "actuator_ctrlrange",
+        ):
+            np.testing.assert_array_equal(
+                getattr(nominal.model, attribute), getattr(variant.model, attribute)
+            )
+        for _ in range(20):
+            variant.step()
+        names = [
+            mujoco.mj_id2name(variant.model, mujoco.mjtObj.mjOBJ_GEOM, i)
+            for i in range(variant.model.ngeom)
+        ]
+        measured = {}
+        for index, geoms in enumerate(variant.data.contact.geom):
+            first, second = (names[i] for i in geoms)
+            if any(name and name.startswith("carton_") for name in (first, second)):
+                measured[frozenset((first, second))] = variant.data.contact.friction[index].copy()
+        for pair in ({"carton_0_geom", "shelf_board_0"}, {"carton_1_geom", "supply_table"}):
+            np.testing.assert_allclose(measured[frozenset(pair)], [0.43, 0.43, 0.02, 0.002, 0.002])

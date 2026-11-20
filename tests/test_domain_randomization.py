@@ -105,6 +105,28 @@ def test_pose_suite_varies_reset_positions_and_keeps_fixed_row(tmp_path):
     assert not np.array_equal(supply_positions[0], supply_positions[1])
 
 
+def test_material_suite_isolates_mass_and_friction_from_geometry(tmp_path):
+    from dataclasses import replace
+
+    base = load_scene_config("configs/scenes/tight_ten_cartons_20mm.json")
+    suite = generate_suite(
+        tmp_path / "materials", development_count=3, heldout_count=1, material_base=base
+    )
+    index = json.loads((suite / "development/index.json").read_text())
+    for row, factor in zip(index["cases"], ("mass", "support_friction", "combined"), strict=True):
+        config = load_scene_config(suite / row["scene"])
+        ctx = json.loads((suite / row["context"]).read_text())
+        assert replace(config, carton_masses_kg=None, carton_support_friction=None) == base
+        assert (config.carton_masses_kg is not None) is (factor != "support_friction")
+        assert (config.carton_support_friction is not None) is (factor != "mass")
+        assert ctx["factors"]["material_factor"] == factor
+        assert ctx["factors"]["carton_masses_kg"] == [p.mass for p in products_for(config)]
+        np.testing.assert_array_equal(
+            initial_positions(config, products_for(config), ctx["reset_seed"]),
+            initial_positions(base, products_for(base), ctx["reset_seed"]),
+        )
+
+
 def test_default_evaluation_entropy_is_independent_of_development(tmp_path, monkeypatch):
     entropy = iter((1001, 1002))
     monkeypatch.setattr(
