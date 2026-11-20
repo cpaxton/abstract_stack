@@ -1,6 +1,6 @@
 import { useUi } from "../state/store";
 
-/** Shown when the host rejects the access token; reconnecting cannot help until it changes. */
+/** Shown when the host rejects the token or login; reconnecting cannot help until that changes. */
 export function AccessScreen() {
   const authError = useUi((s) => s.authError);
   if (!authError) return null;

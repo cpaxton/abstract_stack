@@ -58,6 +58,8 @@ interface UiState {
   lookPoint: [number, number, number] | null;
   /** Set when the host rejects the access token; shows the access screen. */
   authError: string | null;
+  /** Signed-in person (Tailscale access), from hello_ack. */
+  identity: { login: string; name: string } | null;
   helpOpen: boolean;
   guideOpen: boolean;
   toasts: Toast[];
@@ -103,6 +105,7 @@ export const useUi = create<UiState>((set, get) => ({
   videoAvailable: false,
   pipVisible: true,
   authError: null,
+  identity: null,
   headMode: "follow",
   lookPoint: null,
   toasts: [],

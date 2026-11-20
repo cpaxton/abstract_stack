@@ -21,6 +21,7 @@ import asyncio
 import contextlib
 import gzip
 import hmac
+import html
 import logging
 import re
 import secrets
@@ -35,7 +36,7 @@ from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -43,13 +44,52 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from abstract_stack.web_teleop import protocol
 from abstract_stack.web_teleop.core import TeleopCore
 from abstract_stack.web_teleop.geometry import load_model_export
+from abstract_stack.web_teleop.tailscale import TailscaleAccess
 
 log = logging.getLogger(__name__)
 MAX_PROTOCOL_ERRORS = 20
 LOW_DETAIL_FACE_BUDGET = 800
 CLOSE_UNAUTHORISED = 4401  # application close codes (4000-4999)
 CLOSE_FORBIDDEN_ORIGIN = 4403
+CLOSE_FORBIDDEN_USER = 4405  # signed in, but not on the --allow-user list (or not via Serve)
 HELLO_TIMEOUT_S = 5.0
+
+
+def _close_reason(text: str | None) -> str:
+    """WebSocket close reasons are limited to 123 UTF-8 bytes."""
+    data = (text or "").encode()[:123]
+    return data.decode(errors="ignore")
+
+
+class _IdentityGate:
+    """ASGI middleware: refuse HTTP requests that ``TailscaleAccess`` does not admit.
+
+    WebSockets are checked in ``TeleopServer._accept`` instead, so the client gets
+    an application close code it can explain rather than an anonymous failure.
+    """
+
+    def __init__(self, app, access: TailscaleAccess):
+        self.app, self.access = app, access
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            request = Request(scope)
+            peer = request.client.host if request.client else None
+            identity, reason = self.access.check(peer, request.headers)
+            if identity is None:
+                page = (
+                    "<!doctype html><meta charset=utf-8><meta name=viewport "
+                    'content="width=device-width"><title>Access needed</title>'
+                    '<body style="font:16px system-ui;margin:2rem;max-width:36rem">'
+                    f"<h1>Access needed</h1><p>{_escape(reason)}</p>"
+                )
+                await HTMLResponse(page, status_code=403)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+def _escape(text: str | None) -> str:
+    return html.escape(text or "")
 
 
 def _status_for(session_id: str, status: dict) -> dict:
@@ -129,9 +169,12 @@ class TeleopServer:
         static_dir: Path | None = None,
         allowed_origins: tuple[str, ...] = (),
         face_budget: int = 0,
+        access: TailscaleAccess | None = None,
     ):
         self.core = core
-        self.token = token
+        # With Tailscale access the signed-in login is the credential: no token.
+        self.access = access
+        self.token = None if access is not None else token
         self.allowed_origins = set(allowed_origins)
         # "full" honours --face-budget (0 = full resolution); "low" is a light
         # simplified preview for weak devices, built on first request.
@@ -151,11 +194,11 @@ class TeleopServer:
         ]
         if static_dir is not None and static_dir.is_dir():
             routes.append(Mount("/", StaticFiles(directory=static_dir, html=True), name="web"))
-        self.app = Starlette(
-            routes=routes,
-            middleware=[Middleware(GZipMiddleware, minimum_size=1024)],
-            lifespan=self._lifespan,
-        )
+        middleware = [Middleware(GZipMiddleware, minimum_size=1024)]
+        if access is not None:
+            # Gate every HTTP request, the web client included, not just the API.
+            middleware.insert(0, Middleware(_IdentityGate, access=access))
+        self.app = Starlette(routes=routes, middleware=middleware, lifespan=self._lifespan)
 
     @contextlib.asynccontextmanager
     async def _lifespan(self, app):
@@ -242,6 +285,14 @@ class TeleopServer:
         if not self._origin_ok(websocket):
             await websocket.close(code=CLOSE_FORBIDDEN_ORIGIN, reason="origin not allowed")
             return False
+        websocket.state.identity = None
+        if self.access is not None:
+            peer = websocket.client.host if websocket.client else None
+            identity, reason = self.access.check(peer, websocket.headers)
+            if identity is None:
+                await websocket.close(code=CLOSE_FORBIDDEN_USER, reason=_close_reason(reason))
+                return False
+            websocket.state.identity = identity
         if not self._authorised(websocket.query_params.get("token")):
             await websocket.close(code=CLOSE_UNAUTHORISED, reason="invalid access token")
             return False
@@ -257,7 +308,10 @@ class TeleopServer:
             if message["type"] != "hello":
                 raise protocol.ProtocolError("first message must be hello")
             hello = protocol.parse_hello(message)
-            role = self.core.open_session(hello["session_id"], hello["role"])
+            identity = websocket.state.identity
+            role = self.core.open_session(
+                hello["session_id"], hello["role"], name=identity.name if identity else None
+            )
             session_id = hello["session_id"]
             self._sessions[session_id] = role
         except (protocol.ProtocolError, asyncio.TimeoutError, WebSocketDisconnect) as error:
@@ -283,6 +337,7 @@ class TeleopServer:
                     ),
                 },
                 video=self._video_descriptor(),
+                identity=websocket.state.identity.public() if websocket.state.identity else None,
                 status=_status_for(session_id, status),
             )
         )
@@ -487,26 +542,7 @@ def token_path() -> Path:
     return Path(root) / "abstract_stack" / "web_teleop_token"
 
 
-def serve(
-    core: TeleopCore,
-    *,
-    host: str,
-    port: int,
-    token: str | None,
-    static_dir: Path | None,
-    allowed_origins: tuple[str, ...] = (),
-    face_budget: int = 0,
-    ws_deflate: bool = False,
-) -> None:
-    import uvicorn
-
-    server = TeleopServer(
-        core,
-        token=token,
-        static_dir=static_dir,
-        allowed_origins=allowed_origins,
-        face_budget=face_budget,
-    )
+def _print_lan_urls(host: str, port: int, token: str | None) -> None:
     query = f"?token={token}" if token else ""
     if host in ("0.0.0.0", "::"):
         print(f"Web teleop (this computer): http://localhost:{port}/{query}", flush=True)
@@ -525,6 +561,32 @@ def serve(
                 "and tablets on your network.",
                 flush=True,
             )
+
+
+def serve(
+    core: TeleopCore,
+    *,
+    host: str,
+    port: int,
+    token: str | None,
+    static_dir: Path | None,
+    allowed_origins: tuple[str, ...] = (),
+    face_budget: int = 0,
+    ws_deflate: bool = False,
+    access: TailscaleAccess | None = None,
+) -> None:
+    import uvicorn
+
+    server = TeleopServer(
+        core,
+        token=token,
+        static_dir=static_dir,
+        allowed_origins=allowed_origins,
+        face_budget=face_budget,
+        access=access,
+    )
+    if access is None:  # with Tailscale access the CLI prints the tailnet address
+        _print_lan_urls(host, port, token)
     uvicorn.run(
         server.app,
         host=host,

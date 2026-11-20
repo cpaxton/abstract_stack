@@ -61,6 +61,8 @@ export interface Status {
   calibration_generation: number;
   accepted_sequence: number | null;
   operator_connected: boolean;
+  /** Display name of whoever holds control (Tailscale access), else null. */
+  operator_name?: string | null;
   spectators: number;
   episode_over: boolean;
   tick: number;
@@ -120,6 +122,8 @@ export interface HelloAck {
   budgets: { control_hz: number; command_hz: number; input_timeout_s: number; status_hz: number };
   video: VideoDescriptor | null;
   status: Status;
+  /** Signed-in person when the host uses Tailscale access, else null. */
+  identity?: { login: string; name: string } | null;
 }
 
 export interface ControlAck {

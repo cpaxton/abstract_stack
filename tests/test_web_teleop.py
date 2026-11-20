@@ -863,3 +863,96 @@ def test_command_timing_is_scoped_to_the_sending_session(clear_env):
     timing = core._publish_status()["command_timing"]
     assert (timing["session_id"], timing["sequence"]) == (second, 1)
     assert timing["sent_ms"] == pytest.approx(99000.0)
+
+
+# -- Tailscale access ------------------------------------------------------------------
+
+
+def test_tailscale_status_parsing_and_serve_command():
+    from abstract_stack.web_teleop.tailscale import TailscaleError, parse_status, serve_command
+
+    status = {
+        "BackendState": "Running",
+        "Self": {"DNSName": "studio.tail1234.ts.net.", "UserID": 42},
+        "User": {"42": {"LoginName": "Owner@Example.com"}},
+        "CertDomains": ["studio.tail1234.ts.net"],
+    }
+    info = parse_status(status)
+    assert (info.dns_name, info.owner_login, info.https_enabled) == (
+        "studio.tail1234.ts.net",
+        "owner@example.com",
+        True,
+    )
+    assert info.url == "https://studio.tail1234.ts.net/"
+    assert not parse_status({**status, "CertDomains": None}).https_enabled
+    with pytest.raises(TailscaleError, match="NeedsLogin"):
+        parse_status({**status, "BackendState": "NeedsLogin"})
+    assert serve_command(8080) == ["tailscale", "serve", "--bg", "http://127.0.0.1:8080"]
+
+
+def test_tailscale_access_checks_peer_header_and_allowlist():
+    from abstract_stack.web_teleop.tailscale import TailscaleAccess
+
+    access = TailscaleAccess({"Owner@Example.com", "friend@example.com"})
+    headers = {"tailscale-user-login": "OWNER@example.com", "tailscale-user-name": "Owner"}
+    identity, reason = access.check("127.0.0.1", headers)
+    assert identity.name == "Owner" and reason is None
+    # Headers are only trusted from loopback, where tailscale serve connects from.
+    assert access.check("192.168.1.20", headers) == (None, access.check("10.0.0.1", headers)[1])
+    assert "not directly" in access.check("192.168.1.20", headers)[1]
+    assert "Not signed in" in access.check("::1", {})[1]
+    _, refused = access.check("::1", {"tailscale-user-login": "stranger@example.com"})
+    assert "--allow-user stranger@example.com" in refused
+    with pytest.raises(ValueError):
+        TailscaleAccess(set())
+
+
+def test_tailscale_mode_gates_the_web_client_api_and_sockets(clear_env, tmp_path, monkeypatch):
+    TestClient = _test_client()
+    from starlette.websockets import WebSocketDisconnect
+
+    from abstract_stack.web_teleop.core import TeleopCore
+    from abstract_stack.web_teleop.server import CLOSE_FORBIDDEN_USER, TeleopServer
+    from abstract_stack.web_teleop.tailscale import TailscaleAccess
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    static = tmp_path / "dist"
+    static.mkdir()
+    (static / "index.html").write_text("<!doctype html><title>teleop</title>")
+    access = TailscaleAccess({"owner@example.com"}, trusted_peers={"testclient"})
+    server = TeleopServer(
+        TeleopCore(clear_env), token="ignored", static_dir=static, face_budget=200, access=access
+    )
+    owner = {"tailscale-user-login": "owner@example.com", "tailscale-user-name": "Owner Name"}
+    stranger = {"tailscale-user-login": "stranger@example.com"}
+    with TestClient(server.app) as client:
+        # Everything is gated, including the web client itself; no token is needed.
+        for path in ("/", "/api/model", "/api/health"):
+            assert client.get(path).status_code == 403
+            assert client.get(path, headers=stranger).status_code == 403
+            assert client.get(path, headers=owner).status_code == 200
+        assert "--allow-user stranger@example.com" in client.get("/", headers=stranger).text
+        with (
+            client.websocket_connect("/teleop/control", headers=stranger) as ws,
+            pytest.raises(WebSocketDisconnect) as closed,
+        ):
+            ws.receive_text()
+        assert closed.value.code == CLOSE_FORBIDDEN_USER
+        assert "stranger@example.com" in closed.value.reason
+        session = str(uuid.uuid4())
+        with client.websocket_connect("/teleop/control", headers=owner) as ws:
+            ws.send_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "type": "hello",
+                        "session_id": session,
+                        "profile": "web_teleop_v1",
+                        "role": "operator",
+                    }
+                )
+            )
+            ack = json.loads(ws.receive_text())
+            assert ack["type"] == "hello_ack"
+            assert ack["identity"] == {"login": "owner@example.com", "name": "Owner Name"}
+            assert ack["status"]["operator_name"] == "Owner Name"

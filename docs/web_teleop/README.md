@@ -51,6 +51,36 @@ seconds), `--input-timeout` (default 0.15 s), `--face-budget` (0 = full-resoluti
 twin), `--no-video`, `--video-fps` (default 20), `--video-size` (default
 640x480 per eye) and `--video-quality` (JPEG quality, default 80).
 
+### Over the internet (Tailscale)
+
+[Tailscale](https://tailscale.com/download) puts the host on your private
+tailnet: it's reachable from anywhere by your signed-in devices and invisible
+to everyone else. It works the same on macOS, Linux and Windows. Each operator
+device needs the Tailscale app, signed in to the same tailnet or shared the
+machine. One-time setup:
+
+1. Install Tailscale on the host and on each operator device, and sign in.
+2. In the [admin console](https://login.tailscale.com/admin/dns), enable
+   MagicDNS and **HTTPS certificates**. Browsers allow the H.264 video decoder
+   (WebCodecs) only on HTTPS pages.
+
+```bash
+abstract-stack teleop --tailscale --tailscale-serve \
+  --allow-user friend@example.com          # optional; repeat for more people
+# → Web teleop (Tailscale): https://<machine>.<tailnet>.ts.net/  (plus a QR code)
+```
+
+- **No public exposure.** The host binds to localhost only. `tailscale serve`
+  publishes it on the tailnet with a real certificate (`https://`/`wss://`).
+  `--tailscale-serve` runs that command for you; it persists until
+  `tailscale serve reset`. Without the flag, the host prints the command.
+- **Tailscale is the sign-in.** Serve tells the host who is signed in
+  (`Tailscale-User-Login`). Only the machine's owner and `--allow-user` logins
+  get in, and only through Serve. Everyone else sees "Access needed", naming
+  their login and the flag that would admit it. No token is used in this mode.
+- **Everyone sees who's in control.** The top bar shows your name, and
+  spectators see who holds control.
+
 Front-end development with hot reload proxies `/api` and `/teleop` to a
 running host:
 
@@ -306,9 +336,14 @@ feedforward still applied.
 Defaults are safe for a trusted LAN: a random access token is required for the
 API and both sockets, WebSocket `Origin` must match the host (add others with
 `--allow-origin`), payload sizes are bounded, and only one operator holds
-control. For use beyond the LAN, put the host behind a TLS reverse proxy (for
-example Caddy with `reverse_proxy 127.0.0.1:8080`; WebSockets pass through)
-and keep the token. The client switches to `wss:` automatically on HTTPS.
+control. For use beyond the LAN, use `--tailscale` (above): the host binds to
+localhost, Tailscale encrypts and authenticates every connection, and only
+allowlisted logins are admitted. Every HTTP request is gated, the web client
+included, and identity headers are trusted only from loopback, where
+`tailscale serve` connects from. Any local process on the host could forge
+them, so treat the host machine itself as trusted. Elsewhere, a TLS reverse
+proxy with the token also works. The client switches to `wss:` automatically
+on HTTPS.
 Expect to raise `--input-timeout` on high-latency links. The 150 ms default
 is the Quest contract's observation-age budget.
 
