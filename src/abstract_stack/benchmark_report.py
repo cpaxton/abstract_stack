@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from abstract_stack.campaign import summarize_run
+from abstract_stack.evaluation import reported_manipulations
 
 STAGES = ("pick", "place", "final_position", "retreat")
 
@@ -20,24 +21,26 @@ def campaign_report(path):
     rows = []
     controllers, provenance = [], {}
     totals = dict.fromkeys(STAGES, 0)
-    scheduled = len(campaign["seeds"]) * campaign["objects"]
+    per_scene = campaign["objects"] - campaign.get("initially_stocked", 0)
+    scheduled = (len(campaign["seeds"]) - len(campaign["runs"])) * per_scene
     clean, physical, no_knock = 0, 0, 0
     for entry in campaign["runs"]:
         run = summarize_run(entry["directory"], entry["returncode"], video=campaign["video"])
         evaluation = run.get("stage_evaluation") or {}
         counts = {k: 0 for k in STAGES}
         valid = run["artifacts_valid"] and run["returncode"] in (0, 2)
-        if valid:
-            for product in evaluation.get("products", {}).values():
-                for k in STAGES:
-                    counts[k] += int(product[k])
-        physical += int(valid and run["physical_success"] is True)
-        clean_run = (
-            valid
-            and run["physical_success"] is True
-            and evaluation.get("no_knockovers") is True
-            and all(counts[k] == campaign["objects"] for k in STAGES)
+        grade = reported_manipulations(run)
+        complete_products = len(evaluation.get("products", {})) == campaign["objects"]
+        expected = (
+            len(grade["names"])
+            if valid and ("scheduled_pick_products" in run or complete_products)
+            else per_scene
         )
+        scheduled += expected
+        if valid:
+            counts = grade["stages"]
+        physical += int(valid and run["physical_success"] is True)
+        clean_run = valid and grade["clean_success"] and expected > 0
         clean += int(clean_run)
         no_knock += int(valid and evaluation.get("no_knockovers") is True)
         for k in STAGES:
@@ -51,6 +54,7 @@ def campaign_report(path):
                 "clean_success": bool(clean_run),
                 "physical_success": run["physical_success"],
                 "stages": counts,
+                "scheduled_manipulations": expected,
                 "incidents": evaluation.get("incidents"),
                 "sim_seconds": run.get("elapsed_sim_time"),
                 "peak_forces_N": run.get("peak_forces_N"),
@@ -122,6 +126,7 @@ def campaign_report(path):
         "scheduled_scenes": n,
         "completed_scenes": len(rows),
         "scheduled_objects": scheduled,
+        "total_products": len(campaign["seeds"]) * campaign["objects"],
         "clean_successes": clean,
         "physical_successes": physical,
         "unknown_scenes": sum(r["verification_status"] == "unknown" for r in rows) + n - len(rows),
@@ -190,7 +195,8 @@ def write_comparison(baseline, tuned, output, *, search=None):
         "# Scripted shelf-stocking evaluation",
         "",
         "Native MABEL MuJoCo physics, privileged world state, "
-        f"{before['scheduled_objects'] // before['scheduled_scenes']} cartons per scene. "
+        f"{before['total_products'] // before['scheduled_scenes']} cartons per scene, "
+        f"{before['scheduled_objects']} scheduled manipulations across the suite. "
         "No RL, live pose writes, attachments, external object forces or interventions.",
         "",
         "| Metric | Baseline | Selected controller |",

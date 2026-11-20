@@ -33,11 +33,26 @@ def _parser():
     random_scene.add_argument("--seed", type=int, default=0)
     random_scene.add_argument("--objects", type=_positive_int, default=2)
     random_scene.add_argument("--output", type=Path, default=Path("outputs/random-scene.json"))
+    dense_scene = commands.add_parser(
+        "dense-scene", help="Generate cartons sharing a TOTAL shelf-width free-space budget"
+    )
+    dense_scene.add_argument("--seed", type=int, default=0)
+    dense_scene.add_argument("--objects", type=_positive_int, default=10)
+    dense_scene.add_argument(
+        "--free-space",
+        type=float,
+        default=0.01,
+        help="Total unused row width in metres, including both wall gaps",
+    )
+    dense_scene.add_argument("--initially-stocked", type=int, default=0)
+    dense_scene.add_argument("--output", type=Path, default=Path("outputs/dense-scene.json"))
     batch = commands.add_parser(
         "batch", help="Generate and solve scene seeds serially, preserving every outcome"
     )
     batch.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
     batch.add_argument("--objects", type=_positive_int, default=2)
+    batch.add_argument("--free-space", type=float, help="Dense-row TOTAL free width in metres")
+    batch.add_argument("--initially-stocked", type=int, default=0)
     batch.add_argument("--video", action="store_true")
     batch.add_argument("--fps", type=_positive_int, default=15)
     batch.add_argument("--control-config", type=Path, help="JSON compliant-control overrides")
@@ -201,6 +216,11 @@ def _parser():
                 "--first-person-camera",
                 default="zed_left",
                 choices=("zed_left", "zed_right", "l_wrist_cam", "body_cam"),
+            )
+            sub.add_argument(
+                "--third-person-camera",
+                default="stocking_third_person",
+                help="External camera (dense_front shows the dense row closely)",
             )
             sub.add_argument(
                 "--max-force", type=float, default=25.0, help="Contact abort limit in N"
@@ -395,6 +415,8 @@ def main(argv=None):
                 guarded_approach=args.guarded_approach,
                 fixture_avoidance=args.fixture_avoidance,
                 thumb_preshape=args.thumb_preshape,
+                total_free_space=args.free_space,
+                initially_stocked=args.initially_stocked,
             )
         except (OSError, ValueError) as error:
             parser.exit(1, f"Campaign failed: {error}\n")
@@ -404,11 +426,21 @@ def main(argv=None):
                 "Campaign retained failed/unverified episodes; inspect its JSON manifest.\n",
             )
         return
-    if args.command == "random-scene":
+    if args.command in ("random-scene", "dense-scene"):
         from abstract_stack.random_scenes import random_shelf_config, scene_manifest
 
         try:
-            config = random_shelf_config(args.seed, product_count=args.objects)
+            if args.command == "dense-scene":
+                from abstract_stack.packing import dense_shelf_config
+
+                config = dense_shelf_config(
+                    args.seed,
+                    product_count=args.objects,
+                    total_free_space=args.free_space,
+                    initially_stocked=args.initially_stocked,
+                )
+            else:
+                config = random_shelf_config(args.seed, product_count=args.objects)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(asdict(config), indent=2) + "\n")
             args.output.with_suffix(".manifest.json").write_text(
@@ -487,7 +519,12 @@ def main(argv=None):
                 from abstract_stack.control_profiles import resolve_control_settings
                 from abstract_stack.interactions import ScriptConfig, StockingScript
 
-                result = StockingScript(
+                solver = StockingScript
+                if config.row_free_space is not None:
+                    from abstract_stack.dense_interactions import DenseStockingScript
+
+                    solver = DenseStockingScript
+                result = solver(
                     env,
                     args.output_dir,
                     ScriptConfig(
@@ -511,11 +548,12 @@ def main(argv=None):
                     video_width=args.video_width,
                     video_height=args.video_height,
                     first_person=args.first_person_camera,
+                    third_person=args.third_person_camera,
                 ).run()
                 print(json.dumps(result, indent=2))
                 if result.get("video_error"):
                     parser.exit(1, f"Recording failed: {result['video_error']}\n")
-                if not result["physical_success"]:
+                if not result.get("task_success", result["physical_success"]):
                     parser.exit(2, f"Interaction stopped: {result['failure']}\n")
             elif args.command == "build-scene":
                 from abstract_stack.bundle import build_scene_bundle

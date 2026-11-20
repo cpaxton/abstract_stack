@@ -35,6 +35,12 @@
   for pick, shelf support, final positioning and retreat; retain unreached stages
   and process failures. Monitor every product at each physics step so a transient
   knock-over cannot disappear from the report when an object settles upright.
+- Dense-row free space is a whole-row budget including both walls. Report
+  prefilled products separately from scheduled manipulations, and sum all
+  contact-point normals per carton pair before applying pair force guards.
+  Preserve failed experiment artifacts during cleanup; reorganize guides and
+  summaries without rewriting historical results or treating continuations as
+  fresh episodes. Material fixtures do not establish manipulation success.
   Tune compliance on separate development seeds with bounded compute. Never tune
   success tolerances, force abort limits or collision acceptance to improve scores.
 - Run pre-commit, relevant physics tests, and package checks before opening a PR.

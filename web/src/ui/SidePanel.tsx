@@ -3,6 +3,7 @@ import { clampChannels, intent, takeManualHead } from "../state/intent";
 import { syncMirror } from "../state/mirror";
 import { useUi, type CameraPreset } from "../state/store";
 import { formatLean } from "./BodyRails";
+import { armStatus } from "./armStatus";
 import { Icon } from "./Icon";
 
 const deg = (rad: number) => (rad * 180) / Math.PI;
@@ -88,7 +89,7 @@ function ArmCard({ side, active, editable }: { side: Side; active: boolean; edit
   const grip = useUi((s) => s.mirror.grip[side]);
   const ik = useUi((s) => s.status?.arms[side]?.ik ?? null);
   const set = useUi((s) => s.set);
-  const reachable = ik?.reachable ?? true;
+  const status = armStatus(ik);
   return (
     <div className={`arm-card ${active ? "active" : ""} arm-${side}`}>
       <button
@@ -98,12 +99,8 @@ function ArmCard({ side, active, editable }: { side: Side; active: boolean; edit
       >
         <span className="arm-swatch" />
         <span className="arm-name">{side === "left" ? "Left arm" : "Right arm"}</span>
-        <span className={`badge ${reachable ? "badge-ok" : "badge-bad"}`}>
-          {ik
-            ? reachable
-              ? `IK ${(ik.ik_position_error_m * 1000).toFixed(0)} mm`
-              : "Out of reach"
-            : "—"}
+        <span className={`badge badge-${status.tone}`} title={status.title}>
+          {status.label}
         </span>
       </button>
       <Slider

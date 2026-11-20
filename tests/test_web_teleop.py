@@ -508,3 +508,237 @@ def test_head_follows_a_gaze_target(clear_env):
     # Measured camera axis (native physics), not the commanded angles.
     assert np.degrees(np.arccos(np.clip(forward @ direction, -1, 1))) < 6
     assert core._publish_status()["channels"]["head_mode"] == "gaze"
+
+
+def _engaged_from_ready(env):
+    core = _core(env, input_timeout_s=10.0)
+    operator = str(uuid.uuid4())
+    core.open_session(operator, "operator")
+    assert _event(core, operator, "ready", 1)["accepted"]
+    for _ in range(150):
+        core._tick_once(env.dt)
+    assert _event(core, operator, "engage", 2)["accepted"]
+    core._tick_once(env.dt)
+    return core, operator
+
+
+class _Operator:
+    """One monotonically sequenced command stream relative to the Ready palm poses."""
+
+    def __init__(self, core, operator):
+        self.core, self.operator, self.sequence = core, operator, 0
+        self.start = _arm_command(core, 0, np.zeros(3))
+
+    def goal(self, side, offset):
+        return np.array(self.start["arms"][side]["position"]) + offset
+
+    def hold(self, offsets, ticks, *, base=None, each=None):
+        """Command each arm at Ready + ``offsets[side]`` (root frame) for ``ticks``."""
+        for _ in range(ticks):
+            self.sequence += 1
+            command = _arm_command(self.core, self.sequence, np.zeros(3))
+            for side, offset in offsets.items():
+                arm = command["arms"][side]
+                arm["position"] = self.goal(side, offset)
+                arm["quaternion"] = self.start["arms"][side]["quaternion"]
+            command["base"] = base
+            self.core.submit_command(self.operator, command | {"session_id": self.operator})
+            self.core._tick_once(self.core.env.dt)
+            if each is not None:
+                each()
+
+
+def _deepest(env, bodies_a, bodies_b):
+    """Deepest current contact distance (m, negative = penetration) between two body sets."""
+    deepest = 0.0
+    for contact in env.data.contact[: env.data.ncon]:
+        pair = (env.model.geom_bodyid[contact.geom1], env.model.geom_bodyid[contact.geom2])
+        if (pair[0] in bodies_a and pair[1] in bodies_b) or (
+            pair[1] in bodies_a and pair[0] in bodies_b
+        ):
+            deepest = min(deepest, float(contact.dist))
+    return deepest
+
+
+def _table_env():
+    from abstract_stack.assets import mabel_model_path
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.scene import ShelfConfig
+
+    try:
+        mabel_model_path()
+    except FileNotFoundError:
+        pytest.skip("MABEL assets not downloaded")
+    # Supply table directly under the Ready palms; the shelf is out of the way.
+    return ShelfStockingEnv(
+        ShelfConfig(
+            product_count=0,
+            center_y=-1.5,
+            table_center_x=-0.60,
+            table_center_y=0.0,
+            table_top=0.70,
+            terminate_on_success=False,
+            time_limit=600.0,
+        )
+    )
+
+
+def _robot_bodies(env):
+    root = env.model.body_rootid[env.model.body("mabel_chassis").id]
+    return {b for b in range(env.model.nbody) if env.model.body_rootid[b] == root}
+
+
+def test_out_of_reach_pose_keeps_the_palm_on_target_and_relaxes_orientation(clear_env):
+    from abstract_stack.ik import rotation_error
+    from abstract_stack.web_teleop.retarget import READY_POSTURE, _quat_to_mat
+
+    core, operator = _engaged_from_ready(clear_env)
+    retargeter = core.retargeter
+    offset = np.array([-0.25, -0.20, -0.25])  # far forward, outward and down
+    stream = _Operator(core, operator)
+    stream.hold({"left": offset}, ticks=150)
+    start, goal_root = stream.start, stream.goal("left", offset)
+    origin, root = retargeter.root_pose()
+    goal = origin + root @ goal_root
+    rotation = root @ _quat_to_mat(np.array(start["arms"]["left"]["quaternion"]))
+
+    # Holding the full Ready orientation, this point is out of reach for the
+    # weighted pose solver even with a generous budget.
+    ik = retargeter.ik["left"]
+    ready = [READY_POSTURE.get(n, 0.0) for n in retargeter.arm_names["left"]]
+    seed = np.r_[ready, retargeter.reference["Lift"]]
+    _, point, _ = ik.solve(goal, rotation, seed, iterations=300)
+    assert np.linalg.norm(point - goal) > 0.05
+
+    report = core._publish_status()["arms"]["left"]
+    assert report["ik"]["orientation_relaxed"] and not report["ik"]["reachable"]
+    assert report["ik"]["ik_position_error_m"] < 0.01
+    assert not report["ik"]["blocked_by"]
+    measured = np.array(report["palm"]["position_m"])
+    assert np.linalg.norm(measured - goal_root) < 0.02
+    # Orientation is relaxed only as far as needed, not dropped.
+    actual = root @ _quat_to_mat(np.array(report["palm"]["quaternion_wxyz"]))
+    assert np.degrees(np.linalg.norm(rotation_error(actual, rotation))) < 55
+
+
+def test_collision_guard_stops_hands_at_a_table():
+    env = _table_env()
+    try:
+        core, operator = _engaged_from_ready(env)
+        robot, table = _robot_bodies(env), {env.model.body("supply").id}
+        down = np.array([0.0, 0.0, -0.40])  # 0.4 m down: ~0.2 m into the table top
+        deepest = [0.0]
+        stream = _Operator(core, operator)
+        stream.hold(
+            {"left": down, "right": down},
+            ticks=150,
+            each=lambda: deepest.append(_deepest(env, robot, table)),
+        )
+        status = core._publish_status()
+        for side in ("left", "right"):
+            assert status["arms"][side]["ik"]["blocked_by"] == ["supply"], side
+            assert not status["arms"][side]["ik"]["reachable"]
+        assert min(deepest) > -0.005  # resting contact at every tick, not the commanded 0.2 m
+        assert status["base"]["tilt_deg"] < 2.0
+    finally:
+        env.close()
+
+
+def test_collision_guard_checks_the_path_not_just_the_endpoint():
+    env = _table_env()
+    try:
+        core, operator = _engaged_from_ready(env)
+        retargeter = core.retargeter
+        robot, table = _robot_bodies(env), {env.model.body("supply").id}
+        # Both endpoints clear the table top, but the joint path between them dips
+        # into it (review repro: ~7 mm at 60 % of the move in scratch data).
+        offset = np.array([0.0, -0.20, -0.35])
+        stream = _Operator(core, operator)
+        deepest, blocked = [0.0], []
+        stream.hold(
+            {"left": offset},
+            ticks=150,
+            each=lambda: (
+                deepest.append(_deepest(env, robot, table)),
+                blocked.append(retargeter.arm_report["left"]["blocked_by"]),
+            ),
+        )
+        ik = retargeter.ik["left"]
+        goal = retargeter._candidate["left"]["q"]
+        reference = env.data.qpos.copy()
+        baseline = retargeter._penetrations(ik, ik.measured_q(), reference)
+        assert retargeter._collisions(ik, goal, reference, baseline) == []
+        assert ["supply"] in blocked  # the path, not the endpoint, was blocked
+        assert min(deepest) > -0.005
+    finally:
+        env.close()
+
+
+def test_collision_guard_rechecks_a_cached_target_as_the_base_moves():
+    env = _table_env()
+    try:
+        core, operator = _engaged_from_ready(env)
+        stream = _Operator(core, operator)
+        down = {"left": np.array([0.0, 0.0, -0.40])}
+        stream.hold(down, ticks=100)
+        assert core.retargeter.arm_report["left"]["blocked_by"] == ["supply"]
+        # Same arm target throughout; drive left (−Y) until the hand clears the table.
+        stream.hold(down, ticks=250, base={"forward_mps": 0.0, "left_mps": 0.4, "turn_radps": 0.0})
+        stream.hold(down, ticks=100, base={"forward_mps": 0.0, "left_mps": 0.0, "turn_radps": 0.0})
+        report = core.retargeter.arm_report["left"]
+        assert report["blocked_by"] == []
+        assert report["ik_position_error_m"] < 0.01
+    finally:
+        env.close()
+
+
+def test_collision_guard_checks_both_arms_together(clear_env):
+    core, operator = _engaged_from_ready(clear_env)
+    retargeter, env = core.retargeter, clear_env
+    stream = _Operator(core, operator)
+    # Review repro: both palms 5 cm forward (MABEL faces -X) onto the chassis
+    # midline, heights and orientations kept. Each arm alone is clear of the other
+    # arm's measured pose; together they collide.
+    offsets = {
+        side: np.array([-0.05, -stream.start["arms"][side]["position"][1], 0.0])
+        for side in ("left", "right")
+    }
+    left = {b for b in _robot_bodies(env) if env.model.body(b).name.startswith(("left_", "l_"))}
+    right = {b for b in _robot_bodies(env) if env.model.body(b).name.startswith(("right_", "r_"))}
+    deepest = [0.0]
+    stream.hold(offsets, ticks=150, each=lambda: deepest.append(_deepest(env, left, right)))
+    assert any("self" in retargeter.arm_report[side]["blocked_by"] for side in ("left", "right"))
+    # The composed commanded references are clear of each other in scratch data...
+    ik, reference = retargeter.ik["left"], env.data.qpos.copy()
+    reference[retargeter.ik["right"].qadr] = [
+        retargeter.reference[n] for n in retargeter.arm_names["right"]
+    ]
+    q_left = np.r_[
+        [retargeter.reference[n] for n in retargeter.arm_names["left"]],
+        retargeter.reference["Lift"],
+    ]
+    contacts = ik._contacts(q_left, reference, None)
+    between = [
+        info["distance_m"]
+        for pair, info in contacts.items()
+        if {env.model.geom_bodyid[g] in left for g in pair} == {True, False}
+        and any(env.model.geom_bodyid[g] in right for g in pair)
+    ]
+    assert min(between, default=0.0) > -0.005
+    # ...and the live arms never press into each other.
+    assert min(deepest) > -0.005
+
+
+def test_collision_guard_treats_products_as_manipulable(clear_env):
+    from abstract_stack.env import ShelfStockingEnv
+    from abstract_stack.scene import ShelfConfig
+
+    env = ShelfStockingEnv(ShelfConfig(product_count=2))
+    try:
+        retargeter = _core(env).retargeter
+        products = {env.model.body(p.name).id for p in env.products}
+        assert products <= retargeter._movable
+        assert env.model.body("mabel_chassis").id not in retargeter._movable
+        assert env.model.body("shelf").id not in retargeter._movable
+    finally:
+        env.close()
