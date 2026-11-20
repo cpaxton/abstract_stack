@@ -88,6 +88,13 @@ class DenseStockingScript(StockingScript):
 
     FRONT_SUPPORT = "shelf"
     CONTACT_PROTOCOL = "shelf_front_release_then_ungrasped_selected_finger_push"
+    FORWARD_UNLOAD_DOWNFORCE_N = 0.6
+
+    def _ungrasped_forward_fraction(self):
+        """Unload downward wrench ON the carton before advancing a free push."""
+        force_z = self.last_forces.get("hand_force_world_N", [0, 0, 0])[2]
+        return float(np.clip(1 + force_z / self.FORWARD_UNLOAD_DOWNFORCE_N, 0, 1))
+
     ALLOW_OFFSET_START = True
 
     def __init__(self, env, *args, **kwargs):
@@ -107,11 +114,16 @@ class DenseStockingScript(StockingScript):
         self.object_pair_bins = {}
         self.wrist_load = 0.0
         self.wrist_load_peak = 0.0
+        self.wrist_load_requested_peak = 0.0
+        self.wrist_load_last_requested = 0.0
         self.wrist_load_clipped = 0
 
     def _load_feedforward(self):
         if not isinstance(self.controller, FingerPusher):
             return None
+        return self._wrist_contact_load()
+
+    def _wrist_contact_load(self):
         # last_forces is the wrench ON the carton from the distal hand.
         # Counter the opposite reaction at the wrist through its native servo.
         data, model = self.env.data, self.env.model
@@ -121,6 +133,8 @@ class DenseStockingScript(StockingScript):
             self.last_forces.get("hand_moment_about_body_origin_Nm", [0, 0, 0])
         ) + np.cross(data.body(self.product.name).xpos - data.xanchor[joint], force)
         requested = float(np.dot(moment, data.xaxis[joint]))
+        self.wrist_load_last_requested = requested
+        self.wrist_load_requested_peak = max(self.wrist_load_requested_peak, abs(requested))
         # The upstream wrist has kp=1 and no native effort cap. Make the
         # additional load effort explicit and bounded, rather than changing kp.
         bounded = float(np.clip(requested, -0.3, 0.3))
@@ -170,6 +184,9 @@ class DenseStockingScript(StockingScript):
                 "maximum_effort_Nm": 0.3,
                 "maximum_effort_rate_Nm_s": 0.5,
                 "peak_requested_effort_Nm": self.wrist_load_peak,
+                "legacy_peak_requested_field_records_applied": True,
+                "peak_raw_requested_effort_Nm": self.wrist_load_requested_peak,
+                "peak_applied_effort_Nm": self.wrist_load_peak,
                 "clipped_updates": int(self.wrist_load_clipped),
             },
         }
@@ -177,7 +194,10 @@ class DenseStockingScript(StockingScript):
     def _front_center_x(self, extent):
         # Stage in the empty front portion of the deep shelf, before the
         # occupied row. Reduces unsupported lateral/yaw drift during the push.
-        return self.env.config.front_x - 0.07
+        return self.env.config.front_x - self.config.front_staging_depth
+
+    def _wrist_offset_limit(self, kind):
+        return 0.5 if issubclass(kind, FingerPusher) else None
 
     def _change_hand(self, kind, **kwargs):
         previous = self.controller
@@ -191,7 +211,10 @@ class DenseStockingScript(StockingScript):
         tracker = MabelController(
             self.env.model,
             self.env.data,
-            replace(self.tracker.config, wrist_offset_limit=0.5 if kind is FingerPusher else None),
+            replace(
+                self.tracker.config,
+                wrist_offset_limit=self._wrist_offset_limit(kind),
+            ),
         )
         tracker.nominal = self.tracker.nominal.copy()
         tracker.applied = self.tracker.applied.copy()
@@ -212,6 +235,15 @@ class DenseStockingScript(StockingScript):
         if self.product == row[-1]:
             return "Ring"
         return "Middle"
+
+    def _pushing_finger_candidates(self):
+        return (self._pushing_finger(),)
+
+    def _pusher_settings(self):
+        for finger in self._pushing_finger_candidates():
+            for tilt in (20, 30, 10, 40):
+                for wrist in (0.2, 0.4, 0.0, 0.6):
+                    yield dict(finger=finger, tilt_degrees=tilt, wrist_posture=wrist)
 
     def _select_grasp(self, pending):
         if isinstance(self.controller, FingerPusher):
@@ -290,7 +322,9 @@ class DenseStockingScript(StockingScript):
                     name: float(np.clip(value, *env.model.actuator(name).ctrlrange))
                     for name, value in opening.items()
                 }
-                if hand.check_hand_step(prediction, 0, product.name, targets=opening):
+                collisions = hand.check_hand_step(prediction, 0, product.name, targets=opening)
+                if collisions:
+                    self.events[-1]["finger_sweep_rejection"] = collisions
                     raise InteractionFailure("release_front: coupled stationary opening rejected")
                 action.update(opening)
             hand.last_target = target.copy()
@@ -318,7 +352,7 @@ class DenseStockingScript(StockingScript):
             return np.linalg.norm(error_now) < 0.0002 and abs(yaw_now) < np.radians(0.15)
 
         stable = 0.0
-        for _ in range(int(6.0 / env.dt)):
+        for _ in range(int(self.config.alignment_timeout_seconds / env.dt)):
             good = tick()
             stable = stable + env.dt if good else 0.0
             if stable >= 0.1:
@@ -437,57 +471,84 @@ class DenseStockingScript(StockingScript):
         event = self.events[-1]
         attempts = []
         started = time.monotonic()
-        for tilt in (20, 30, 10, 40):
-            for wrist in (0.2, 0.4, 0.0, 0.6):
-                if time.monotonic() - started > 45:
-                    event.update(
-                        candidates=attempts, planning_wall_seconds=time.monotonic() - started
+        for settings in self._pusher_settings():
+            if time.monotonic() - started > 45:
+                event.update(candidates=attempts, planning_wall_seconds=time.monotonic() - started)
+                raise InteractionFailure("pusher_plan: bounded planning budget exhausted")
+            for raise_first in (False, True):
+                clone = self.env.clone_for_planning()
+                hand = getattr(self, "PUSHER_CLASS", FingerPusher)(clone, self.config, **settings)
+                hand.command = self.controller.command.copy()
+                waypoints = ([precontact + [0, 0, 0.08]] if raise_first else []) + [precontact]
+                attempt = {**settings, "raise_first": raise_first}
+                attempts.append(attempt)
+                for point in waypoints:
+                    prediction = hand.predict(
+                        point,
+                        alternatives=False,
+                        carrying=False,
+                        path_mode=getattr(self, "PUSHER_APPROACH_PATH_MODE", "joint"),
                     )
-                    raise InteractionFailure("pusher_plan: bounded planning budget exhausted")
-                settings = dict(
-                    finger=self._pushing_finger(), tilt_degrees=tilt, wrist_posture=wrist
-                )
-                for raise_first in (False, True):
-                    clone = self.env.clone_for_planning()
-                    hand = FingerPusher(clone, self.config, **settings)
-                    hand.command = self.controller.command.copy()
-                    waypoints = ([precontact + [0, 0, 0.08]] if raise_first else []) + [precontact]
-                    attempt = {**settings, "raise_first": raise_first}
-                    attempts.append(attempt)
-                    for point in waypoints:
-                        prediction = hand.predict(point, alternatives=False, carrying=False)
-                        if not prediction.feasible:
-                            attempt.update(rejected="approach", prediction=prediction.report())
-                            break
-                        self._planning_pose(hand, prediction)
-                    else:
-                        prediction = hand.predict(
-                            end,
-                            allowed_object=self.product.name,
-                            alternatives=False,
-                            carrying=False,
-                            sliding=True,
-                            path_mode="cartesian",
-                        )
-                        if not prediction.feasible:
-                            attempt.update(rejected="insertion", prediction=prediction.report())
-                            continue
-                        margins = self._clearance_margin(hand, prediction, precontact, end)
-                        attempt["sampled_clearance_m"] = margins
-                        if margins["support"] < 0.012 or margins["sides"] < 0.004:
-                            attempt["rejected"] = "tracking_clearance_margin"
-                            continue
-                        event.update(
-                            candidates=attempts,
-                            selected=settings,
-                            planning_wall_seconds=time.monotonic() - started,
-                            decision="execute_checked_empty_hand_approach",
-                        )
-                        return settings, waypoints
+                    if not prediction.feasible:
+                        attempt.update(rejected="approach", prediction=prediction.report())
+                        break
+                    self._planning_pose(hand, prediction)
+                else:
+                    prediction = hand.predict(
+                        end,
+                        allowed_object=self.product.name,
+                        alternatives=False,
+                        carrying=False,
+                        sliding=True,
+                        path_mode="cartesian",
+                    )
+                    if not prediction.feasible:
+                        attempt.update(rejected="insertion", prediction=prediction.report())
+                        continue
+                    margins = self._clearance_margin(hand, prediction, precontact, end)
+                    attempt["sampled_clearance_m"] = margins
+                    if margins["support"] < 0.012 or margins["sides"] < 0.004:
+                        attempt["rejected"] = "tracking_clearance_margin"
+                        continue
+                    event.update(
+                        candidates=attempts,
+                        selected=settings,
+                        planning_wall_seconds=time.monotonic() - started,
+                        decision="execute_checked_empty_hand_approach",
+                    )
+                    return settings, waypoints
         event.update(candidates=attempts, planning_wall_seconds=time.monotonic() - started)
         raise InteractionFailure("pusher_plan: no acceptable posture/path in bounded search")
 
-    def _insert_from_front(self):
+    def _partial_push_state(self, stop_x, *, unloaded=False):
+        """Measured intermediate gate; this never grants final task credit."""
+        velocity = np.zeros(6)
+        mujoco.mj_objectVelocity(
+            self.env.model,
+            self.env.data,
+            mujoco.mjtObj.mjOBJ_BODY,
+            self.env.model.body(self.product.name).id,
+            velocity,
+            0,
+        )
+        body = self.env.data.body(self.product.name)
+        report = dict(
+            position_error_x_m=float(body.xpos[0] - stop_x),
+            linear_speed_m_s=float(np.linalg.norm(velocity[3:])),
+            upright=bool(body.xmat.reshape(3, 3)[2, 2] >= np.cos(np.radians(15))),
+            shelf_support_N=float(self.last_forces["shelf"]),
+            hand_contact_N=float(self.last_forces["hand"]),
+        )
+        report["accepted"] = (
+            abs(report["position_error_x_m"]) <= 0.005
+            and report["linear_speed_m_s"] <= 0.005
+            and report["upright"]
+            and report["shelf_support_N"] > 0.2
+            and (not unloaded or report["hand_contact_N"] <= 0.2)
+        )
+        return report
+
+    def _insert_from_front(self, *, partial_stop_x=None):
         env, config, product = self.env, self.config, self.product
         body = env.data.body(product.name)
         extent = np.abs(body.xmat.reshape(3, 3)) @ np.asarray(product.half_size)
@@ -500,6 +561,15 @@ class DenseStockingScript(StockingScript):
                 height,
             ]
         )
+        if partial_stop_x is not None:
+            full_center_x = end[0] - extent[0]
+            if not np.isfinite(partial_stop_x) or not (
+                full_center_x + 0.02 < partial_stop_x < body.xpos[0] - 0.01
+            ):
+                raise ValueError(
+                    "Partial push must stop strictly between entry and final placement"
+                )
+            end[0] = partial_stop_x + extent[0]
         settings, waypoints = self._plan_pusher(precontact, end)
         self._change_hand(FingerPusher, **settings)
         hand = self.controller
@@ -519,11 +589,23 @@ class DenseStockingScript(StockingScript):
             path_mode="cartesian",
         )
         event = self.events[-1]
+        event["partial_stop_object_x_m"] = partial_stop_x
+        if partial_stop_x is not None:
+            event.update(
+                partial_position_tolerance_m=0.005,
+                partial_speed_limit_m_s=0.005,
+                partial_dwell_seconds=config.contact_dwell,
+            )
         event.update(
             ik_prediction=prediction.report(),
             push_origin_m=origin.tolist(),
             maximum_advance_m=env.config.depth + 0.15,
             timeout_seconds=45.0,
+            active_push_budget_seconds=45.0,
+            maximum_recovery_seconds=4.5 if getattr(self, "contact_recovery", False) else 0.0,
+            maximum_combined_control_seconds=(
+                49.5 if getattr(self, "contact_recovery", False) else 45.0
+            ),
             nominal_push_speed_m_s=0.04,
             contact_mode="ungrasped, supported by shelf front then occupied row",
             assumption="object slides along the row; no rigid hand/object attachment",
@@ -534,14 +616,27 @@ class DenseStockingScript(StockingScript):
         if not prediction.feasible:
             raise InteractionFailure("finger_push: no acceptable empty-hand insertion path")
         held = 0.0
+        yaw_integral_lever = 0.0
+        object_velocity = np.zeros(6)
+        if getattr(self, "contact_recovery", False):
+            self._start_free_push()
         for _ in range(int(45.0 / env.dt)):
+            if getattr(self, "contact_recovery", False) and self._free_push_loss_seconds >= 0.04:
+                target = self._reacquire_push_contact(target, origin, height, event)
+                yaw_integral_lever = 0.0
+                continue
             body = env.data.body(product.name)
             rotation = body.xmat.reshape(3, 3)
             yaw = float(np.arctan2(rotation[1, 0], rotation[0, 0]))
             if rotation[2, 2] < np.cos(np.radians(15)):
                 raise InteractionFailure("finger_push: carton tilting; replan required")
             if self.last_forces["back"] >= config.contact_threshold:
-                scale = np.clip((0.6 - self.last_forces["back"]) / 0.6, -1, 1)
+                scale = np.clip(
+                    (config.insertion_back_force_target - self.last_forces["back"])
+                    / config.insertion_back_force_target,
+                    -1,
+                    1,
+                )
                 speed = 0.01
             else:
                 scale = np.clip(
@@ -551,6 +646,20 @@ class DenseStockingScript(StockingScript):
                     1,
                 )
                 speed = 0.04
+            if getattr(self, "contact_recovery", False) and scale > 0:
+                # The measured wrench is ON the carton. Downward finger load
+                # raises board friction and can pivot a tall carton before it
+                # slides. Unload with the existing vertical admittance before
+                # advancing again; reverse/unloading motion remains available.
+                advance_fraction = self._ungrasped_forward_fraction()
+                scale *= advance_fraction
+                event["forward_unload_downforce_N"] = self.FORWARD_UNLOAD_DOWNFORCE_N
+                if advance_fraction < 1:
+                    event["forward_unload_updates"] = event.get("forward_unload_updates", 0) + 1
+            if partial_stop_x is not None and scale > 0:
+                # Brake from measured object progress before the intermediate
+                # stop; do not keep loading the carton after crossing it.
+                scale *= float(np.clip((body.xpos[0] - partial_stop_x) / 0.015, 0, 1))
             target[0] -= speed * env.dt * scale
             # Use measured yaw/slot error while the carton is still moving.
             # A centered single-point push alone cannot regulate yaw.
@@ -558,26 +667,73 @@ class DenseStockingScript(StockingScript):
             # Torque depends on the contact lever relative to the MEASURED
             # carton center. A lever based only on the canonical slot changes
             # sign after lateral drift and can amplify yaw during a jam.
-            desired_y = body.xpos[1] - np.clip(0.12 * yaw, -0.014, 0.014)
+            desired_lever = -config.insertion_yaw_lever_gain * yaw
+            if (
+                getattr(self, "square_backstop", False)
+                and self.last_forces["back"] >= config.contact_threshold
+            ):
+                mujoco.mj_objectVelocity(
+                    env.model,
+                    env.data,
+                    mujoco.mjtObj.mjOBJ_BODY,
+                    env.model.body(product.name).id,
+                    object_velocity,
+                    0,
+                )
+                yaw_integral_lever -= 0.03 * yaw * env.dt
+                desired_lever += yaw_integral_lever - 0.01 * object_velocity[2]
+                desired_lever = float(np.clip(desired_lever, -0.014, 0.014))
+                yaw_integral_lever = (
+                    desired_lever
+                    + config.insertion_yaw_lever_gain * yaw
+                    + 0.01 * object_velocity[2]
+                )
+                event["yaw_integral_lever_m"] = yaw_integral_lever
+            desired_y = body.xpos[1] + np.clip(desired_lever, -0.014, 0.014)
             measured_y = contact[1] if contact is not None else hand.position()[1]
             force_y = self.last_forces.get("hand_force_world_N", [0, 0, 0])[1]
+            position_gain = config.insertion_lateral_position_gain
+            if (
+                getattr(self, "square_backstop", False)
+                and self.last_forces["back"] >= config.contact_threshold
+            ):
+                # Use the backstop to square the box before resuming lateral
+                # positioning; competing translation feedback can reverse the
+                # yaw-correcting contact lever while the box is braced.
+                position_gain = 0.0
+                event["backstop_alignment_uses_yaw_priority"] = True
             lateral_speed = (
                 2 * (desired_y - measured_y)
-                + 0.2 * (product.target[1] - body.xpos[1])
-                - 0.004 * force_y
+                + position_gain * (product.target[1] - body.xpos[1])
+                - config.insertion_tangent_admittance * force_y
             )
             target[1] += np.clip(lateral_speed * env.dt, -0.01 * env.dt, 0.01 * env.dt)
             measured_height = contact[2] if contact is not None else hand.position()[2]
             force_z = self.last_forces.get("hand_force_world_N", [0, 0, 0])[2]
             vertical_speed = -0.012 * force_z + 0.2 * (height - measured_height)
             target[2] += np.clip(vertical_speed * env.dt, -0.015 * env.dt, 0.015 * env.dt)
+            if getattr(self, "bounded_contact_ik", False):
+                lower = np.array(
+                    [
+                        origin[0] - env.config.depth - 0.15,
+                        product.target[1] - 0.02,
+                        height - 0.005,
+                    ]
+                )
+                upper = np.array([origin[0] + 0.03, product.target[1] + 0.02, height + 0.025])
+                bounded = np.clip(target, lower + 1e-6, upper - 1e-6)
+                if not np.array_equal(bounded, target):
+                    event["reference_saturation_updates"] = (
+                        event.get("reference_saturation_updates", 0) + 1
+                    )
+                target = bounded
             if (
                 not origin[0] - env.config.depth - 0.15 <= target[0] <= origin[0] + 0.03
                 or abs(target[1] - product.target[1]) > 0.02
                 or not height - 0.005 <= target[2] <= height + 0.025
             ):
                 raise InteractionFailure("finger_push: corrected target outside bounded motion")
-            prediction = hand.predict(
+            prediction = self._contact_prediction(
                 target,
                 allowed_object=product.name,
                 alternatives=False,
@@ -597,7 +753,7 @@ class DenseStockingScript(StockingScript):
                     if wrist == original:
                         continue
                     hand.ik.constrain_posture("Left Wrist", wrist)
-                    candidate = hand.predict(
+                    candidate = self._contact_prediction(
                         target,
                         allowed_object=product.name,
                         alternatives=False,
@@ -613,8 +769,37 @@ class DenseStockingScript(StockingScript):
                     hand.ik.constrain_posture("Left Wrist", original)
                     event["feedback_rejection"] = prediction.report()
                     raise InteractionFailure("finger_push: feedback path rejected before actuation")
+            if getattr(self, "bounded_contact_ik", False):
+                requested = target.copy()
+                # Anti-windup projects onto the commanded nominal FK, never
+                # the sagged measured tool pose. Recheck all motion bounds.
+                target = prediction.position.copy()
+                if (
+                    not origin[0] - env.config.depth - 0.15 <= target[0] <= origin[0] + 0.03
+                    or abs(target[1] - product.target[1]) > 0.02
+                    or not height - 0.005 <= target[2] <= height + 0.025
+                ):
+                    raise InteractionFailure(
+                        "finger_push: projected nominal reference outside bounds"
+                    )
+                event.setdefault("nominal_projection_samples", []).append(
+                    [float(env.data.time), *requested, *target, prediction.position_error_m]
+                )
             hand.last_target = target.copy()
-            self._apply_tick(hand.joint_targets(prediction.q, 0))
+            action = hand.joint_targets(prediction.q, 0)
+            if getattr(self, "bounded_contact_ik", False) and not np.allclose(
+                hand.command, prediction.q, atol=1e-9, rtol=0
+            ):
+                raise InteractionFailure("finger_push: unexpected second nominal rate projection")
+            self._apply_tick(action)
+            if getattr(self, "bounded_contact_ik", False):
+                tracked_nominal = np.array(
+                    [self.tracker.last_report["nominal"][name] for name in [*hand.names, "Lift"]]
+                )
+                if not np.allclose(tracked_nominal, hand.command, atol=1e-9, rtol=0):
+                    raise InteractionFailure(
+                        "finger_push: hand and joint-tracker nominal references diverged"
+                    )
             event.setdefault("push_control_samples", []).append(
                 [
                     float(env.data.time),
@@ -627,12 +812,23 @@ class DenseStockingScript(StockingScript):
                 self.supported_slide = True
             if self.last_forces["shelf"] > 0.2:
                 event["verified_shelf_support"] = True
+            if partial_stop_x is not None:
+                partial_state = self._partial_push_state(partial_stop_x)
+                event["partial_state"] = partial_state
+                held = held + env.dt if partial_state["accepted"] else 0.0
+                if held >= config.contact_dwell:
+                    event["verified_partial_push"] = True
+                    break
+                continue
             contacted = (
                 self.last_forces["back"] >= config.contact_threshold
                 and self.last_forces["hand"] > 0.2
                 and self.last_forces["shelf"] > 0.2
                 and rotation[2, 2] >= np.cos(np.radians(config.payload_upright_degrees))
             )
+            if getattr(self, "square_backstop", False):
+                contacted = contacted and abs(yaw) <= np.radians(0.15)
+                event["requested_backstop_yaw_tolerance_deg"] = 0.15
             held = held + env.dt if contacted else 0.0
             if held >= config.contact_dwell:
                 event["back_contact_verified"] = True
@@ -642,5 +838,20 @@ class DenseStockingScript(StockingScript):
         self.supported_slide = False
         self.observer.begin_retreat(product.name)
         self._release_grasp()
-        self._move("clear", hand.position() + [0.04, 0, 0.02], orientation_alternatives=False)
+        self._clear_pusher(hand)
         self.observer.end_retreat(product.name)
+        if partial_stop_x is not None:
+            final_partial = self._partial_push_state(partial_stop_x, unloaded=True)
+            event["partial_state_after_retreat"] = final_partial
+            if not final_partial["accepted"]:
+                raise InteractionFailure(
+                    "partial_push: intermediate state not settled after retreat"
+                )
+            event["verified_partial_support_after_retreat"] = True
+
+    def _clear_pusher(self, hand):
+        self._move("clear", hand.position() + [0.04, 0, 0.02], orientation_alternatives=False)
+
+    def _contact_prediction(self, target, **kwargs):
+        """Hook for an opt-in rate-constrained online Cartesian controller."""
+        return self.controller.predict(target, **kwargs)

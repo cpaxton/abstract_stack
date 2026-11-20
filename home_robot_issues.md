@@ -100,3 +100,70 @@ project names, task descriptions, repository links, or private context.
   initial integration state and controls, and isolate a standalone upstream-only
   model/state sequence before reporting a library bug. Do not include downstream
   names, repository paths, task details or private artifacts in a future report.
+- **Additional observation, 2026-11-17:** a frozen-source headless regression
+  child exited with signal 11 during a contact-force observer. Faulthandler's
+  current Python frame is the hand-contact accumulator at `contact_forces`, not
+  a native C backtrace; this does not identify the corrupting operation. The
+  process has no terminal summary and retains zero successful stages. Model,
+  initial state, controls/source hashes and the full log are retained locally at
+  `outputs/contact-rich-replanning-v1/standard-regression/benchmark/tuned/seed-2/`.
+  The other nine selected-controller episodes completed; no retry replaces the
+  unknown outcome. The native cause remains open and no upstream issue was filed.
+- **Further direct-simulator observations:** separate frozen development
+  processes exited with signal 11 at named model-body access and at an observer
+  displacement calculation. Both were headless; their initial state, source
+  hashes and faulthandler logs remain under ignored local artifacts. A later
+  diagnostic with matching controller source returned an ordinary guarded
+  failure. That does not replace either unknown outcome or identify a cause.
+  No upstream issue or message was sent.
+- **Primitive-only reproduction:** a twenty-body model with named model/data
+  array reads, Python collection and no physics steps also segfaulted. In three
+  matched pairs, transient wrappers failed twice while retained model wrappers
+  completed all three. Independent GDB captures stop in `memmove` without an
+  identified corrupting operation. A local wrapper-retention mitigation is under
+  validation; this does not prove all earlier signals share its cause. The
+  standalone `scripts/diagnose_mujoco_views.py` has no robot/controller assets or
+  downstream imports. Keep fresh-process failures, return codes and logs. See
+  [the diagnostic report](docs/reports/native_view_crash_diagnostic.md). No
+  library-level fix is established and nothing was filed upstream.
+- **Mitigation limit:** model-wrapper retention alone later failed a full native
+  suite at a data-array observer access. Preserve that failure separately. The
+  next candidate retains data wrappers as well; this is still a local lifetime
+  hypothesis and requires its own native validation.
+- **Combined-wrapper validation:** one frozen suite completed 227 tests, while
+  an earlier process exceeded its 600 s budget and a later frozen working-source
+  suite exited with native signal 11 after 135 s. Both model and data wrappers
+  were retained in these candidates. This mitigation is not sufficient; the
+  passing process does not replace the failed or unknown outcomes. The last
+  printed test label in the latter process does not identify the corrupting
+  operation. Exact source fingerprints and process logs remain local. Nothing
+  has been sent upstream.
+- **Later recording process:** a frozen two-view development run exited with
+  signal 11 after 548.93 s wall time. Its Python frame was in IK during a pusher
+  planning call; that frame is not a native corruption diagnosis. There is no
+  terminal episode summary, so it earns zero successful stages. Raw progress,
+  incomplete recordings, frozen sources and stack remain under ignored local
+  artifacts. An earlier whole-body focused-test process also failed during
+  environment construction before the new controller was created; its later
+  passing focused tests do not replace that unknown outcome.
+
+## SIM-002 — Warp CUDA compilation signal in state helper
+
+- **Status:** observed 2026-11-17 during a bounded backend admission probe;
+  not established as an Emet defect and no upstream report has been sent.
+- **Environment:** CPython 3.11.12, NumPy 1.26.4, MuJoCo 3.17.0,
+  MuJoCo Warp 3.17.0, Warp 1.19.0, RTX 4090.
+- **Observation:** model import and the first step/forward compilation returned;
+  the process subsequently exited with signal 11 while compiling the
+  `mujoco_warp.set_state` helper. The Python stack ends in Warp `build_cuda`;
+  it does not identify the underlying native cause. The original return code,
+  source/lock hashes and log remain at
+  `outputs/rollout-backends-v1/cuda-admission/` with zero task credit.
+- **Bounded alternative:** initialize a fresh independent device data object
+  from native data after the disposable compilation forecast; verify initial
+  qpos/controls and that CUDA capture did not advance time. This path completed
+  subsequent throughput probes without model changes. It does not establish
+  that the state-helper defect or earlier native process faults are fixed.
+- **Next diagnostic:** a minimal upstream-only state-helper compilation example
+  without robot assets, downstream imports, paths or task context. Do not file
+  or send this draft without authorization.
